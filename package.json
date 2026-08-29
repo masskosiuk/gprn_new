@@ -1,0 +1,27 @@
+{
+  "name": "gprn",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "turbo build",
+    "db:generate": "pnpm --filter @gprn/db db:generate",
+    "db:migrate": "pnpm --filter @gprn/db db:migrate",
+    "db:seed": "pnpm --filter @gprn/db db:seed",
+    "dev": "turbo dev",
+    "format": "prettier --write .",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "typecheck": "turbo typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "prettier": "^3.6.2",
+    "turbo": "^2.5.5",
+    "typescript": "^5.9.2"
+  }
+}
+

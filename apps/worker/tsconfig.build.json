@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@gprn/config": ["packages/config/dist/index.d.ts"],
+      "@gprn/domain": ["packages/domain/dist/index.d.ts"]
+    }
+  }
+}

@@ -1,0 +1,17 @@
+# Replace photos.example.com with the real subdomain before adding this block
+# to /etc/caddy/Caddyfile on the Debian host.
+photos.example.com {
+    encode zstd gzip
+    request_body {
+        max_size 100MB
+    }
+
+    # Keep /api in the URI: NestJS serves /api/v1 and /api/docs.
+    handle /api/* {
+        reverse_proxy 127.0.0.1:14000
+    }
+
+    handle {
+        reverse_proxy 127.0.0.1:13000
+    }
+}
