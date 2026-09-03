@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@gprn/config": ["packages/config/dist/index.d.ts"],
+      "@gprn/db": ["packages/db/dist/index.d.ts"],
+      "@gprn/rbac": ["packages/rbac/dist/index.d.ts"]
+    }
+  }
+}
