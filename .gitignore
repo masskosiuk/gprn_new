@@ -15,9 +15,8 @@ test-results/
 *.tsbuildinfo
 
 uploads/
-storage/
+/storage/
 tmp/
 
 generated/
 packages/db/src/generated/
-
