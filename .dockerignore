@@ -12,7 +12,6 @@ node_modules
 **/*.tsbuildinfo
 **/*.log
 **/*.bak
-storage
 tmp
 .env
 .env.*
