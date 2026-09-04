@@ -198,6 +198,11 @@ enum FeatureFlagScope {
   USER
 }
 
+enum AuthTokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
 model User {
   id                  String               @id @default(uuid()) @db.Uuid
   email               String               @unique
@@ -210,9 +215,12 @@ model User {
   profile             Profile?
   roles               UserRole[]
   sessions            Session[]
+  authTokens          AuthToken[]
   externalConnections ExternalConnection[]
   photos              Photo[]
   battleVotes         BattleVote[]
+  challengeEntries    ChallengeEntry[]
+  seasonParticipants  SeasonParticipant[]
   ratings             Rating[]
   ratingEvents        RatingEvent[]
   achievements        UserAchievement[]
@@ -220,6 +228,7 @@ model User {
   followers           Follow[]             @relation("follow_following")
   notifications       Notification[]
   reports             Report[]             @relation("report_reporter")
+  copyrightDisputes   CopyrightDispute[]    @relation("dispute_claimant")
   auditLogs           AuditLog[]            @relation("audit_actor")
   analyticsEvents     AnalyticsEvent[]
   sellerProfile       SellerProfile?
@@ -238,6 +247,7 @@ model Profile {
   displayName     String
   bio             String?
   avatarAssetKey  String?
+  coverAssetKey   String?
   websiteUrl      String?
   socialLinks     Json?
   countryId       String?   @db.Uuid
@@ -318,6 +328,22 @@ model Session {
   @@index([userId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+model AuthToken {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  purpose   AuthTokenPurpose
+  tokenHash String           @unique
+  createdAt DateTime         @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+  revokedAt DateTime?
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, expiresAt])
+  @@index([purpose, expiresAt])
+  @@map("auth_tokens")
 }
 
 model ExternalConnection {
@@ -647,6 +673,7 @@ model SeasonParticipant {
   joinedAt  DateTime @default(now())
   metadata  Json?
   season    Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([seasonId, userId])
   @@index([userId])
@@ -684,8 +711,10 @@ model ChallengeEntry {
   submittedAt DateTime @default(now())
   challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
   photo       Photo     @relation(fields: [photoId], references: [id], onDelete: Restrict)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([challengeId, photoId])
+  @@unique([challengeId, userId])
   @@index([userId])
   @@map("challenge_entries")
 }
@@ -1153,6 +1182,7 @@ model CopyrightDispute {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   subjectPhoto   Photo         @relation("dispute_subject_photo", fields: [subjectPhotoId], references: [id], onDelete: Restrict)
+  claimant       User          @relation("dispute_claimant", fields: [claimantUserId], references: [id], onDelete: Restrict)
 
   @@index([status, createdAt])
   @@index([claimantUserId])
@@ -1216,4 +1246,3 @@ model Translation {
   @@index([namespace, key])
   @@map("translations")
 }
-

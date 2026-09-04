@@ -10,6 +10,7 @@ export const runtimeEnvSchema = z.object({
   API_URL: z.string().url(),
   APP_ENV: z.enum(["local", "staging", "production"]).default("local"),
   APP_URL: z.string().url(),
+  CDN_PUBLIC_URL: z.string().url().optional(),
   DATABASE_URL: z.string().min(1),
   ENCRYPTION_KEY: z.string().min(1),
   EXPERT_REVIEWS_ENABLED: booleanString.default(false),
@@ -32,4 +33,3 @@ export type RuntimeEnv = z.infer<typeof runtimeEnvSchema>;
 export function loadRuntimeEnv(source: NodeJS.ProcessEnv = process.env): RuntimeEnv {
   return runtimeEnvSchema.parse(source);
 }
-

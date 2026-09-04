@@ -12,5 +12,5 @@ export default async function HomePage({ params }: HomePageProps): Promise<React
   const { locale: requestedLocale } = await params;
   const locale = isSupportedLocale(requestedLocale) ? requestedLocale : "en";
 
-  return <HomeClient locale={locale} />;
+  return <HomeClient initialSection="home" locale={locale} />;
 }
