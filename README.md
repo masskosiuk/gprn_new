@@ -17,6 +17,8 @@ Disabled future systems must not be faked:
 - expert verification;
 - external OAuth photo imports.
 
+-- чекавосучара
+
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
