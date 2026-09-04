@@ -32,7 +32,7 @@ This project is an API-first, production-oriented MVP foundation for a global ph
 
 The MVP must implement real core foundations: users, profiles, upload, provenance, categories, battles, voting, rating, leaderboards, seasons and localization.
 
-Marketplace, expert reviews, payments and AI are feature-flagged future systems. The architecture and database models exist, but successful payments, AI analysis, external OAuth imports and expert verification must never be faked.
+Marketplace, expert reviews, payments and AI are feature-flagged future systems. Facebook and professional Instagram profile OAuth is optional and credential-gated; external photo-source OAuth remains future work. Successful payments, AI analysis, unavailable OAuth providers and expert verification must never be faked.
 
 ## Photo Pipeline
 
@@ -76,4 +76,3 @@ Docker Compose provides:
 ## Deployment Direction
 
 Use separate local, staging and production environments. Production must have separate database, storage, credentials, CDN, workers, monitoring and backup strategy.
-
