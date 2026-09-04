@@ -17,9 +17,7 @@
     "@fastify/helmet": "^13.0.1",
     "@gprn/config": "workspace:*",
     "@gprn/db": "workspace:*",
-    "@gprn/domain": "workspace:*",
     "@gprn/rbac": "workspace:*",
-    "@gprn/storage": "workspace:*",
     "@nestjs/common": "^11.1.6",
     "@nestjs/core": "^11.1.6",
     "@nestjs/platform-fastify": "^11.1.6",
@@ -27,7 +25,6 @@
     "dotenv": "^17.2.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "sharp": "^0.35.3",
     "tsx": "^4.20.3"
   },
   "devDependencies": {

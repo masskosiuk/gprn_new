@@ -26,15 +26,6 @@ const featureFlags = [
   "ADVANCED_PROVENANCE_ENABLED"
 ];
 
-const places = [
-  { city: "kyiv", country: "ukraine", iso2: "UA", iso3: "UKR", latitude: 50.4501, longitude: 30.5234 },
-  { city: "paris", country: "france", iso2: "FR", iso3: "FRA", latitude: 48.8566, longitude: 2.3522 },
-  { city: "tokyo", country: "japan", iso2: "JP", iso3: "JPN", latitude: 35.6762, longitude: 139.6503 },
-  { city: "reykjavik", country: "iceland", iso2: "IS", iso3: "ISL", latitude: 64.1466, longitude: -21.9426 },
-  { city: "lisbon", country: "portugal", iso2: "PT", iso3: "PRT", latitude: 38.7223, longitude: -9.1393 },
-  { city: "marrakech", country: "morocco", iso2: "MA", iso3: "MAR", latitude: 31.6295, longitude: -7.9811 }
-];
-
 async function main(): Promise<void> {
   for (const key of permissions) {
     await prisma.permission.upsert({
@@ -110,42 +101,6 @@ async function main(): Promise<void> {
     });
   }
 
-  for (const place of places) {
-    const country = await prisma.country.upsert({
-      create: {
-        iso2: place.iso2,
-        iso3: place.iso3,
-        nameKey: `country.${place.country}.name`,
-        slug: place.country
-      },
-      update: {
-        iso3: place.iso3,
-        nameKey: `country.${place.country}.name`
-      },
-      where: { iso2: place.iso2 }
-    });
-    const existingCity = await prisma.city.findFirst({
-      where: { countryId: country.id, regionId: null, slug: place.city }
-    });
-
-    if (existingCity) {
-      await prisma.city.update({
-        data: { latitude: place.latitude, longitude: place.longitude, nameKey: `city.${place.city}.name` },
-        where: { id: existingCity.id }
-      });
-    } else {
-      await prisma.city.create({
-        data: {
-          countryId: country.id,
-          latitude: place.latitude,
-          longitude: place.longitude,
-          nameKey: `city.${place.city}.name`,
-          slug: place.city
-        }
-      });
-    }
-  }
-
   for (const key of featureFlags) {
     await prisma.featureFlag.upsert({
       create: {
@@ -165,64 +120,20 @@ async function main(): Promise<void> {
     });
   }
 
-  const season = await prisma.season.upsert({
+  await prisma.season.upsert({
     create: {
       descriptionKey: "season.founding.description",
       endsAt: new Date("2027-12-31T23:59:59.000Z"),
       nameKey: "season.founding.name",
       slug: "season-01-founding",
       startsAt: new Date("2026-08-13T00:00:00.000Z"),
-      status: "ACTIVE"
+      status: "DRAFT"
     },
-    update: {
-      descriptionKey: "season.founding.description",
-      endsAt: new Date("2027-12-31T23:59:59.000Z"),
-      nameKey: "season.founding.name",
-      startsAt: new Date("2026-08-13T00:00:00.000Z"),
-      status: "ACTIVE"
-    },
+    update: {},
     where: { slug: "season-01-founding" }
   });
 
-  const challengeSeeds = [
-    { category: "street", slug: "street-stories", status: "ACTIVE" as const },
-    { category: "portrait", slug: "available-light-portrait", status: "ACTIVE" as const },
-    { category: "landscape", slug: "weather-and-land", status: "UPCOMING" as const }
-  ];
-
-  for (const challengeSeed of challengeSeeds) {
-    const category = await prisma.category.findUniqueOrThrow({ where: { slug: challengeSeed.category } });
-    await prisma.challenge.upsert({
-      create: {
-        categoryId: category.id,
-        descriptionKey: `challenge.${challengeSeed.slug}.description`,
-        endsAt: new Date("2027-12-15T23:59:59.000Z"),
-        rules: { maxEntriesPerUser: 1, voting: "community_battles" },
-        seasonId: season.id,
-        slug: challengeSeed.slug,
-        startsAt: new Date("2026-08-13T00:00:00.000Z"),
-        status: challengeSeed.status,
-        titleKey: `challenge.${challengeSeed.slug}.title`
-      },
-      update: {
-        categoryId: category.id,
-        seasonId: season.id,
-        status: challengeSeed.status
-      },
-      where: { slug: challengeSeed.slug }
-    });
-  }
-
-  for (const key of [
-    "first_upload",
-    "first_battle",
-    "first_win",
-    "founding_photographer",
-    "first_challenge",
-    "city_explorer",
-    "season_entrant",
-    "photographed_5_countries"
-  ]) {
+  for (const key of ["first_upload", "first_battle", "first_win", "founding_photographer"]) {
     await prisma.achievement.upsert({
       create: {
         descriptionKey: `achievement.${key}.description`,
@@ -244,3 +155,4 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
+

@@ -1,11 +1,5 @@
 name: gprn
 
-x-app-build: &app-build
-  context: .
-  dockerfile: infra/docker/node.production.Dockerfile
-  args:
-    NEXT_PUBLIC_SITE_URL: ${APP_URL:?Set APP_URL in .env.production}
-
 services:
   postgres:
     image: postgis/postgis:16-3.4
@@ -78,8 +72,9 @@ services:
       - internal
 
   migrate:
-    image: gprn-app:local
-    build: *app-build
+    build:
+      context: .
+      dockerfile: infra/docker/node.production.Dockerfile
     restart: "no"
     command: ["pnpm", "--filter", "@gprn/db", "db:deploy"]
     depends_on:
@@ -91,8 +86,9 @@ services:
       - internal
 
   api:
-    image: gprn-app:local
-    build: *app-build
+    build:
+      context: .
+      dockerfile: infra/docker/node.production.Dockerfile
     restart: unless-stopped
     init: true
     command: ["pnpm", "--filter", "@gprn/api", "start"]
@@ -112,8 +108,9 @@ services:
       - internal
 
   worker:
-    image: gprn-app:local
-    build: *app-build
+    build:
+      context: .
+      dockerfile: infra/docker/node.production.Dockerfile
     restart: unless-stopped
     init: true
     command: ["pnpm", "--filter", "@gprn/worker", "start"]
@@ -130,8 +127,9 @@ services:
       - internal
 
   web:
-    image: gprn-app:local
-    build: *app-build
+    build:
+      context: .
+      dockerfile: infra/docker/node.production.Dockerfile
     restart: unless-stopped
     init: true
     command: ["pnpm", "--filter", "@gprn/web", "start"]
