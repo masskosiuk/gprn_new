@@ -14,6 +14,15 @@ enum UserStatus {
   DELETED
 }
 
+enum ProfileTier {
+  VIEWER
+  AMATEUR
+  BEGINNER
+  EXPERIENCED
+  PROFESSIONAL
+  STAR
+}
+
 enum Visibility {
   PUBLIC
   FOLLOWERS
@@ -170,6 +179,55 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum WalletTransactionType {
+  DEPOSIT
+  PURCHASE
+  SALE
+  PLATFORM_FEE
+  DONATION_SENT
+  DONATION_RECEIVED
+  REFUND
+  ADMIN_ADJUSTMENT
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum ServiceRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  IN_PROGRESS
+  SUBMITTED
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+enum ServiceRequestKind {
+  SERVICE
+  PHOTO_REVIEW
+}
+
+enum PromotionPlacement {
+  HOME
+  MARKETPLACE
+  BATTLES
+}
+
+enum PromotionStatus {
+  DRAFT
+  PENDING_PAYMENT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
 enum ReportStatus {
   OPEN
   UNDER_REVIEW
@@ -198,59 +256,87 @@ enum FeatureFlagScope {
   USER
 }
 
+enum AuthTokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
 model User {
-  id                  String               @id @default(uuid()) @db.Uuid
-  email               String               @unique
-  emailVerifiedAt     DateTime?
-  passwordHash        String?
-  status              UserStatus           @default(ACTIVE)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  deletedAt           DateTime?
-  profile             Profile?
-  roles               UserRole[]
-  sessions            Session[]
-  externalConnections ExternalConnection[]
-  photos              Photo[]
-  battleVotes         BattleVote[]
-  ratings             Rating[]
-  ratingEvents        RatingEvent[]
-  achievements        UserAchievement[]
-  following           Follow[]             @relation("follow_follower")
-  followers           Follow[]             @relation("follow_following")
-  notifications       Notification[]
-  reports             Report[]             @relation("report_reporter")
-  auditLogs           AuditLog[]            @relation("audit_actor")
-  analyticsEvents     AnalyticsEvent[]
-  sellerProfile       SellerProfile?
-  expertProfile       ExpertProfile?
-  marketplaceOrders   MarketplaceOrder[]    @relation("marketplace_customer")
-  expertOrders        ExpertOrder[]         @relation("expert_customer")
+  id                      String               @id @default(uuid()) @db.Uuid
+  email                   String               @unique
+  emailVerifiedAt         DateTime?
+  passwordHash            String?
+  status                  UserStatus           @default(ACTIVE)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  deletedAt               DateTime?
+  profile                 Profile?
+  roles                   UserRole[]
+  sessions                Session[]
+  authTokens              AuthToken[]
+  externalConnections     ExternalConnection[]
+  photos                  Photo[]
+  battleVotes             BattleVote[]
+  challengeEntries        ChallengeEntry[]
+  seasonParticipants      SeasonParticipant[]
+  ratings                 Rating[]
+  ratingEvents            RatingEvent[]
+  achievements            UserAchievement[]
+  following               Follow[]             @relation("follow_follower")
+  followers               Follow[]             @relation("follow_following")
+  notifications           Notification[]
+  reports                 Report[]             @relation("report_reporter")
+  copyrightDisputes       CopyrightDispute[]   @relation("dispute_claimant")
+  auditLogs               AuditLog[]           @relation("audit_actor")
+  analyticsEvents         AnalyticsEvent[]
+  sellerProfile           SellerProfile?
+  expertProfile           ExpertProfile?
+  marketplaceOrders       MarketplaceOrder[]   @relation("marketplace_customer")
+  expertOrders            ExpertOrder[]        @relation("expert_customer")
+  wallet                  Wallet?
+  moodboards              Moodboard[]
+  photoReviews            PhotoReview[]        @relation("photo_review_author")
+  serviceRequestsSent     ServiceRequest[]     @relation("service_customer")
+  serviceRequestsReceived ServiceRequest[]     @relation("service_provider")
+  serviceMessages         ServiceMessage[]
+  serviceRatingsAuthored  ServiceRating[]      @relation("service_rating_author")
+  serviceRatingsReceived  ServiceRating[]      @relation("service_rating_subject")
+  donationsSent           Donation[]           @relation("donation_sender")
+  donationsReceived       Donation[]           @relation("donation_recipient")
+  promotions              Promotion[]
+  walletAdjustments       WalletTransaction[]  @relation("wallet_transaction_actor")
 
   @@index([status])
   @@map("users")
 }
 
 model Profile {
-  id              String    @id @default(uuid()) @db.Uuid
-  userId          String    @unique @db.Uuid
-  username        String    @unique
-  displayName     String
-  bio             String?
-  avatarAssetKey  String?
-  websiteUrl      String?
-  socialLinks     Json?
-  countryId       String?   @db.Uuid
-  regionId        String?   @db.Uuid
-  cityId          String?   @db.Uuid
-  visibility      Visibility @default(PUBLIC)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  country         Country?  @relation(fields: [countryId], references: [id], onDelete: SetNull)
-  region          Region?   @relation(fields: [regionId], references: [id], onDelete: SetNull)
-  city            City?     @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  id                   String      @id @default(uuid()) @db.Uuid
+  userId               String      @unique @db.Uuid
+  username             String      @unique
+  displayName          String
+  bio                  String?
+  avatarAssetKey       String?
+  coverAssetKey        String?
+  websiteUrl           String?
+  socialLinks          Json?
+  tier                 ProfileTier @default(VIEWER)
+  availableForHire     Boolean     @default(true)
+  serviceRatingAverage Decimal?    @db.Decimal(3, 2)
+  serviceRatingsCount  Int         @default(0)
+  completedAsProvider  Int         @default(0)
+  completedAsCustomer  Int         @default(0)
+  countryId            String?     @db.Uuid
+  regionId             String?     @db.Uuid
+  cityId               String?     @db.Uuid
+  visibility           Visibility  @default(PUBLIC)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  deletedAt            DateTime?
+  user                 User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country              Country?    @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  region               Region?     @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  city                 City?       @relation(fields: [cityId], references: [id], onDelete: SetNull)
 
   @@index([countryId])
   @@index([cityId])
@@ -304,20 +390,36 @@ model RolePermission {
 }
 
 model Session {
-  id           String    @id @default(uuid()) @db.Uuid
-  userId       String    @db.Uuid
-  tokenHash    String    @unique
-  userAgent    String?
-  ipHash       String?
-  createdAt    DateTime  @default(now())
-  expiresAt    DateTime
-  revokedAt    DateTime?
-  lastSeenAt   DateTime?
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique
+  userAgent  String?
+  ipHash     String?
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+model AuthToken {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  purpose   AuthTokenPurpose
+  tokenHash String           @unique
+  createdAt DateTime         @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+  revokedAt DateTime?
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, expiresAt])
+  @@index([purpose, expiresAt])
+  @@map("auth_tokens")
 }
 
 model ExternalConnection {
@@ -342,35 +444,35 @@ model ExternalConnection {
 }
 
 model Country {
-  id          String    @id @default(uuid()) @db.Uuid
-  iso2        String    @unique
-  iso3        String?   @unique
-  slug        String    @unique
-  nameKey     String
-  createdAt   DateTime  @default(now())
-  profiles    Profile[]
-  regions     Region[]
-  cities      City[]
+  id             String                @id @default(uuid()) @db.Uuid
+  iso2           String                @unique
+  iso3           String?               @unique
+  slug           String                @unique
+  nameKey        String
+  createdAt      DateTime              @default(now())
+  profiles       Profile[]
+  regions        Region[]
+  cities         City[]
   photoLocations PhotoLocation[]
-  ratings     Rating[]
-  leaderboards LeaderboardSnapshot[]
+  ratings        Rating[]
+  leaderboards   LeaderboardSnapshot[]
 
   @@map("countries")
 }
 
 model Region {
-  id          String    @id @default(uuid()) @db.Uuid
-  countryId   String    @db.Uuid
-  code        String?
-  slug        String
-  nameKey     String
-  createdAt   DateTime  @default(now())
-  country     Country   @relation(fields: [countryId], references: [id], onDelete: Cascade)
-  profiles    Profile[]
-  cities      City[]
+  id             String                @id @default(uuid()) @db.Uuid
+  countryId      String                @db.Uuid
+  code           String?
+  slug           String
+  nameKey        String
+  createdAt      DateTime              @default(now())
+  country        Country               @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  profiles       Profile[]
+  cities         City[]
   photoLocations PhotoLocation[]
-  ratings     Rating[]
-  leaderboards LeaderboardSnapshot[]
+  ratings        Rating[]
+  leaderboards   LeaderboardSnapshot[]
 
   @@unique([countryId, slug])
   @@index([countryId])
@@ -378,21 +480,21 @@ model Region {
 }
 
 model City {
-  id          String    @id @default(uuid()) @db.Uuid
-  countryId   String    @db.Uuid
-  regionId    String?   @db.Uuid
-  slug        String
-  nameKey     String
-  latitude    Decimal?  @db.Decimal(9, 6)
-  longitude   Decimal?  @db.Decimal(9, 6)
-  createdAt   DateTime  @default(now())
-  country     Country   @relation(fields: [countryId], references: [id], onDelete: Cascade)
-  region      Region?   @relation(fields: [regionId], references: [id], onDelete: SetNull)
-  profiles    Profile[]
-  places      Place[]
+  id             String                @id @default(uuid()) @db.Uuid
+  countryId      String                @db.Uuid
+  regionId       String?               @db.Uuid
+  slug           String
+  nameKey        String
+  latitude       Decimal?              @db.Decimal(9, 6)
+  longitude      Decimal?              @db.Decimal(9, 6)
+  createdAt      DateTime              @default(now())
+  country        Country               @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  region         Region?               @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  profiles       Profile[]
+  places         Place[]
   photoLocations PhotoLocation[]
-  ratings     Rating[]
-  leaderboards LeaderboardSnapshot[]
+  ratings        Rating[]
+  leaderboards   LeaderboardSnapshot[]
 
   @@unique([countryId, regionId, slug])
   @@index([countryId])
@@ -401,14 +503,14 @@ model City {
 }
 
 model Place {
-  id        String   @id @default(uuid()) @db.Uuid
-  cityId    String?  @db.Uuid
-  slug      String
-  nameKey   String
-  latitude  Decimal? @db.Decimal(9, 6)
-  longitude Decimal? @db.Decimal(9, 6)
-  createdAt DateTime @default(now())
-  city      City?    @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  id             String          @id @default(uuid()) @db.Uuid
+  cityId         String?         @db.Uuid
+  slug           String
+  nameKey        String
+  latitude       Decimal?        @db.Decimal(9, 6)
+  longitude      Decimal?        @db.Decimal(9, 6)
+  createdAt      DateTime        @default(now())
+  city           City?           @relation(fields: [cityId], references: [id], onDelete: SetNull)
   photoLocations PhotoLocation[]
 
   @@index([cityId])
@@ -416,23 +518,23 @@ model Place {
 }
 
 model Category {
-  id          String     @id @default(uuid()) @db.Uuid
-  parentId    String?    @db.Uuid
-  slug        String     @unique
-  nameKey     String
+  id             String                @id @default(uuid()) @db.Uuid
+  parentId       String?               @db.Uuid
+  slug           String                @unique
+  nameKey        String
   descriptionKey String?
-  isActive    Boolean    @default(true)
-  sortOrder   Int        @default(0)
-  createdAt   DateTime   @default(now())
-  parent      Category?  @relation("category_tree", fields: [parentId], references: [id], onDelete: SetNull)
-  children    Category[] @relation("category_tree")
-  photos      Photo[]
-  battles     Battle[]
-  challenges  Challenge[]
-  ratings     Rating[]
-  leaderboards LeaderboardSnapshot[]
+  isActive       Boolean               @default(true)
+  sortOrder      Int                   @default(0)
+  createdAt      DateTime              @default(now())
+  parent         Category?             @relation("category_tree", fields: [parentId], references: [id], onDelete: SetNull)
+  children       Category[]            @relation("category_tree")
+  photos         Photo[]
+  battles        Battle[]
+  challenges     Challenge[]
+  ratings        Rating[]
+  leaderboards   LeaderboardSnapshot[]
   expertServices ExpertService[]
-  products    MarketplaceProduct[]
+  products       MarketplaceProduct[]
 
   @@index([parentId])
   @@index([isActive, sortOrder])
@@ -440,36 +542,41 @@ model Category {
 }
 
 model Photo {
-  id               String            @id @default(uuid()) @db.Uuid
-  ownerId          String            @db.Uuid
-  categoryId       String?           @db.Uuid
-  title            String
-  description      String?
-  status           PhotoStatus       @default(DRAFT)
-  visibility       Visibility        @default(PRIVATE)
-  moderationStatus ModerationStatus  @default(PENDING)
-  publishedAt      DateTime?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  deletedAt        DateTime?
-  owner            User              @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  category         Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  assets           PhotoAsset[]
-  metadata         PhotoMetadata?
-  hashes           PhotoHash[]
-  location         PhotoLocation?
-  provenance       PhotoProvenance?
-  provenanceEvents ProvenanceEvent[]
-  versions         PhotoVersion[]    @relation("photo_versions")
-  derivedVersions  PhotoVersion[]    @relation("photo_derived_versions")
-  battleEntries    BattleEntry[]
-  challengeEntries ChallengeEntry[]
-  likes            PhotoLike[]
-  comments         Comment[]
-  savedBy          SavedPhoto[]
-  reports          Report[]
-  disputesAsSubject CopyrightDispute[] @relation("dispute_subject_photo")
-  wonBattles       Battle[]          @relation("battle_winner_photo")
+  id                    String              @id @default(uuid()) @db.Uuid
+  ownerId               String              @db.Uuid
+  categoryId            String?             @db.Uuid
+  title                 String
+  description           String?
+  status                PhotoStatus         @default(DRAFT)
+  visibility            Visibility          @default(PRIVATE)
+  moderationStatus      ModerationStatus    @default(PENDING)
+  publishedAt           DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  deletedAt             DateTime?
+  owner                 User                @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  category              Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assets                PhotoAsset[]
+  metadata              PhotoMetadata?
+  hashes                PhotoHash[]
+  location              PhotoLocation?
+  provenance            PhotoProvenance?
+  provenanceEvents      ProvenanceEvent[]
+  versions              PhotoVersion[]      @relation("photo_versions")
+  derivedVersions       PhotoVersion[]      @relation("photo_derived_versions")
+  battleEntries         BattleEntry[]
+  challengeEntries      ChallengeEntry[]
+  likes                 PhotoLike[]
+  comments              Comment[]
+  savedBy               SavedPhoto[]
+  reports               Report[]
+  disputesAsSubject     CopyrightDispute[]  @relation("dispute_subject_photo")
+  wonBattles            Battle[]            @relation("battle_winner_photo")
+  moodboardItems        MoodboardItem[]
+  reviews               PhotoReview[]
+  promotions            Promotion[]
+  serviceReviewRequests ServiceRequest[]    @relation("service_review_photo")
+  marketplaceProduct    MarketplaceProduct?
 
   @@index([ownerId, status])
   @@index([categoryId, status])
@@ -478,20 +585,20 @@ model Photo {
 }
 
 model PhotoAsset {
-  id                 String            @id @default(uuid()) @db.Uuid
-  photoId            String            @db.Uuid
-  type               PhotoAssetType
-  storageVisibility  StorageVisibility @default(PRIVATE)
-  bucket             String
-  storageKey         String
-  contentType        String
-  byteSize           BigInt
-  width              Int?
-  height             Int?
-  checksumSha256     String?
-  createdAt          DateTime          @default(now())
-  deletedAt          DateTime?
-  photo              Photo             @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  id                String            @id @default(uuid()) @db.Uuid
+  photoId           String            @db.Uuid
+  type              PhotoAssetType
+  storageVisibility StorageVisibility @default(PRIVATE)
+  bucket            String
+  storageKey        String
+  contentType       String
+  byteSize          BigInt
+  width             Int?
+  height            Int?
+  checksumSha256    String?
+  createdAt         DateTime          @default(now())
+  deletedAt         DateTime?
+  photo             Photo             @relation(fields: [photoId], references: [id], onDelete: Cascade)
 
   @@unique([bucket, storageKey])
   @@index([photoId, type])
@@ -499,37 +606,37 @@ model PhotoAsset {
 }
 
 model PhotoMetadata {
-  id             String    @id @default(uuid()) @db.Uuid
-  photoId        String    @unique @db.Uuid
-  exifJson       Json?
-  cameraMake     String?
-  cameraModel    String?
-  lensModel      String?
-  focalLength    String?
-  aperture       String?
-  shutterSpeed   String?
-  iso            Int?
-  capturedAt     DateTime?
-  software       String?
-  colorProfile   String?
-  orientation    String?
-  gpsLatitudePrivate  Decimal? @db.Decimal(9, 6)
-  gpsLongitudePrivate Decimal? @db.Decimal(9, 6)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  photo          Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  id                  String    @id @default(uuid()) @db.Uuid
+  photoId             String    @unique @db.Uuid
+  exifJson            Json?
+  cameraMake          String?
+  cameraModel         String?
+  lensModel           String?
+  focalLength         String?
+  aperture            String?
+  shutterSpeed        String?
+  iso                 Int?
+  capturedAt          DateTime?
+  software            String?
+  colorProfile        String?
+  orientation         String?
+  gpsLatitudePrivate  Decimal?  @db.Decimal(9, 6)
+  gpsLongitudePrivate Decimal?  @db.Decimal(9, 6)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  photo               Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
 
   @@index([capturedAt])
   @@map("photo_metadata")
 }
 
 model PhotoHash {
-  id          String        @id @default(uuid()) @db.Uuid
-  photoId     String        @db.Uuid
-  algorithm   HashAlgorithm
-  value       String
-  createdAt   DateTime      @default(now())
-  photo       Photo         @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  id        String        @id @default(uuid()) @db.Uuid
+  photoId   String        @db.Uuid
+  algorithm HashAlgorithm
+  value     String
+  createdAt DateTime      @default(now())
+  photo     Photo         @relation(fields: [photoId], references: [id], onDelete: Cascade)
 
   @@unique([photoId, algorithm])
   @@index([algorithm, value])
@@ -537,28 +644,28 @@ model PhotoHash {
 }
 
 model PhotoLocation {
-  id          String             @id @default(uuid()) @db.Uuid
-  photoId     String             @unique @db.Uuid
-  countryId   String?            @db.Uuid
-  regionId    String?            @db.Uuid
-  cityId      String?            @db.Uuid
-  placeId     String?            @db.Uuid
-  latitudePrivate  Decimal?      @db.Decimal(9, 6)
-  longitudePrivate Decimal?      @db.Decimal(9, 6)
-  publicLatitude   Decimal?      @db.Decimal(9, 6)
-  publicLongitude  Decimal?      @db.Decimal(9, 6)
-  precision   LocationPrecision  @default(UNKNOWN)
-  visibility  LocationVisibility @default(HIDDEN)
-  source      LocationSource?
-  publicLabel String?
-  geoPoint    Unsupported("geography(Point,4326)")?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  photo       Photo              @relation(fields: [photoId], references: [id], onDelete: Cascade)
-  country     Country?           @relation(fields: [countryId], references: [id], onDelete: SetNull)
-  region      Region?            @relation(fields: [regionId], references: [id], onDelete: SetNull)
-  city        City?              @relation(fields: [cityId], references: [id], onDelete: SetNull)
-  place       Place?             @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  id               String                                @id @default(uuid()) @db.Uuid
+  photoId          String                                @unique @db.Uuid
+  countryId        String?                               @db.Uuid
+  regionId         String?                               @db.Uuid
+  cityId           String?                               @db.Uuid
+  placeId          String?                               @db.Uuid
+  latitudePrivate  Decimal?                              @db.Decimal(9, 6)
+  longitudePrivate Decimal?                              @db.Decimal(9, 6)
+  publicLatitude   Decimal?                              @db.Decimal(9, 6)
+  publicLongitude  Decimal?                              @db.Decimal(9, 6)
+  precision        LocationPrecision                     @default(UNKNOWN)
+  visibility       LocationVisibility                    @default(HIDDEN)
+  source           LocationSource?
+  publicLabel      String?
+  geoPoint         Unsupported("geography(Point,4326)")?
+  createdAt        DateTime                              @default(now())
+  updatedAt        DateTime                              @updatedAt
+  photo            Photo                                 @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  country          Country?                              @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  region           Region?                               @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  city             City?                                 @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  place            Place?                                @relation(fields: [placeId], references: [id], onDelete: SetNull)
 
   @@index([countryId])
   @@index([regionId])
@@ -568,22 +675,22 @@ model PhotoLocation {
 }
 
 model PhotoProvenance {
-  id                        String            @id @default(uuid()) @db.Uuid
-  photoId                   String            @unique @db.Uuid
-  originType                OriginType        @default(DIRECT_UPLOAD)
-  status                    ProvenanceStatus  @default(UNVERIFIED)
-  sourceProvider            String?
-  sourceReferenceEncrypted  String?
-  originalFileDetected      Boolean           @default(false)
-  metadataDetected          Boolean           @default(false)
-  captureDateDetected       Boolean           @default(false)
-  gpsDetected               Boolean           @default(false)
-  duplicateCheckStatus      String?
-  internalEvidenceScore     Int?
-  publicSummaryKey          String?
-  createdAt                 DateTime          @default(now())
-  updatedAt                 DateTime          @updatedAt
-  photo                     Photo             @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  id                       String           @id @default(uuid()) @db.Uuid
+  photoId                  String           @unique @db.Uuid
+  originType               OriginType       @default(DIRECT_UPLOAD)
+  status                   ProvenanceStatus @default(UNVERIFIED)
+  sourceProvider           String?
+  sourceReferenceEncrypted String?
+  originalFileDetected     Boolean          @default(false)
+  metadataDetected         Boolean          @default(false)
+  captureDateDetected      Boolean          @default(false)
+  gpsDetected              Boolean          @default(false)
+  duplicateCheckStatus     String?
+  internalEvidenceScore    Int?
+  publicSummaryKey         String?
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+  photo                    Photo            @relation(fields: [photoId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([originType])
@@ -604,15 +711,15 @@ model ProvenanceEvent {
 }
 
 model PhotoVersion {
-  id             String   @id @default(uuid()) @db.Uuid
-  photoId        String   @db.Uuid
-  derivedFromId  String?  @db.Uuid
-  versionNumber  Int
-  changeType     String
-  changeSummary  String?
-  createdAt      DateTime @default(now())
-  photo          Photo    @relation("photo_versions", fields: [photoId], references: [id], onDelete: Cascade)
-  derivedFrom    Photo?   @relation("photo_derived_versions", fields: [derivedFromId], references: [id], onDelete: SetNull)
+  id            String   @id @default(uuid()) @db.Uuid
+  photoId       String   @db.Uuid
+  derivedFromId String?  @db.Uuid
+  versionNumber Int
+  changeType    String
+  changeSummary String?
+  createdAt     DateTime @default(now())
+  photo         Photo    @relation("photo_versions", fields: [photoId], references: [id], onDelete: Cascade)
+  derivedFrom   Photo?   @relation("photo_derived_versions", fields: [derivedFromId], references: [id], onDelete: SetNull)
 
   @@unique([photoId, versionNumber])
   @@index([derivedFromId])
@@ -620,33 +727,34 @@ model PhotoVersion {
 }
 
 model Season {
-  id              String       @id @default(uuid()) @db.Uuid
-  slug            String       @unique
-  nameKey         String
-  descriptionKey  String?
-  status          SeasonStatus @default(DRAFT)
-  startsAt        DateTime
-  endsAt          DateTime
-  rules           Json?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  challenges      Challenge[]
-  battles         Battle[]
-  participants    SeasonParticipant[]
-  ratings         Rating[]
-  leaderboards    LeaderboardSnapshot[]
+  id             String                @id @default(uuid()) @db.Uuid
+  slug           String                @unique
+  nameKey        String
+  descriptionKey String?
+  status         SeasonStatus          @default(DRAFT)
+  startsAt       DateTime
+  endsAt         DateTime
+  rules          Json?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  challenges     Challenge[]
+  battles        Battle[]
+  participants   SeasonParticipant[]
+  ratings        Rating[]
+  leaderboards   LeaderboardSnapshot[]
 
   @@index([status, startsAt, endsAt])
   @@map("seasons")
 }
 
 model SeasonParticipant {
-  id        String   @id @default(uuid()) @db.Uuid
-  seasonId  String   @db.Uuid
-  userId    String   @db.Uuid
-  joinedAt  DateTime @default(now())
-  metadata  Json?
-  season    Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  id       String   @id @default(uuid()) @db.Uuid
+  seasonId String   @db.Uuid
+  userId   String   @db.Uuid
+  joinedAt DateTime @default(now())
+  metadata Json?
+  season   Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([seasonId, userId])
   @@index([userId])
@@ -654,22 +762,22 @@ model SeasonParticipant {
 }
 
 model Challenge {
-  id           String          @id @default(uuid()) @db.Uuid
-  seasonId     String?         @db.Uuid
-  categoryId   String?         @db.Uuid
-  slug         String          @unique
-  titleKey     String
+  id             String           @id @default(uuid()) @db.Uuid
+  seasonId       String?          @db.Uuid
+  categoryId     String?          @db.Uuid
+  slug           String           @unique
+  titleKey       String
   descriptionKey String?
-  status       ChallengeStatus @default(DRAFT)
-  startsAt     DateTime?
-  endsAt       DateTime?
-  rules        Json?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  season       Season?         @relation(fields: [seasonId], references: [id], onDelete: SetNull)
-  category     Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  entries      ChallengeEntry[]
-  battles      Battle[]
+  status         ChallengeStatus  @default(DRAFT)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  rules          Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  season         Season?          @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  category       Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  entries        ChallengeEntry[]
+  battles        Battle[]
 
   @@index([status, startsAt, endsAt])
   @@index([categoryId])
@@ -677,37 +785,39 @@ model Challenge {
 }
 
 model ChallengeEntry {
-  id          String   @id @default(uuid()) @db.Uuid
-  challengeId String  @db.Uuid
-  photoId     String  @db.Uuid
-  userId      String  @db.Uuid
-  submittedAt DateTime @default(now())
+  id          String    @id @default(uuid()) @db.Uuid
+  challengeId String    @db.Uuid
+  photoId     String    @db.Uuid
+  userId      String    @db.Uuid
+  submittedAt DateTime  @default(now())
   challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
   photo       Photo     @relation(fields: [photoId], references: [id], onDelete: Restrict)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([challengeId, photoId])
+  @@unique([challengeId, userId])
   @@index([userId])
   @@map("challenge_entries")
 }
 
 model Battle {
-  id             String       @id @default(uuid()) @db.Uuid
-  categoryId     String?      @db.Uuid
-  seasonId       String?      @db.Uuid
-  challengeId    String?      @db.Uuid
-  status         BattleStatus @default(DRAFT)
-  winnerPhotoId  String?      @db.Uuid
-  startsAt       DateTime?
-  endsAt         DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  category       Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  season         Season?      @relation(fields: [seasonId], references: [id], onDelete: SetNull)
-  challenge      Challenge?   @relation(fields: [challengeId], references: [id], onDelete: SetNull)
-  winnerPhoto    Photo?       @relation("battle_winner_photo", fields: [winnerPhotoId], references: [id], onDelete: SetNull)
-  entries        BattleEntry[]
-  votes          BattleVote[]
-  ratingEvents   RatingEvent[]
+  id            String        @id @default(uuid()) @db.Uuid
+  categoryId    String?       @db.Uuid
+  seasonId      String?       @db.Uuid
+  challengeId   String?       @db.Uuid
+  status        BattleStatus  @default(DRAFT)
+  winnerPhotoId String?       @db.Uuid
+  startsAt      DateTime?
+  endsAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  category      Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  season        Season?       @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  challenge     Challenge?    @relation(fields: [challengeId], references: [id], onDelete: SetNull)
+  winnerPhoto   Photo?        @relation("battle_winner_photo", fields: [winnerPhotoId], references: [id], onDelete: SetNull)
+  entries       BattleEntry[]
+  votes         BattleVote[]
+  ratingEvents  RatingEvent[]
 
   @@index([status, categoryId])
   @@index([seasonId])
@@ -715,17 +825,18 @@ model Battle {
 }
 
 model BattleEntry {
-  id             String   @id @default(uuid()) @db.Uuid
-  battleId       String   @db.Uuid
-  photoId        String   @db.Uuid
-  userId         String   @db.Uuid
-  slot           String
-  ratingBefore   Int?
-  ratingAfter    Int?
-  createdAt      DateTime @default(now())
-  battle         Battle   @relation(fields: [battleId], references: [id], onDelete: Cascade)
-  photo          Photo    @relation(fields: [photoId], references: [id], onDelete: Restrict)
-  selectedVotes  BattleVote[] @relation("selected_battle_entry")
+  id               String            @id @default(uuid()) @db.Uuid
+  battleId         String            @db.Uuid
+  photoId          String            @db.Uuid
+  userId           String            @db.Uuid
+  slot             String
+  ratingBefore     Int?
+  ratingAfter      Int?
+  createdAt        DateTime          @default(now())
+  battle           Battle            @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  photo            Photo             @relation(fields: [photoId], references: [id], onDelete: Restrict)
+  selectedVotes    BattleVote[]      @relation("selected_battle_entry")
+  evaluationScores BattleVoteScore[]
 
   @@unique([battleId, photoId])
   @@unique([battleId, slot])
@@ -734,19 +845,20 @@ model BattleEntry {
 }
 
 model BattleVote {
-  id              String      @id @default(uuid()) @db.Uuid
-  battleId        String      @db.Uuid
-  voterId         String      @db.Uuid
-  selectedEntryId String      @db.Uuid
-  selectedPhotoId String      @db.Uuid
-  weightMinor     Int         @default(100)
+  id              String            @id @default(uuid()) @db.Uuid
+  battleId        String            @db.Uuid
+  voterId         String            @db.Uuid
+  selectedEntryId String            @db.Uuid
+  selectedPhotoId String            @db.Uuid
+  weightMinor     Int               @default(100)
   ipHash          String?
   deviceHash      String?
-  suspiciousFlag  Boolean     @default(false)
-  createdAt       DateTime    @default(now())
-  battle          Battle      @relation(fields: [battleId], references: [id], onDelete: Cascade)
-  voter           User        @relation(fields: [voterId], references: [id], onDelete: Restrict)
-  selectedEntry   BattleEntry @relation("selected_battle_entry", fields: [selectedEntryId], references: [id], onDelete: Restrict)
+  suspiciousFlag  Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  battle          Battle            @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  voter           User              @relation(fields: [voterId], references: [id], onDelete: Restrict)
+  selectedEntry   BattleEntry       @relation("selected_battle_entry", fields: [selectedEntryId], references: [id], onDelete: Restrict)
+  scores          BattleVoteScore[]
 
   @@unique([battleId, voterId])
   @@index([voterId, createdAt])
@@ -754,28 +866,49 @@ model BattleVote {
   @@map("battle_votes")
 }
 
+model BattleVoteScore {
+  id               String      @id @default(uuid()) @db.Uuid
+  voteId           String      @db.Uuid
+  entryId          String      @db.Uuid
+  composition      Int
+  lighting         Int
+  technicalQuality Int
+  storytelling     Int
+  originality      Int
+  color            Int
+  emotionalImpact  Int
+  averageMinor     Int
+  createdAt        DateTime    @default(now())
+  vote             BattleVote  @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  entry            BattleEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@unique([voteId, entryId])
+  @@index([entryId, createdAt])
+  @@map("battle_vote_scores")
+}
+
 model Rating {
-  id          String      @id @default(uuid()) @db.Uuid
-  userId      String      @db.Uuid
-  scope       RatingScope
-  scopeKey    String
-  categoryId  String?     @db.Uuid
-  seasonId    String?     @db.Uuid
-  countryId   String?     @db.Uuid
-  regionId    String?     @db.Uuid
-  cityId      String?     @db.Uuid
-  rating      Int         @default(1500)
-  volatility  Int?
-  battles     Int         @default(0)
-  wins        Int         @default(0)
-  losses      Int         @default(0)
-  updatedAt   DateTime    @updatedAt
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  season      Season?     @relation(fields: [seasonId], references: [id], onDelete: SetNull)
-  country     Country?    @relation(fields: [countryId], references: [id], onDelete: SetNull)
-  region      Region?     @relation(fields: [regionId], references: [id], onDelete: SetNull)
-  city        City?       @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  id         String      @id @default(uuid()) @db.Uuid
+  userId     String      @db.Uuid
+  scope      RatingScope
+  scopeKey   String
+  categoryId String?     @db.Uuid
+  seasonId   String?     @db.Uuid
+  countryId  String?     @db.Uuid
+  regionId   String?     @db.Uuid
+  cityId     String?     @db.Uuid
+  rating     Int         @default(1500)
+  volatility Int?
+  battles    Int         @default(0)
+  wins       Int         @default(0)
+  losses     Int         @default(0)
+  updatedAt  DateTime    @updatedAt
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  season     Season?     @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  country    Country?    @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  region     Region?     @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  city       City?       @relation(fields: [cityId], references: [id], onDelete: SetNull)
 
   @@unique([userId, scope, scopeKey])
   @@index([scope, scopeKey, rating])
@@ -783,20 +916,20 @@ model Rating {
 }
 
 model RatingEvent {
-  id              String   @id @default(uuid()) @db.Uuid
-  userId          String   @db.Uuid
-  battleId        String?  @db.Uuid
-  photoId         String?  @db.Uuid
-  scope           RatingScope
-  scopeKey        String
-  algorithm       String
-  ratingBefore    Int
-  ratingAfter     Int
-  delta           Int
-  reason          String
-  createdAt       DateTime @default(now())
-  user            User     @relation(fields: [userId], references: [id], onDelete: Restrict)
-  battle          Battle?  @relation(fields: [battleId], references: [id], onDelete: SetNull)
+  id           String      @id @default(uuid()) @db.Uuid
+  userId       String      @db.Uuid
+  battleId     String?     @db.Uuid
+  photoId      String?     @db.Uuid
+  scope        RatingScope
+  scopeKey     String
+  algorithm    String
+  ratingBefore Int
+  ratingAfter  Int
+  delta        Int
+  reason       String
+  createdAt    DateTime    @default(now())
+  user         User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  battle       Battle?     @relation(fields: [battleId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([battleId])
@@ -804,20 +937,20 @@ model RatingEvent {
 }
 
 model LeaderboardSnapshot {
-  id          String      @id @default(uuid()) @db.Uuid
+  id          String             @id @default(uuid()) @db.Uuid
   scope       RatingScope
   scopeKey    String
-  categoryId  String?     @db.Uuid
-  seasonId    String?     @db.Uuid
-  countryId   String?     @db.Uuid
-  regionId    String?     @db.Uuid
-  cityId      String?     @db.Uuid
-  generatedAt DateTime    @default(now())
-  category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  season      Season?     @relation(fields: [seasonId], references: [id], onDelete: SetNull)
-  country     Country?    @relation(fields: [countryId], references: [id], onDelete: SetNull)
-  region      Region?     @relation(fields: [regionId], references: [id], onDelete: SetNull)
-  city        City?       @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  categoryId  String?            @db.Uuid
+  seasonId    String?            @db.Uuid
+  countryId   String?            @db.Uuid
+  regionId    String?            @db.Uuid
+  cityId      String?            @db.Uuid
+  generatedAt DateTime           @default(now())
+  category    Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  season      Season?            @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  country     Country?           @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  region      Region?            @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  city        City?              @relation(fields: [cityId], references: [id], onDelete: SetNull)
   entries     LeaderboardEntry[]
 
   @@index([scope, scopeKey, generatedAt])
@@ -825,13 +958,13 @@ model LeaderboardSnapshot {
 }
 
 model LeaderboardEntry {
-  id             String              @id @default(uuid()) @db.Uuid
-  snapshotId     String              @db.Uuid
-  userId         String              @db.Uuid
-  rank           Int
-  rating         Int
-  deltaRank      Int?
-  snapshot       LeaderboardSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  id         String              @id @default(uuid()) @db.Uuid
+  snapshotId String              @db.Uuid
+  userId     String              @db.Uuid
+  rank       Int
+  rating     Int
+  deltaRank  Int?
+  snapshot   LeaderboardSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
 
   @@unique([snapshotId, userId])
   @@index([snapshotId, rank])
@@ -930,39 +1063,41 @@ model Notification {
 }
 
 model SellerProfile {
-  id              String   @id @default(uuid()) @db.Uuid
-  userId          String   @unique @db.Uuid
-  displayName     String
-  ratingAverage   Decimal? @db.Decimal(3, 2)
-  salesCount      Int      @default(0)
-  status          String   @default("DISABLED")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  user            User     @relation(fields: [userId], references: [id], onDelete: Restrict)
-  products        MarketplaceProduct[]
-  payouts         Payout[]
+  id            String               @id @default(uuid()) @db.Uuid
+  userId        String               @unique @db.Uuid
+  displayName   String
+  ratingAverage Decimal?             @db.Decimal(3, 2)
+  salesCount    Int                  @default(0)
+  status        String               @default("DISABLED")
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  products      MarketplaceProduct[]
+  payouts       Payout[]
 
   @@map("seller_profiles")
 }
 
 model MarketplaceProduct {
-  id              String        @id @default(uuid()) @db.Uuid
-  sellerId        String        @db.Uuid
-  categoryId      String?       @db.Uuid
-  slug            String        @unique
+  id              String                 @id @default(uuid()) @db.Uuid
+  sellerId        String                 @db.Uuid
+  photoId         String?                @unique @db.Uuid
+  categoryId      String?                @db.Uuid
+  slug            String                 @unique
   title           String
   description     String?
   priceMinor      BigInt
-  currency        String        @db.Char(3)
-  status          ProductStatus @default(DRAFT)
+  currency        String                 @db.Char(3)
+  status          ProductStatus          @default(DRAFT)
   previewAssetKey String?
   filesJson       Json?
-  salesCount      Int           @default(0)
-  ratingAverage   Decimal?      @db.Decimal(3, 2)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  seller          SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
-  category        Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  salesCount      Int                    @default(0)
+  ratingAverage   Decimal?               @db.Decimal(3, 2)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  seller          SellerProfile          @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+  photo           Photo?                 @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  category        Category?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   orderItems      MarketplaceOrderItem[]
 
   @@index([status, categoryId])
@@ -971,48 +1106,48 @@ model MarketplaceProduct {
 }
 
 model MarketplaceOrder {
-  id             String                 @id @default(uuid()) @db.Uuid
-  customerId     String                 @db.Uuid
-  status         OrderStatus            @default(DRAFT)
-  subtotalMinor  BigInt
-  currency       String                 @db.Char(3)
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  customer       User                   @relation("marketplace_customer", fields: [customerId], references: [id], onDelete: Restrict)
-  items          MarketplaceOrderItem[]
-  payments       Payment[]
+  id            String                 @id @default(uuid()) @db.Uuid
+  customerId    String                 @db.Uuid
+  status        OrderStatus            @default(DRAFT)
+  subtotalMinor BigInt
+  currency      String                 @db.Char(3)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  customer      User                   @relation("marketplace_customer", fields: [customerId], references: [id], onDelete: Restrict)
+  items         MarketplaceOrderItem[]
+  payments      Payment[]
 
   @@index([customerId, status])
   @@map("marketplace_orders")
 }
 
 model MarketplaceOrderItem {
-  id        String             @id @default(uuid()) @db.Uuid
-  orderId   String             @db.Uuid
-  productId String             @db.Uuid
+  id         String             @id @default(uuid()) @db.Uuid
+  orderId    String             @db.Uuid
+  productId  String             @db.Uuid
   priceMinor BigInt
-  currency  String             @db.Char(3)
-  order     MarketplaceOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product   MarketplaceProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  currency   String             @db.Char(3)
+  order      MarketplaceOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    MarketplaceProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([productId])
   @@map("marketplace_order_items")
 }
 
 model ExpertProfile {
-  id               String   @id @default(uuid()) @db.Uuid
-  userId           String   @unique @db.Uuid
+  id               String          @id @default(uuid()) @db.Uuid
+  userId           String          @unique @db.Uuid
   headline         String?
   yearsExperience  Int?
   languages        String[]
-  ratingAverage    Decimal? @db.Decimal(3, 2)
-  reviewsCompleted Int      @default(0)
-  status           String   @default("DISABLED")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  user             User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  ratingAverage    Decimal?        @db.Decimal(3, 2)
+  reviewsCompleted Int             @default(0)
+  status           String          @default("DISABLED")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  user             User            @relation(fields: [userId], references: [id], onDelete: Restrict)
   services         ExpertService[]
-  orders           ExpertOrder[] @relation("expert_provider")
+  orders           ExpertOrder[]   @relation("expert_provider")
 
   @@map("expert_profiles")
 }
@@ -1043,22 +1178,22 @@ model ExpertService {
 }
 
 model ExpertOrder {
-  id            String         @id @default(uuid()) @db.Uuid
-  customerId    String         @db.Uuid
-  expertId      String         @db.Uuid
-  serviceId     String         @db.Uuid
-  status        OrderStatus    @default(DRAFT)
-  question      String?
-  priceMinor    BigInt
-  currency      String         @db.Char(3)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  customer      User           @relation("expert_customer", fields: [customerId], references: [id], onDelete: Restrict)
-  expert        ExpertProfile  @relation("expert_provider", fields: [expertId], references: [id], onDelete: Restrict)
-  service       ExpertService  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  photos        ExpertOrderPhoto[]
-  review        ExpertReview?
-  payments      Payment[]
+  id         String             @id @default(uuid()) @db.Uuid
+  customerId String             @db.Uuid
+  expertId   String             @db.Uuid
+  serviceId  String             @db.Uuid
+  status     OrderStatus        @default(DRAFT)
+  question   String?
+  priceMinor BigInt
+  currency   String             @db.Char(3)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  customer   User               @relation("expert_customer", fields: [customerId], references: [id], onDelete: Restrict)
+  expert     ExpertProfile      @relation("expert_provider", fields: [expertId], references: [id], onDelete: Restrict)
+  service    ExpertService      @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  photos     ExpertOrderPhoto[]
+  review     ExpertReview?
+  payments   Payment[]
 
   @@index([customerId, status])
   @@index([expertId, status])
@@ -1066,10 +1201,10 @@ model ExpertOrder {
 }
 
 model ExpertOrderPhoto {
-  id        String      @id @default(uuid()) @db.Uuid
-  orderId   String      @db.Uuid
-  photoId   String      @db.Uuid
-  order     ExpertOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id      String      @id @default(uuid()) @db.Uuid
+  orderId String      @db.Uuid
+  photoId String      @db.Uuid
+  order   ExpertOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@unique([orderId, photoId])
   @@map("expert_order_photos")
@@ -1088,35 +1223,227 @@ model ExpertReview {
 }
 
 model Payment {
-  id                  String         @id @default(uuid()) @db.Uuid
-  marketplaceOrderId  String?        @db.Uuid
-  expertOrderId       String?        @db.Uuid
-  provider            String         @default("disabled")
-  providerPaymentId   String?
-  status              PaymentStatus  @default(DISABLED)
-  amountMinor         BigInt
-  currency            String         @db.Char(3)
-  metadata            Json?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
-  marketplaceOrder    MarketplaceOrder? @relation(fields: [marketplaceOrderId], references: [id], onDelete: SetNull)
-  expertOrder         ExpertOrder?      @relation(fields: [expertOrderId], references: [id], onDelete: SetNull)
+  id                 String            @id @default(uuid()) @db.Uuid
+  marketplaceOrderId String?           @db.Uuid
+  expertOrderId      String?           @db.Uuid
+  serviceRequestId   String?           @db.Uuid
+  provider           String            @default("disabled")
+  providerPaymentId  String?
+  status             PaymentStatus     @default(DISABLED)
+  amountMinor        BigInt
+  currency           String            @db.Char(3)
+  metadata           Json?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  marketplaceOrder   MarketplaceOrder? @relation(fields: [marketplaceOrderId], references: [id], onDelete: SetNull)
+  expertOrder        ExpertOrder?      @relation(fields: [expertOrderId], references: [id], onDelete: SetNull)
+  serviceRequest     ServiceRequest?   @relation(fields: [serviceRequestId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([provider, providerPaymentId])
+  @@index([serviceRequestId])
   @@map("payments")
 }
 
+model Wallet {
+  id           String              @id @default(uuid()) @db.Uuid
+  userId       String              @unique @db.Uuid
+  balanceMinor BigInt              @default(0)
+  currency     String              @default("USD") @db.Char(3)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  user         User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  transactions WalletTransaction[]
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id            String                  @id @default(uuid()) @db.Uuid
+  walletId      String                  @db.Uuid
+  actorUserId   String?                 @db.Uuid
+  type          WalletTransactionType
+  status        WalletTransactionStatus @default(COMPLETED)
+  amountMinor   BigInt
+  currency      String                  @db.Char(3)
+  referenceType String?
+  referenceId   String?
+  note          String?
+  metadata      Json?
+  createdAt     DateTime                @default(now())
+  wallet        Wallet                  @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  actor         User?                   @relation("wallet_transaction_actor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([walletId, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("wallet_transactions")
+}
+
+model Moodboard {
+  id        String          @id @default(uuid()) @db.Uuid
+  ownerId   String          @db.Uuid
+  title     String          @default("Moodboard")
+  isPublic  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  owner     User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  items     MoodboardItem[]
+
+  @@unique([ownerId, title])
+  @@index([ownerId, isPublic])
+  @@map("moodboards")
+}
+
+model MoodboardItem {
+  id          String    @id @default(uuid()) @db.Uuid
+  moodboardId String    @db.Uuid
+  photoId     String    @db.Uuid
+  createdAt   DateTime  @default(now())
+  moodboard   Moodboard @relation(fields: [moodboardId], references: [id], onDelete: Cascade)
+  photo       Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@unique([moodboardId, photoId])
+  @@index([photoId])
+  @@map("moodboard_items")
+}
+
+model PhotoReview {
+  id               String      @id @default(uuid()) @db.Uuid
+  photoId          String      @db.Uuid
+  reviewerId       String      @db.Uuid
+  reviewerTier     ProfileTier
+  composition      Int
+  lighting         Int
+  technicalQuality Int
+  storytelling     Int
+  originality      Int
+  color            Int
+  emotionalImpact  Int
+  averageMinor     Int
+  comment          String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  photo            Photo       @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  reviewer         User        @relation("photo_review_author", fields: [reviewerId], references: [id], onDelete: Restrict)
+
+  @@unique([photoId, reviewerId])
+  @@index([photoId, createdAt])
+  @@map("photo_reviews")
+}
+
+model ServiceRequest {
+  id               String               @id @default(uuid()) @db.Uuid
+  customerId       String               @db.Uuid
+  providerId       String               @db.Uuid
+  reviewPhotoId    String?              @db.Uuid
+  kind             ServiceRequestKind   @default(SERVICE)
+  status           ServiceRequestStatus @default(PENDING)
+  title            String
+  message          String
+  referenceUrl     String?
+  attachmentKeys   Json?
+  priceMinor       BigInt
+  platformFeeMinor BigInt               @default(0)
+  currency         String               @default("USD") @db.Char(3)
+  providerComment  String?
+  acceptedAt       DateTime?
+  submittedAt      DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  customer         User                 @relation("service_customer", fields: [customerId], references: [id], onDelete: Restrict)
+  provider         User                 @relation("service_provider", fields: [providerId], references: [id], onDelete: Restrict)
+  reviewPhoto      Photo?               @relation("service_review_photo", fields: [reviewPhotoId], references: [id], onDelete: SetNull)
+  messages         ServiceMessage[]
+  ratings          ServiceRating[]
+  payments         Payment[]
+
+  @@index([customerId, status])
+  @@index([providerId, status])
+  @@index([reviewPhotoId])
+  @@map("service_requests")
+}
+
+model ServiceMessage {
+  id          String         @id @default(uuid()) @db.Uuid
+  requestId   String         @db.Uuid
+  authorId    String         @db.Uuid
+  body        String
+  attachments Json?
+  createdAt   DateTime       @default(now())
+  request     ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author      User           @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([requestId, createdAt])
+  @@map("service_messages")
+}
+
+model ServiceRating {
+  id        String         @id @default(uuid()) @db.Uuid
+  requestId String         @db.Uuid
+  authorId  String         @db.Uuid
+  subjectId String         @db.Uuid
+  stars     Int
+  comment   String?
+  createdAt DateTime       @default(now())
+  request   ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author    User           @relation("service_rating_author", fields: [authorId], references: [id], onDelete: Restrict)
+  subject   User           @relation("service_rating_subject", fields: [subjectId], references: [id], onDelete: Restrict)
+
+  @@unique([requestId, authorId])
+  @@index([subjectId, createdAt])
+  @@map("service_ratings")
+}
+
+model Donation {
+  id          String        @id @default(uuid()) @db.Uuid
+  senderId    String        @db.Uuid
+  recipientId String        @db.Uuid
+  amountMinor BigInt
+  currency    String        @default("USD") @db.Char(3)
+  status      PaymentStatus @default(SUCCEEDED)
+  message     String?
+  createdAt   DateTime      @default(now())
+  sender      User          @relation("donation_sender", fields: [senderId], references: [id], onDelete: Restrict)
+  recipient   User          @relation("donation_recipient", fields: [recipientId], references: [id], onDelete: Restrict)
+
+  @@index([senderId, createdAt])
+  @@index([recipientId, createdAt])
+  @@map("donations")
+}
+
+model Promotion {
+  id          String             @id @default(uuid()) @db.Uuid
+  ownerId     String             @db.Uuid
+  photoId     String             @db.Uuid
+  placement   PromotionPlacement
+  status      PromotionStatus    @default(PENDING_PAYMENT)
+  priceMinor  BigInt
+  currency    String             @default("USD") @db.Char(3)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  impressions Int                @default(0)
+  clicks      Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  owner       User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  photo       Photo              @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@index([placement, status, startsAt, endsAt])
+  @@index([ownerId, createdAt])
+  @@map("promotions")
+}
+
 model Payout {
-  id              String        @id @default(uuid()) @db.Uuid
-  sellerProfileId String?       @db.Uuid
-  provider        String        @default("disabled")
-  status          PaymentStatus @default(DISABLED)
+  id              String         @id @default(uuid()) @db.Uuid
+  sellerProfileId String?        @db.Uuid
+  provider        String         @default("disabled")
+  status          PaymentStatus  @default(DISABLED)
   amountMinor     BigInt
-  currency        String        @db.Char(3)
+  currency        String         @db.Char(3)
   metadata        Json?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   sellerProfile   SellerProfile? @relation(fields: [sellerProfileId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
@@ -1124,18 +1451,18 @@ model Payout {
 }
 
 model Report {
-  id          String       @id @default(uuid()) @db.Uuid
-  reporterId  String       @db.Uuid
-  photoId     String?      @db.Uuid
-  targetUserId String?     @db.Uuid
-  type        String
-  status      ReportStatus @default(OPEN)
-  reason      String?
-  metadata    Json?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  reporter    User         @relation("report_reporter", fields: [reporterId], references: [id], onDelete: Restrict)
-  photo       Photo?       @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  id           String       @id @default(uuid()) @db.Uuid
+  reporterId   String       @db.Uuid
+  photoId      String?      @db.Uuid
+  targetUserId String?      @db.Uuid
+  type         String
+  status       ReportStatus @default(OPEN)
+  reason       String?
+  metadata     Json?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  reporter     User         @relation("report_reporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  photo        Photo?       @relation(fields: [photoId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([reporterId])
@@ -1153,6 +1480,7 @@ model CopyrightDispute {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   subjectPhoto   Photo         @relation("dispute_subject_photo", fields: [subjectPhotoId], references: [id], onDelete: Restrict)
+  claimant       User          @relation("dispute_claimant", fields: [claimantUserId], references: [id], onDelete: Restrict)
 
   @@index([status, createdAt])
   @@index([claimantUserId])
@@ -1216,4 +1544,3 @@ model Translation {
   @@index([namespace, key])
   @@map("translations")
 }
-

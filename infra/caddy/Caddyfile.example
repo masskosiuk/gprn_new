@@ -11,6 +11,12 @@ photos.example.com {
         reverse_proxy 127.0.0.1:14000
     }
 
+    # Serve public derivatives only, never the private bucket or admin console.
+    handle_path /media/* {
+        rewrite * /gprn-public{uri}
+        reverse_proxy 127.0.0.1:19000
+    }
+
     handle {
         reverse_proxy 127.0.0.1:13000
     }
