@@ -94,7 +94,8 @@ type CategoryId =
   | "aiGenerated"
   | "commercial"
   | "product"
-  | "boudoir";
+  | "boudoir"
+  | "timelapse";
 type CategoryFilter = "all" | CategoryId;
 type CountryId =
   "france" | "iceland" | "japan" | "morocco" | "portugal" | "ukraine";
@@ -202,7 +203,12 @@ interface AccountRecord {
   readonly name: string;
   readonly passwordHash: string;
   readonly rating: number;
+  readonly detailedReviewPrice?: number;
+  readonly presetPrice?: number;
+  readonly presetSalesEnabled?: boolean;
+  readonly presetTitle?: string;
   readonly reviewPrice?: number;
+  readonly simpleReviewPrice?: number;
   readonly socialLinks?: SocialLinks;
   readonly tier?: AccountTier;
   readonly username: string;
@@ -235,9 +241,13 @@ interface SocialProviderRecord {
 interface ProfileForm {
   readonly availableForHire: boolean;
   readonly bio: string;
+  readonly detailedReviewPrice: string;
   readonly displayName: string;
   readonly location: string;
-  readonly reviewPrice: string;
+  readonly presetPrice: string;
+  readonly presetSalesEnabled: boolean;
+  readonly presetTitle: string;
+  readonly simpleReviewPrice: string;
   readonly username: string;
   readonly website: string;
 }
@@ -591,9 +601,13 @@ const emptyAuthForm: AuthForm = {
 const emptyProfileForm: ProfileForm = {
   availableForHire: true,
   bio: "",
+  detailedReviewPrice: "35",
   displayName: "",
   location: "",
-  reviewPrice: "35",
+  presetPrice: "25",
+  presetSalesEnabled: false,
+  presetTitle: "Signature preset pack",
+  simpleReviewPrice: "10",
   username: "",
   website: "",
 };
@@ -624,7 +638,6 @@ const navItems: readonly NavItem[] = [
   { Icon: BadgeCheck, id: "challenges", messageKey: "nav.challenges" },
   { Icon: ShoppingBag, id: "marketplace", messageKey: "nav.marketplace" },
   { Icon: Trophy, id: "experts", messageKey: "nav.experts" },
-  { Icon: UserCircle, id: "profile", messageKey: "nav.profile" },
 ];
 
 const languageOptions: readonly {
@@ -726,6 +739,11 @@ const categoryFilters: readonly { id: CategoryFilter; key: MessageKey }[] = [
   { id: "product", key: "category.product" },
   { id: "boudoir", key: "category.boudoir" },
 ];
+
+const videoCategoryFilters: readonly {
+  id: CategoryFilter;
+  key: MessageKey;
+}[] = [...categoryFilters, { id: "timelapse", key: "category.timelapse" }];
 
 const battleFilters: readonly { id: BattleFilter; key: MessageKey }[] = [
   { id: "all", key: "battles.scope.all" },
@@ -888,6 +906,8 @@ const sampleImages = {
     "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80",
   street:
     "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80",
+  battleSeason:
+    "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1600&q=84",
   tram: "https://images.unsplash.com/photo-1491553895911-0055eca6402d?auto=format&fit=crop&w=1200&q=80",
   photoTokyoNeon:
     "https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=1200&q=82",
@@ -1421,7 +1441,7 @@ const curatedVideos: readonly VideoRecord[] = [
   {
     authorId: "lucas",
     authorKey: "data.author.lucas",
-    categoryId: "street",
+    categoryId: "timelapse",
     duration: "00:13",
     id: "video-paris-motion",
     likes: 768,
@@ -2742,13 +2762,25 @@ export function HomeClient({
     setProfileForm({
       availableForHire: currentProfile.availableForHire,
       bio: currentProfile.bio,
+      detailedReviewPrice: String(
+        (currentProfile.detailedReviewPrice ??
+          currentProfile.reviewPrice ??
+          3500) / 100,
+      ),
       displayName: currentProfile.name,
       location: currentProfile.location,
-      reviewPrice: String((currentProfile.reviewPrice ?? 3500) / 100),
+      presetPrice: String((currentProfile.presetPrice ?? 2500) / 100),
+      presetSalesEnabled: currentProfile.presetSalesEnabled ?? false,
+      presetTitle:
+        currentProfile.presetTitle ??
+        getMessage(locale, "profile.presetDefaultTitle"),
+      simpleReviewPrice: String(
+        (currentProfile.simpleReviewPrice ?? 1000) / 100,
+      ),
       username: currentProfile.username,
       website: currentProfile.website,
     });
-  }, [currentProfile?.email]);
+  }, [currentProfile?.email, locale]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -3439,11 +3471,30 @@ export function HomeClient({
     const canOfferReviews = ["experienced", "professional", "star"].includes(
       currentProfile.tier ?? "viewer",
     );
-    const reviewPrice = Math.round(Number(profileForm.reviewPrice) * 100);
+    const simpleReviewPrice = Math.round(
+      Number(profileForm.simpleReviewPrice) * 100,
+    );
+    const detailedReviewPrice = Math.round(
+      Number(profileForm.detailedReviewPrice) * 100,
+    );
+    const presetPrice = Math.round(Number(profileForm.presetPrice) * 100);
 
     if (
       canOfferReviews &&
-      (!Number.isFinite(reviewPrice) || reviewPrice <= 0)
+      (!Number.isFinite(simpleReviewPrice) ||
+        simpleReviewPrice <= 0 ||
+        !Number.isFinite(detailedReviewPrice) ||
+        detailedReviewPrice <= 0)
+    ) {
+      setGlobalFeedback({ kind: "error", text: t("commerce.invalidAmount") });
+      return;
+    }
+
+    if (
+      profileForm.presetSalesEnabled &&
+      (!profileForm.presetTitle.trim() ||
+        !Number.isFinite(presetPrice) ||
+        presetPrice <= 0)
     ) {
       setGlobalFeedback({ kind: "error", text: t("commerce.invalidAmount") });
       return;
@@ -3453,16 +3504,34 @@ export function HomeClient({
       ...currentProfile,
       availableForHire: profileForm.availableForHire,
       bio: profileForm.bio.trim() || t("profile.defaultBio"),
+      detailedReviewPrice: canOfferReviews
+        ? detailedReviewPrice
+        : currentProfile.detailedReviewPrice,
       location: profileForm.location.trim() || t("profile.defaultLocation"),
       name: profileForm.displayName.trim() || currentProfile.name,
-      reviewPrice: canOfferReviews ? reviewPrice : currentProfile.reviewPrice,
+      presetPrice: profileForm.presetSalesEnabled
+        ? presetPrice
+        : currentProfile.presetPrice,
+      presetSalesEnabled: profileForm.presetSalesEnabled,
+      presetTitle: profileForm.presetTitle.trim() || currentProfile.presetTitle,
+      reviewPrice: canOfferReviews
+        ? detailedReviewPrice
+        : currentProfile.reviewPrice,
+      simpleReviewPrice: canOfferReviews
+        ? simpleReviewPrice
+        : currentProfile.simpleReviewPrice,
       username:
         normalizeUsername(profileForm.username) || currentProfile.username,
       website: profileForm.website.trim(),
     });
     if (canOfferReviews) {
       void apiRequest("/platform/paid-review-settings", {
-        body: JSON.stringify({ enabled: true, priceMinor: reviewPrice }),
+        body: JSON.stringify({
+          detailedPriceMinor: detailedReviewPrice,
+          enabled: true,
+          priceMinor: detailedReviewPrice,
+          simplePriceMinor: simpleReviewPrice,
+        }),
         method: "PATCH",
       }).catch(() => undefined);
     }
@@ -4556,6 +4625,105 @@ export function HomeClient({
               ))}
           </div>
         </section>
+
+        <section className="page-section home-activity-section">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">{t("home.activeNow")}</span>
+              <h2>{t("section.challenges.title")}</h2>
+            </div>
+            <Link
+              className="secondary-action compact"
+              href={getSectionHref(locale, "challenges")}
+            >
+              {t("common.view")}
+              <ChevronRight aria-hidden="true" size={16} />
+            </Link>
+          </div>
+          <div className="home-activity-grid">
+            {challenges.slice(0, 2).map((challenge) => (
+              <article className="challenge-card" key={challenge.id}>
+                <img
+                  alt=""
+                  aria-hidden="true"
+                  className="challenge-cover"
+                  src={challenge.coverUrl}
+                />
+                <div className="challenge-card-body">
+                  <div className="challenge-top">
+                    <span className="pill">{t(challenge.statusKey)}</span>
+                    <span>{t(getCategoryKey(challenge.categoryId))}</span>
+                  </div>
+                  <h2>{t(challenge.titleKey)}</h2>
+                  <p>{t(challenge.copyKey)}</p>
+                  <dl className="stats-list challenge-stats">
+                    <div>
+                      <dt>{t("challenges.participants")}</dt>
+                      <dd>{numberFormatter.format(challenge.participants)}</dd>
+                    </div>
+                    <div>
+                      <dt>{t("challenges.deadline")}</dt>
+                      <dd>{formatDate(locale, challenge.deadline)}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="section-heading home-battles-heading">
+            <div>
+              <span className="eyebrow">{t("battles.open")}</span>
+              <h2>{t("section.battles.title")}</h2>
+            </div>
+            <Link
+              className="secondary-action compact"
+              href={getSectionHref(locale, "battles")}
+            >
+              {t("common.view")}
+              <ChevronRight aria-hidden="true" size={16} />
+            </Link>
+          </div>
+          <div className="home-activity-grid">
+            {battles.slice(0, 2).map((battle) => (
+              <article className="home-battle-card" key={battle.id}>
+                <div className="home-battle-images">
+                  {battle.entries.map((entry) => (
+                    <img
+                      alt={
+                        entry.title ??
+                        (entry.titleKey
+                          ? t(entry.titleKey)
+                          : t("photo.selected"))
+                      }
+                      key={entry.id}
+                      src={entry.imageUrl}
+                    />
+                  ))}
+                </div>
+                <div className="home-battle-copy">
+                  <div>
+                    <span className="eyebrow">
+                      {t(getBattleScopeKey(battle.scope))}
+                    </span>
+                    <h2>
+                      {battle.title ??
+                        (battle.titleKey
+                          ? t(battle.titleKey)
+                          : t("section.battles.title"))}
+                    </h2>
+                  </div>
+                  <div className="home-battle-meta">
+                    <span>{t(battle.statusKey)}</span>
+                    <small>
+                      {t("battles.ends")} {formatDate(locale, battle.endsAt)}
+                    </small>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       </>
     );
   }
@@ -4866,7 +5034,7 @@ export function HomeClient({
                   className="category-filter-tags"
                   role="group"
                 >
-                  {categoryFilters.map((filter) => (
+                  {videoCategoryFilters.map((filter) => (
                     <button
                       aria-pressed={videoCategoryFilter === filter.id}
                       className={`filter-tag${
@@ -5426,19 +5594,34 @@ export function HomeClient({
   function renderBattlesPage(): ReactNode {
     return (
       <section className="page-section battles-workspace">
-        <div className="battle-season-announcement">
-          <span className="battle-season-icon" aria-hidden="true">
-            <Trophy size={22} />
-          </span>
-          <div className="battle-season-copy">
-            <span className="eyebrow">{t("battles.seasonEyebrow")}</span>
-            <h2>{t("battles.seasonTitle")}</h2>
-            <p>{t("battles.seasonCopy")}</p>
+        <div className="notice-panel season-panel battle-season-panel">
+          <img
+            alt=""
+            aria-hidden="true"
+            className="season-cover"
+            src={sampleImages.battleSeason}
+          />
+          <div className="season-copy">
+            <Trophy aria-hidden="true" size={22} />
+            <div>
+              <span className="eyebrow">{t("battles.seasonEyebrow")}</span>
+              <strong>{t("battles.seasonTitle")}</strong>
+              <p>{t("battles.seasonCopy")}</p>
+              <span className="season-status">
+                <Medal aria-hidden="true" size={15} />
+                {t("battles.seasonFinale")}
+              </span>
+            </div>
           </div>
-          <span className="battle-season-finale">
-            <Medal aria-hidden="true" size={17} />
-            {t("battles.seasonFinale")}
-          </span>
+          <button
+            className="primary-action compact"
+            disabled={seasonJoined}
+            onClick={joinSeason}
+            type="button"
+          >
+            <Check aria-hidden="true" size={16} />
+            {seasonJoined ? t("season.joined") : t("season.join")}
+          </button>
         </div>
 
         <div className="battle-controls">
@@ -7683,38 +7866,124 @@ export function HomeClient({
                   />
                   <span>{t("profile.availableForHire")}</span>
                 </label>
-                <label className="form-field" htmlFor="profile-review-price">
-                  <span>{t("review.pricePerPhoto")}</span>
-                  <div className="review-price-input">
-                    <span aria-hidden="true">$</span>
-                    <input
-                      disabled={
-                        !["experienced", "professional", "star"].includes(
-                          currentTier,
-                        )
-                      }
-                      id="profile-review-price"
-                      min="1"
-                      onChange={(event) => {
-                        updateProfileField("reviewPrice", event.target.value);
-                      }}
-                      step="1"
-                      type="number"
-                      value={profileForm.reviewPrice}
-                    />
-                  </div>
-                  <small>
-                    {["experienced", "professional", "star"].includes(
-                      currentTier,
-                    )
-                      ? t("review.pricePerPhotoHint")
-                      : t("review.masterOnly")}
-                  </small>
-                </label>
+                <div className="master-price-grid">
+                  <label
+                    className="form-field"
+                    htmlFor="profile-simple-review-price"
+                  >
+                    <span>{t("review.simple")}</span>
+                    <div className="review-price-input">
+                      <span aria-hidden="true">$</span>
+                      <input
+                        disabled={
+                          !["experienced", "professional", "star"].includes(
+                            currentTier,
+                          )
+                        }
+                        id="profile-simple-review-price"
+                        min="1"
+                        onChange={(event) => {
+                          updateProfileField(
+                            "simpleReviewPrice",
+                            event.target.value,
+                          );
+                        }}
+                        step="1"
+                        type="number"
+                        value={profileForm.simpleReviewPrice}
+                      />
+                    </div>
+                  </label>
+                  <label
+                    className="form-field"
+                    htmlFor="profile-detailed-review-price"
+                  >
+                    <span>{t("review.detailed")}</span>
+                    <div className="review-price-input">
+                      <span aria-hidden="true">$</span>
+                      <input
+                        disabled={
+                          !["experienced", "professional", "star"].includes(
+                            currentTier,
+                          )
+                        }
+                        id="profile-detailed-review-price"
+                        min="1"
+                        onChange={(event) => {
+                          updateProfileField(
+                            "detailedReviewPrice",
+                            event.target.value,
+                          );
+                        }}
+                        step="1"
+                        type="number"
+                        value={profileForm.detailedReviewPrice}
+                      />
+                    </div>
+                  </label>
+                </div>
+                <small>
+                  {["experienced", "professional", "star"].includes(currentTier)
+                    ? t("review.pricesHint")
+                    : t("review.masterOnly")}
+                </small>
               </fieldset>
 
-              <fieldset className="social-editor">
-                <legend>{t("profile.socials")}</legend>
+              <fieldset className="master-settings preset-settings">
+                <legend>{t("profile.presets")}</legend>
+                <p>{t("profile.presetsCopy")}</p>
+                <label className="checkbox-field" htmlFor="profile-presets">
+                  <input
+                    checked={profileForm.presetSalesEnabled}
+                    id="profile-presets"
+                    onChange={(event) => {
+                      updateProfileField(
+                        "presetSalesEnabled",
+                        event.target.checked,
+                      );
+                    }}
+                    type="checkbox"
+                  />
+                  <span>{t("profile.presetsEnabled")}</span>
+                </label>
+                <div className="master-price-grid">
+                  <label className="form-field" htmlFor="profile-preset-title">
+                    <span>{t("profile.presetTitle")}</span>
+                    <input
+                      disabled={!profileForm.presetSalesEnabled}
+                      id="profile-preset-title"
+                      onChange={(event) => {
+                        updateProfileField("presetTitle", event.target.value);
+                      }}
+                      type="text"
+                      value={profileForm.presetTitle}
+                    />
+                  </label>
+                  <label className="form-field" htmlFor="profile-preset-price">
+                    <span>{t("profile.presetPrice")}</span>
+                    <div className="review-price-input">
+                      <span aria-hidden="true">$</span>
+                      <input
+                        disabled={!profileForm.presetSalesEnabled}
+                        id="profile-preset-price"
+                        min="1"
+                        onChange={(event) => {
+                          updateProfileField("presetPrice", event.target.value);
+                        }}
+                        step="1"
+                        type="number"
+                        value={profileForm.presetPrice}
+                      />
+                    </div>
+                  </label>
+                </div>
+              </fieldset>
+
+              <details className="social-editor">
+                <summary>
+                  <span>{t("profile.socials")}</span>
+                  <ChevronDown aria-hidden="true" size={17} />
+                </summary>
                 <p>{t("social.autoIntro")}</p>
                 <div className="social-editor-list">
                   {socialPlatforms.map((platform) => {
@@ -7784,7 +8053,7 @@ export function HomeClient({
                     );
                   })}
                 </div>
-              </fieldset>
+              </details>
 
               <button className="primary-action full-width" type="submit">
                 {t("profile.saveProfile")}

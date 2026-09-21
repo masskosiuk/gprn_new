@@ -115,6 +115,7 @@ const baseMessages = {
   "home.previewTitle": "Strict verification",
   "home.previewCopy":
     "Our team continuously verifies authorship, original files and the integrity of ratings across the platform.",
+  "home.activeNow": "Active now",
 
   "section.discover.title": "Photos",
   "section.discover.intro":
@@ -122,7 +123,7 @@ const baseMessages = {
   "section.battles.title": "Photo battles",
   "section.battles.intro":
     "Choose the stronger photograph in a quick head-to-head vote. Results stay hidden until you make your choice.",
-  "section.challenges.title": "Challenges and seasons",
+  "section.challenges.title": "Challenges",
   "section.challenges.intro":
     "Join themed competitions, submit a selected photo and track which challenges already contain your work.",
   "section.leaderboard.title": "Reputation leaderboard",
@@ -259,9 +260,10 @@ const baseMessages = {
   "category.nature": "Nature",
   "category.aiEdited": "AI processing",
   "category.aiGenerated": "Full AI generation",
-  "category.commercial": "Commercial photography",
+  "category.commercial": "Commerce",
   "category.product": "Product photography",
   "category.boudoir": "Boudoir",
+  "category.timelapse": "Timelapse",
 
   "battles.scope.all": "All battles",
   "battles.scope.global": "Global",
@@ -551,7 +553,14 @@ const baseMessages = {
   "profile.availableForHire": "Available for hire",
   "profile.masterSettings": "Master services",
   "profile.masterSettingsCopy":
-    "Manage your availability and the price of one detailed photo review.",
+    "Manage availability and set separate prices for simple and detailed photo reviews.",
+  "profile.presets": "Preset sales",
+  "profile.presetsCopy":
+    "Offer your own preset pack in the marketplace and set its price.",
+  "profile.presetsEnabled": "Sell presets",
+  "profile.presetTitle": "Preset pack name",
+  "profile.presetPrice": "Price",
+  "profile.presetDefaultTitle": "Signature preset pack",
   "profile.openAuthorProfile": "Open photographer profile",
   "profile.saveProfile": "Save profile",
   "profile.saved": "Profile updated.",
@@ -740,6 +749,10 @@ const baseMessages = {
   "review.order": "Order photo review",
   "review.price": "Review price",
   "review.pricePerPhoto": "Price per photo review",
+  "review.simple": "Simple review",
+  "review.detailed": "Detailed review",
+  "review.pricesHint":
+    "Clients see both prices when choosing the depth of a photo review.",
   "review.pricePerPhotoHint":
     "This price is shown to customers when they order your detailed assessment.",
   "review.masterOnly":
@@ -906,13 +919,14 @@ const ruMessages: Partial<MessageMap> = {
   "home.previewTitle": "Строгая проверка",
   "home.previewCopy":
     "Команда платформы постоянно проверяет подлинность работ, авторство и честность оценок.",
+  "home.activeNow": "Сейчас на платформе",
   "section.discover.title": "Фото",
   "section.discover.intro":
     "Ищите опубликованные работы по категории, месту съёмки и дате публикации или загрузите свой оригинальный файл.",
   "section.battles.title": "Фотобатлы",
   "section.battles.intro":
     "Выберите более сильную фотографию в быстром сравнении. Результаты откроются только после вашего голоса.",
-  "section.challenges.title": "Челленджи и сезоны",
+  "section.challenges.title": "Челленджи",
   "section.challenges.intro":
     "Участвуйте в тематических конкурсах, отправляйте выбранное фото и отслеживайте свои заявки.",
   "section.leaderboard.title": "Рейтинг репутации",
@@ -1041,9 +1055,10 @@ const ruMessages: Partial<MessageMap> = {
   "category.nature": "Природа",
   "category.aiEdited": "AI-обработка",
   "category.aiGenerated": "Полная AI-генерация",
-  "category.commercial": "Коммерческая фотография",
+  "category.commercial": "Коммерция",
   "category.product": "Предметная съёмка",
   "category.boudoir": "Будуар",
+  "category.timelapse": "Таймлапс",
   "battles.scope.all": "Все батлы",
   "battles.scope.global": "Глобальные",
   "battles.scope.country": "Страна",
@@ -1322,7 +1337,14 @@ const ruMessages: Partial<MessageMap> = {
   "profile.availableForHire": "Доступен для заказов",
   "profile.masterSettings": "Услуги мастера",
   "profile.masterSettingsCopy":
-    "Управляйте доступностью для заказов и стоимостью одной подробной оценки фотографии.",
+    "Управляйте доступностью и отдельно задавайте стоимость простой и развёрнутой оценки фотографии.",
+  "profile.presets": "Продажа пресетов",
+  "profile.presetsCopy":
+    "Разместите собственный набор пресетов в маркетплейсе и назначьте его стоимость.",
+  "profile.presetsEnabled": "Продавать пресеты",
+  "profile.presetTitle": "Название набора",
+  "profile.presetPrice": "Стоимость",
+  "profile.presetDefaultTitle": "Авторский набор пресетов",
   "profile.openAuthorProfile": "Открыть профиль фотографа",
   "profile.saveProfile": "Сохранить профиль",
   "profile.saved": "Профиль обновлён.",
@@ -1452,6 +1474,10 @@ const ruMessages: Partial<MessageMap> = {
   "review.order": "Заказать оценку фото",
   "review.price": "Стоимость оценки",
   "review.pricePerPhoto": "Цена оценки одного фото",
+  "review.simple": "Простая оценка",
+  "review.detailed": "Развёрнутая оценка",
+  "review.pricesHint":
+    "Обе цены будут показаны заказчику при выборе глубины разбора фотографии.",
   "review.pricePerPhotoHint":
     "Эту цену увидит заказчик при оформлении подробной оценки фотографии.",
   "review.masterOnly":
@@ -1542,7 +1568,7 @@ const ukMessages: Partial<MessageMap> = {
   "home.secondary": "Створити профіль",
   "section.discover.title": "Огляд фотографій",
   "section.battles.title": "Фотобатли",
-  "section.challenges.title": "Челенджі та сезони",
+  "section.challenges.title": "Челенджі",
   "section.leaderboard.title": "Рейтинг репутації",
   "section.map.title": "Мапа фотографій",
   "section.marketplace.title": "Маркетплейс",

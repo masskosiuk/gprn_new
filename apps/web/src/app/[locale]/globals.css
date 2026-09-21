@@ -2204,6 +2204,71 @@ img {
   text-align: right;
 }
 
+.home-activity-section {
+  display: grid;
+  gap: 22px;
+}
+
+.home-activity-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.home-battles-heading {
+  margin-top: 18px;
+}
+
+.home-battle-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.home-battle-images {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.home-battle-images img {
+  aspect-ratio: 16 / 10;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.home-battle-images img + img {
+  border-left: 1px solid var(--border);
+}
+
+.home-battle-copy {
+  align-items: flex-end;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 18px;
+}
+
+.home-battle-copy h2 {
+  font-size: 21px;
+  margin: 5px 0 0;
+}
+
+.home-battle-meta {
+  color: var(--muted);
+  display: grid;
+  flex: 0 0 auto;
+  gap: 3px;
+  text-align: right;
+}
+
+.home-battle-meta span {
+  color: var(--success);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .leaderboard-table {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -2397,6 +2462,17 @@ img {
   display: flex;
   gap: 12px;
   padding: 20px 4px;
+}
+
+.season-copy strong {
+  display: block;
+  font-size: 21px;
+  margin-top: 4px;
+}
+
+.season-status {
+  align-items: center;
+  gap: 6px;
 }
 
 .season-panel > .primary-action {
@@ -2637,24 +2713,40 @@ img {
 .social-editor {
   border: 0;
   border-top: 1px solid var(--border);
-  display: grid;
-  gap: 5px;
   margin: 4px 0 0;
   padding: 16px 0 0;
 }
 
-.social-editor legend {
+.social-editor summary {
+  align-items: center;
   color: var(--foreground);
+  cursor: pointer;
+  display: flex;
   font-size: 15px;
   font-weight: 850;
-  padding: 0;
+  justify-content: space-between;
+  list-style: none;
+  padding: 4px 0;
+}
+
+.social-editor summary::-webkit-details-marker {
+  display: none;
+}
+
+.social-editor summary svg {
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+
+.social-editor[open] summary svg {
+  transform: rotate(180deg);
 }
 
 .social-editor > p {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
-  margin: 0 0 7px;
+  margin: 10px 0 12px;
 }
 
 .social-editor-list {
@@ -3784,6 +3876,20 @@ img {
     margin: 0 16px 16px;
   }
 
+  .home-activity-grid,
+  .master-price-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-battle-copy {
+    align-items: flex-start;
+    display: grid;
+  }
+
+  .home-battle-meta {
+    text-align: left;
+  }
+
   .footer-links {
     display: grid;
   }
@@ -4049,6 +4155,23 @@ img {
 .master-settings .review-price-input input:disabled {
   color: var(--muted);
   cursor: not-allowed;
+}
+
+.master-price-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.master-settings > small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.preset-settings input:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .studio-directory {
