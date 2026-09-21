@@ -1363,10 +1363,18 @@ img {
   padding-top: 11px;
 }
 
-.video-card-stats span {
+.video-card-stats > span {
   align-items: center;
   display: inline-flex;
   gap: 6px;
+}
+
+.video-card-stats .photo-counter-action {
+  min-height: 34px;
+}
+
+.video-share-action {
+  margin-left: auto;
 }
 
 .photo-card-body {

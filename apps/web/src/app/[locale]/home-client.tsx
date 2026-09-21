@@ -271,9 +271,11 @@ interface VideoRecord {
   readonly categoryId: CategoryId;
   readonly duration: string;
   readonly id: string;
+  readonly likes: number;
   readonly locationId: LocationId;
   readonly posterUrl: string;
   readonly publishedAt: string;
+  readonly score: number;
   readonly src: string;
   readonly titleKey: MessageKey;
   readonly views: number;
@@ -491,6 +493,7 @@ const challengeEntriesStorageKey = "gprn.challengeEntries.v2";
 const seasonJoinedStorageKey = "gprn.seasonJoined.v2";
 const savedPhotosStorageKey = "gprn.savedPhotos.v2";
 const likedPhotosStorageKey = "gprn.likedPhotos.v2";
+const likedVideosStorageKey = "gprn.likedVideos.v1";
 const moodboardStorageKey = "gprn.moodboard.v2";
 const wishlistStorageKey = "gprn.marketWishlist.v2";
 const notificationsStorageKey = "gprn.notifications.v2";
@@ -886,6 +889,54 @@ const sampleImages = {
   street:
     "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80",
   tram: "https://images.unsplash.com/photo-1491553895911-0055eca6402d?auto=format&fit=crop&w=1200&q=80",
+  photoTokyoNeon:
+    "https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=1200&q=82",
+  photoTokyoUmbrellas:
+    "https://images.unsplash.com/photo-1524413840807-0c3cb6fa808d?auto=format&fit=crop&w=1200&q=82",
+  photoIcelandShore:
+    "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=82",
+  photoIcelandGlacier:
+    "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=82",
+  photoMarrakechCopper:
+    "https://images.unsplash.com/photo-1539020140153-e479b8c22e70?auto=format&fit=crop&w=1200&q=82",
+  photoMarrakechMarket:
+    "https://images.unsplash.com/photo-1489493512598-d08130f49bea?auto=format&fit=crop&w=1200&q=82",
+  photoKyivConcrete:
+    "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=82",
+  photoKyivStudio:
+    "https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1200&q=82",
+  photoLisbonBlue:
+    "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?auto=format&fit=crop&w=1200&q=82",
+  photoLisbonTiles:
+    "https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=1200&q=82",
+  photoParisNight:
+    "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=82",
+  photoParisGarden:
+    "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1200&q=82",
+  videoPosterTokyo:
+    "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1200&q=82",
+  videoPosterIceland:
+    "https://images.unsplash.com/photo-1529963183134-61a90db47eaf?auto=format&fit=crop&w=1200&q=82",
+  videoPosterMarrakech:
+    "https://images.unsplash.com/photo-1597212618440-806262de4f6b?auto=format&fit=crop&w=1200&q=82",
+  videoPosterKyiv:
+    "https://images.unsplash.com/photo-1431576901776-e539bd916ba2?auto=format&fit=crop&w=1200&q=82",
+  videoPosterLisbon:
+    "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=82",
+  videoPosterParis:
+    "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=82",
+  videoPosterTokyoSubway:
+    "https://images.unsplash.com/photo-1536098561742-ca998e48cbcc?auto=format&fit=crop&w=1200&q=82",
+  videoPosterIcelandStorm:
+    "https://images.unsplash.com/photo-1494783367193-149034c05e8f?auto=format&fit=crop&w=1200&q=82",
+  videoPosterMarrakechPortrait:
+    "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=1200&q=82",
+  videoPosterKyivFashion:
+    "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=82",
+  videoPosterLisbonCoast:
+    "https://images.unsplash.com/photo-1473116763249-2faaef81ccda?auto=format&fit=crop&w=1200&q=82",
+  videoPosterParisMotion:
+    "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=1200&q=82",
   expertIryna:
     "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=600&h=600&q=84",
   expertMarcus:
@@ -1019,6 +1070,186 @@ const curatedPhotos: readonly PhotoRecord[] = [
     uploadedAt: "2026-05-18T08:40:00.000Z",
     votes: 151,
   },
+  {
+    authorKey: "data.author.mika",
+    categoryId: "street",
+    id: "curated-tokyo-neon",
+    isMine: false,
+    locationId: "tokyo",
+    originKey: "status.directUpload",
+    provenanceKey: "status.originalSupported",
+    published: true,
+    score: 89,
+    src: sampleImages.photoTokyoNeon,
+    titleKey: "data.photo.tokyoNeon.title",
+    uploadedAt: "2026-08-25T18:10:00.000Z",
+    votes: 247,
+  },
+  {
+    authorKey: "data.author.mika",
+    categoryId: "documentary",
+    id: "curated-tokyo-umbrellas",
+    isMine: false,
+    locationId: "tokyo",
+    originKey: "status.directUpload",
+    provenanceKey: "status.originalSupported",
+    published: true,
+    score: 87,
+    src: sampleImages.photoTokyoUmbrellas,
+    titleKey: "data.photo.tokyoUmbrellas.title",
+    uploadedAt: "2026-07-10T07:45:00.000Z",
+    votes: 198,
+  },
+  {
+    authorKey: "data.author.elena",
+    categoryId: "landscape",
+    id: "curated-iceland-shore",
+    isMine: false,
+    locationId: "reykjavik",
+    originKey: "status.directUpload",
+    provenanceKey: "status.originalSupported",
+    published: true,
+    score: 92,
+    src: sampleImages.photoIcelandShore,
+    titleKey: "data.photo.icelandShore.title",
+    uploadedAt: "2026-08-18T06:20:00.000Z",
+    votes: 312,
+  },
+  {
+    authorKey: "data.author.elena",
+    categoryId: "nature",
+    id: "curated-iceland-glacier",
+    isMine: false,
+    locationId: "reykjavik",
+    originKey: "status.directUpload",
+    provenanceKey: "status.originalSupported",
+    published: true,
+    score: 90,
+    src: sampleImages.photoIcelandGlacier,
+    titleKey: "data.photo.icelandGlacier.title",
+    uploadedAt: "2026-07-04T11:10:00.000Z",
+    votes: 264,
+  },
+  {
+    authorKey: "data.author.yusuf",
+    categoryId: "documentary",
+    id: "curated-marrakech-copper",
+    isMine: false,
+    locationId: "marrakech",
+    originKey: "status.directUpload",
+    provenanceKey: "status.originalSupported",
+    published: true,
+    score: 86,
+    src: sampleImages.photoMarrakechCopper,
+    titleKey: "data.photo.marrakechCopper.title",
+    uploadedAt: "2026-08-02T16:25:00.000Z",
+    votes: 221,
+  },
+  {
+    authorKey: "data.author.yusuf",
+    categoryId: "street",
+    id: "curated-marrakech-market",
+    isMine: false,
+    locationId: "marrakech",
+    originKey: "status.directUpload",
+    provenanceKey: "status.originalSupported",
+    published: true,
+    score: 88,
+    src: sampleImages.photoMarrakechMarket,
+    titleKey: "data.photo.marrakechMarket.title",
+    uploadedAt: "2026-06-19T09:30:00.000Z",
+    votes: 253,
+  },
+  {
+    authorKey: "data.author.anna",
+    categoryId: "architecture",
+    id: "curated-kyiv-concrete",
+    isMine: false,
+    locationId: "kyiv",
+    originKey: "status.directUpload",
+    provenanceKey: "status.originalSupported",
+    published: true,
+    score: 91,
+    src: sampleImages.photoKyivConcrete,
+    titleKey: "data.photo.kyivConcrete.title",
+    uploadedAt: "2026-08-11T13:40:00.000Z",
+    votes: 289,
+  },
+  {
+    authorKey: "data.author.anna",
+    categoryId: "commercial",
+    id: "curated-kyiv-studio",
+    isMine: false,
+    locationId: "kyiv",
+    originKey: "status.directUpload",
+    provenanceKey: "status.originalSupported",
+    published: true,
+    score: 87,
+    src: sampleImages.photoKyivStudio,
+    titleKey: "data.photo.kyivStudio.title",
+    uploadedAt: "2026-06-12T12:05:00.000Z",
+    votes: 204,
+  },
+  {
+    authorKey: "data.author.joao",
+    categoryId: "street",
+    id: "curated-lisbon-blue",
+    isMine: false,
+    locationId: "lisbon",
+    originKey: "status.directUpload",
+    provenanceKey: "status.originalSupported",
+    published: true,
+    score: 85,
+    src: sampleImages.photoLisbonBlue,
+    titleKey: "data.photo.lisbonBlue.title",
+    uploadedAt: "2026-08-07T19:15:00.000Z",
+    votes: 184,
+  },
+  {
+    authorKey: "data.author.joao",
+    categoryId: "architecture",
+    id: "curated-lisbon-tiles",
+    isMine: false,
+    locationId: "lisbon",
+    originKey: "status.directUpload",
+    provenanceKey: "status.originalSupported",
+    published: true,
+    score: 89,
+    src: sampleImages.photoLisbonTiles,
+    titleKey: "data.photo.lisbonTiles.title",
+    uploadedAt: "2026-05-27T10:50:00.000Z",
+    votes: 231,
+  },
+  {
+    authorKey: "data.author.lucas",
+    categoryId: "street",
+    id: "curated-paris-midnight",
+    isMine: false,
+    locationId: "paris",
+    originKey: "status.directUpload",
+    provenanceKey: "status.originalSupported",
+    published: true,
+    score: 90,
+    src: sampleImages.photoParisNight,
+    titleKey: "data.photo.parisMidnight.title",
+    uploadedAt: "2026-08-21T22:30:00.000Z",
+    votes: 276,
+  },
+  {
+    authorKey: "data.author.lucas",
+    categoryId: "nature",
+    id: "curated-paris-garden",
+    isMine: false,
+    locationId: "paris",
+    originKey: "status.directUpload",
+    provenanceKey: "status.originalSupported",
+    published: true,
+    score: 88,
+    src: sampleImages.photoParisGarden,
+    titleKey: "data.photo.parisGarden.title",
+    uploadedAt: "2026-06-08T08:35:00.000Z",
+    votes: 242,
+  },
 ];
 
 const curatedVideos: readonly VideoRecord[] = [
@@ -1026,12 +1257,14 @@ const curatedVideos: readonly VideoRecord[] = [
     authorId: "mika",
     authorKey: "data.author.mika",
     categoryId: "street",
-    duration: "01:18",
+    duration: "00:13",
     id: "video-tokyo",
+    likes: 942,
     locationId: "tokyo",
-    posterUrl: sampleImages.city,
+    posterUrl: sampleImages.videoPosterTokyo,
     publishedAt: "2026-09-05T12:30:00.000Z",
-    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+    score: 91,
+    src: "https://assets.mixkit.co/videos/11/11-720.mp4",
     titleKey: "video.title.tokyo",
     views: 18420,
   },
@@ -1039,12 +1272,14 @@ const curatedVideos: readonly VideoRecord[] = [
     authorId: "elena",
     authorKey: "data.author.elena",
     categoryId: "landscape",
-    duration: "02:06",
+    duration: "00:20",
     id: "video-iceland",
+    likes: 781,
     locationId: "reykjavik",
-    posterUrl: sampleImages.mountain,
+    posterUrl: sampleImages.videoPosterIceland,
     publishedAt: "2026-08-29T09:10:00.000Z",
-    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+    score: 93,
+    src: "https://assets.mixkit.co/videos/4332/4332-720.mp4",
     titleKey: "video.title.iceland",
     views: 12780,
   },
@@ -1052,12 +1287,14 @@ const curatedVideos: readonly VideoRecord[] = [
     authorId: "yusuf",
     authorKey: "data.author.yusuf",
     categoryId: "documentary",
-    duration: "00:54",
+    duration: "00:10",
     id: "video-marrakech",
+    likes: 604,
     locationId: "marrakech",
-    posterUrl: sampleImages.desert,
+    posterUrl: sampleImages.videoPosterMarrakech,
     publishedAt: "2026-08-16T16:05:00.000Z",
-    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+    score: 88,
+    src: "https://assets.mixkit.co/videos/3451/3451-720.mp4",
     titleKey: "video.title.marrakech",
     views: 9560,
   },
@@ -1065,12 +1302,14 @@ const curatedVideos: readonly VideoRecord[] = [
     authorId: "anna",
     authorKey: "data.author.anna",
     categoryId: "architecture",
-    duration: "01:42",
+    duration: "00:35",
     id: "video-kyiv",
+    likes: 733,
     locationId: "kyiv",
-    posterUrl: sampleImages.architecture,
+    posterUrl: sampleImages.videoPosterKyiv,
     publishedAt: "2026-07-26T11:40:00.000Z",
-    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+    score: 90,
+    src: "https://assets.mixkit.co/videos/5031/5031-720.mp4",
     titleKey: "video.title.kyiv",
     views: 11030,
   },
@@ -1078,12 +1317,14 @@ const curatedVideos: readonly VideoRecord[] = [
     authorId: "joao",
     authorKey: "data.author.joao",
     categoryId: "street",
-    duration: "01:09",
+    duration: "00:15",
     id: "video-lisbon",
+    likes: 496,
     locationId: "lisbon",
-    posterUrl: sampleImages.tram,
+    posterUrl: sampleImages.videoPosterLisbon,
     publishedAt: "2026-07-02T18:20:00.000Z",
-    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+    score: 86,
+    src: "https://assets.mixkit.co/videos/4876/4876-720.mp4",
     titleKey: "video.title.lisbon",
     views: 7340,
   },
@@ -1091,14 +1332,106 @@ const curatedVideos: readonly VideoRecord[] = [
     authorId: "lucas",
     authorKey: "data.author.lucas",
     categoryId: "nature",
-    duration: "02:24",
+    duration: "00:06",
     id: "video-paris",
+    likes: 855,
     locationId: "paris",
-    posterUrl: sampleImages.night,
+    posterUrl: sampleImages.videoPosterParis,
     publishedAt: "2026-05-22T21:15:00.000Z",
-    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
+    score: 92,
+    src: "https://assets.mixkit.co/videos/4784/4784-720.mp4",
     titleKey: "video.title.paris",
     views: 14210,
+  },
+  {
+    authorId: "mika",
+    authorKey: "data.author.mika",
+    categoryId: "documentary",
+    duration: "00:21",
+    id: "video-tokyo-subway",
+    likes: 824,
+    locationId: "tokyo",
+    posterUrl: sampleImages.videoPosterTokyoSubway,
+    publishedAt: "2026-08-09T17:10:00.000Z",
+    score: 89,
+    src: "https://assets.mixkit.co/videos/4470/4470-720.mp4",
+    titleKey: "video.title.tokyoSubway",
+    views: 15980,
+  },
+  {
+    authorId: "elena",
+    authorKey: "data.author.elena",
+    categoryId: "nature",
+    duration: "00:10",
+    id: "video-iceland-storm",
+    likes: 917,
+    locationId: "reykjavik",
+    posterUrl: sampleImages.videoPosterIcelandStorm,
+    publishedAt: "2026-07-21T08:40:00.000Z",
+    score: 94,
+    src: "https://assets.mixkit.co/videos/3452/3452-720.mp4",
+    titleKey: "video.title.icelandStorm",
+    views: 17640,
+  },
+  {
+    authorId: "yusuf",
+    authorKey: "data.author.yusuf",
+    categoryId: "portrait",
+    duration: "00:10",
+    id: "video-marrakech-portrait",
+    likes: 572,
+    locationId: "marrakech",
+    posterUrl: sampleImages.videoPosterMarrakechPortrait,
+    publishedAt: "2026-07-08T14:25:00.000Z",
+    score: 87,
+    src: "https://assets.mixkit.co/videos/4829/4829-720.mp4",
+    titleKey: "video.title.marrakechPortrait",
+    views: 10820,
+  },
+  {
+    authorId: "anna",
+    authorKey: "data.author.anna",
+    categoryId: "commercial",
+    duration: "00:22",
+    id: "video-kyiv-fashion",
+    likes: 689,
+    locationId: "kyiv",
+    posterUrl: sampleImages.videoPosterKyivFashion,
+    publishedAt: "2026-06-28T12:15:00.000Z",
+    score: 90,
+    src: "https://assets.mixkit.co/videos/4451/4451-720.mp4",
+    titleKey: "video.title.kyivFashion",
+    views: 12470,
+  },
+  {
+    authorId: "joao",
+    authorKey: "data.author.joao",
+    categoryId: "nature",
+    duration: "00:14",
+    id: "video-lisbon-coast",
+    likes: 534,
+    locationId: "lisbon",
+    posterUrl: sampleImages.videoPosterLisbonCoast,
+    publishedAt: "2026-06-03T10:00:00.000Z",
+    score: 88,
+    src: "https://assets.mixkit.co/videos/4455/4455-720.mp4",
+    titleKey: "video.title.lisbonCoast",
+    views: 9340,
+  },
+  {
+    authorId: "lucas",
+    authorKey: "data.author.lucas",
+    categoryId: "street",
+    duration: "00:13",
+    id: "video-paris-motion",
+    likes: 768,
+    locationId: "paris",
+    posterUrl: sampleImages.videoPosterParisMotion,
+    publishedAt: "2026-05-11T20:45:00.000Z",
+    score: 91,
+    src: "https://assets.mixkit.co/videos/3458/3458-720.mp4",
+    titleKey: "video.title.parisMotion",
+    views: 13690,
   },
 ];
 
@@ -1830,6 +2163,7 @@ export function HomeClient({
     useState<LeaderboardScope>("global");
   const [savedPhotoIds, setSavedPhotoIds] = useState<string[]>([]);
   const [likedPhotoIds, setLikedPhotoIds] = useState<string[]>([]);
+  const [likedVideoIds, setLikedVideoIds] = useState<string[]>([]);
   const [moodboardPhotoIds, setMoodboardPhotoIds] = useState<string[]>([]);
   const [wishlistProductIds, setWishlistProductIds] = useState<string[]>([]);
   const [notifications, setNotifications] = useState<LocalNotification[]>([]);
@@ -2213,6 +2547,7 @@ export function HomeClient({
     setSeasonJoined(readLocalStorage<boolean>(seasonJoinedStorageKey, false));
     setSavedPhotoIds(readLocalStorage<string[]>(savedPhotosStorageKey, []));
     setLikedPhotoIds(readLocalStorage<string[]>(likedPhotosStorageKey, []));
+    setLikedVideoIds(readLocalStorage<string[]>(likedVideosStorageKey, []));
     setMoodboardPhotoIds(readLocalStorage<string[]>(moodboardStorageKey, []));
     setWishlistProductIds(readLocalStorage<string[]>(wishlistStorageKey, []));
     setNotifications(
@@ -2324,6 +2659,11 @@ export function HomeClient({
     if (!isHydrated) return;
     writeLocalStorage(likedPhotosStorageKey, likedPhotoIds);
   }, [isHydrated, likedPhotoIds]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    writeLocalStorage(likedVideosStorageKey, likedVideoIds);
+  }, [isHydrated, likedVideoIds]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -2689,6 +3029,36 @@ export function HomeClient({
       battleCriteria.map(({ id }) => [
         id,
         Math.min(10, Math.max(1, baseScore + offsets[id])),
+      ]),
+    ) as BattleScores;
+  }
+
+  function getVideoCriterionScores(video: VideoRecord): BattleScores {
+    const baseScore = video.score / 10;
+    const seed = [...video.id].reduce(
+      (sum, character) => sum + character.charCodeAt(0),
+      0,
+    );
+    const offsets: BattleScores = {
+      color: 0.2,
+      composition: 0.3,
+      emotionalImpact: 0.1,
+      lighting: -0.1,
+      originality: 0,
+      storytelling: -0.2,
+      technicalQuality: 0.2,
+    };
+
+    return Object.fromEntries(
+      battleCriteria.map(({ id }, index) => [
+        id,
+        Math.min(
+          10,
+          Math.max(
+            1,
+            baseScore + offsets[id] + (((seed + index * 3) % 5) - 2) * 0.1,
+          ),
+        ),
       ]),
     ) as BattleScores;
   }
@@ -3139,6 +3509,14 @@ export function HomeClient({
       current.includes(photoId)
         ? current.filter((likedPhotoId) => likedPhotoId !== photoId)
         : [...current, photoId],
+    );
+  }
+
+  function toggleLikeVideo(videoId: string): void {
+    setLikedVideoIds((current) =>
+      current.includes(videoId)
+        ? current.filter((likedVideoId) => likedVideoId !== videoId)
+        : [...current, videoId],
     );
   }
 
@@ -4600,6 +4978,9 @@ export function HomeClient({
   }
 
   function renderVideoCard(video: VideoRecord): ReactNode {
+    const isLiked = likedVideoIds.includes(video.id);
+    const criterionScores = getVideoCriterionScores(video);
+
     return (
       <article className="photo-card video-card" key={video.id}>
         <div className="video-card-media">
@@ -4607,6 +4988,43 @@ export function HomeClient({
             <source src={video.src} type="video/mp4" />
           </video>
           <span className="video-duration">{video.duration}</span>
+        </div>
+        <div
+          aria-label={t("video.detailedScores")}
+          className="criterion-results photo-card-criteria"
+        >
+          {battleCriteria.map(({ Icon, id, labelKey }) => {
+            const isOpen =
+              activePhotoCriterion?.photoId === video.id &&
+              activePhotoCriterion.criterionId === id;
+            const value = criterionScores[id];
+
+            return (
+              <button
+                aria-label={`${t(labelKey)}: ${value.toLocaleString(locale, {
+                  maximumFractionDigits: 1,
+                  minimumFractionDigits: 1,
+                })}`}
+                className={`criterion-score${isOpen ? " is-open" : ""}`}
+                key={id}
+                onClick={() => {
+                  setActivePhotoCriterion(
+                    isOpen ? null : { criterionId: id, photoId: video.id },
+                  );
+                }}
+                type="button"
+              >
+                <Icon aria-hidden="true" />
+                <strong>
+                  {value.toLocaleString(locale, {
+                    maximumFractionDigits: 1,
+                    minimumFractionDigits: 1,
+                  })}
+                </strong>
+                <span className="criterion-tooltip">{t(labelKey)}</span>
+              </button>
+            );
+          })}
         </div>
         <div className="photo-card-body">
           <div className="photo-card-heading">
@@ -4644,6 +5062,25 @@ export function HomeClient({
             </div>
           </div>
           <div className="video-card-stats">
+            <button
+              aria-label={isLiked ? t("video.unlike") : t("video.like")}
+              aria-pressed={isLiked}
+              className={`photo-counter-action${isLiked ? " is-active" : ""}`}
+              onClick={() => {
+                toggleLikeVideo(video.id);
+              }}
+              title={isLiked ? t("video.unlike") : t("video.like")}
+              type="button"
+            >
+              <Heart
+                aria-hidden="true"
+                fill={isLiked ? "currentColor" : "none"}
+                size={17}
+              />
+              <span>
+                {numberFormatter.format(video.likes + (isLiked ? 1 : 0))}
+              </span>
+            </button>
             <span>
               <Eye aria-hidden="true" size={15} />
               {t("video.views").replace(
@@ -4659,6 +5096,20 @@ export function HomeClient({
                 year: "numeric",
               }).format(new Date(video.publishedAt))}
             </span>
+            <button
+              aria-label={t("common.share")}
+              className="icon-button video-share-action"
+              onClick={() => {
+                void shareItem(
+                  t(video.titleKey),
+                  `/${locale}/video?video=${video.id}`,
+                );
+              }}
+              title={t("common.share")}
+              type="button"
+            >
+              <Share2 aria-hidden="true" size={17} />
+            </button>
           </div>
         </div>
       </article>
