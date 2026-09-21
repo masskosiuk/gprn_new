@@ -1,6 +1,6 @@
-# Global Photographer Reputation Network
+# Global Production & Reputation Network
 
-Global Photographer Reputation Network is a greenfield photography platform foundation for portfolios, provenance, battles, ratings, leaderboards, geographic discovery and future creator monetization.
+Global Production & Reputation Network is a visual-production platform for photographers, videographers, AI creators, models, studios and customers. It combines portfolios, provenance, competitions, reputation, geographic discovery, services and a creator marketplace.
 
 The first implementation stage focuses on production-shaped foundations: monorepo structure, API-first backend, PostgreSQL schema, Redis-backed jobs, S3-compatible storage, localization, RBAC, Docker and documentation.
 

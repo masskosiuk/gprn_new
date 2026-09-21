@@ -83,7 +83,7 @@ async function main(): Promise<void> {
         key: "app.name",
         locale,
         namespace: "common",
-        value: "Global Photographer Reputation Network"
+        value: "Global Production & Reputation Network"
       },
       update: {},
       where: {

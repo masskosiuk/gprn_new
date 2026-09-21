@@ -1,6 +1,6 @@
-# Global Photographer Reputation Network Architecture
+# Global Production & Reputation Network Architecture
 
-This project is an API-first, production-oriented MVP foundation for a global photography competition and reputation platform.
+This project is an API-first, production-oriented MVP foundation for a global visual-production, commerce and reputation platform spanning photography, video, AI creation, talent and studios.
 
 ## Stack
 

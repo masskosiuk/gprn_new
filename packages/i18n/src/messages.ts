@@ -5,10 +5,10 @@ import {
 } from "./locales.js";
 
 const baseMessages = {
-  "app.name": "Global Photographer Reputation Network",
+  "app.name": "Global Production & Reputation Network",
   "app.shortName": "GPRN",
   "app.tagline":
-    "Competitive photography with reputation, provenance and discovery.",
+    "The visual production network for creators, talent, studios and trusted reputation.",
 
   "language.label": "Language",
   "language.en": "English",
@@ -850,7 +850,7 @@ type MessageMap = Record<MessageKey, string>;
 
 const ruMessages: Partial<MessageMap> = {
   "app.tagline":
-    "Соревновательная фотография с репутацией, происхождением файлов и открытием авторов.",
+    "Сеть визуального продакшна для авторов, моделей, студий и проверенной репутации.",
   "language.label": "Язык",
   "language.en": "Английский",
   "language.uk": "Украинский",
