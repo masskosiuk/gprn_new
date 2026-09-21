@@ -55,6 +55,7 @@ import {
   Upload,
   UserCircle,
   UserPlus,
+  Users,
   Video,
   WalletCards,
   X,
@@ -131,12 +132,16 @@ type StudioCriterion =
   | "comfort"
   | "value";
 type StudioScores = Record<StudioCriterion, number>;
+type ModelGenre = "fashion" | "beauty" | "commercial" | "boudoir" | "editorial";
+type ModelGenreFilter = "all" | ModelGenre;
 type SocialPlatformId =
   "instagram" | "facebook" | "artstation" | "adobe" | "behance";
 
 interface HomeClientProps {
   readonly initialAuthorId?: string;
+  readonly initialModelId?: string;
   readonly initialSection: SectionId;
+  readonly initialStudioId?: string;
   readonly locale: SupportedLocale;
 }
 
@@ -357,15 +362,39 @@ interface ExpertRecord {
 }
 
 interface StudioRecord {
+  readonly addressKey: MessageKey;
+  readonly avatarUrl: string;
   readonly cityId: LocationId;
   readonly countryId: CountryId;
+  readonly descriptionKey: MessageKey;
   readonly equipment: readonly StudioEquipment[];
+  readonly galleryUrls: readonly string[];
+  readonly hourlyRateMinor: number;
   readonly id: string;
   readonly imageUrl: string;
   readonly nameKey: MessageKey;
+  readonly orders: number;
   readonly rating: number;
   readonly reviews: number;
   readonly scores: StudioScores;
+  readonly topModelIds: readonly string[];
+  readonly topPhotographerIds: readonly string[];
+}
+
+interface ModelRecord {
+  readonly avatarUrl: string;
+  readonly bioKey: MessageKey;
+  readonly cityId: LocationId;
+  readonly countryId: CountryId;
+  readonly coverUrl: string;
+  readonly genres: readonly ModelGenre[];
+  readonly hourlyRateMinor: number;
+  readonly id: string;
+  readonly nameKey: MessageKey;
+  readonly orders: number;
+  readonly portfolioUrls: readonly string[];
+  readonly rating: number;
+  readonly reviews: number;
 }
 
 interface PublicAuthorProfile {
@@ -586,6 +615,7 @@ const navItems: readonly NavItem[] = [
   { Icon: Compass, id: "home", messageKey: "nav.home" },
   { Icon: ImagePlus, id: "discover", messageKey: "nav.discover" },
   { Icon: Video, id: "video", messageKey: "nav.video" },
+  { Icon: Users, id: "models", messageKey: "nav.models" },
   { Icon: Swords, id: "battles", messageKey: "nav.battles" },
   { Icon: BadgeCheck, id: "challenges", messageKey: "nav.challenges" },
   { Icon: Medal, id: "leaderboard", messageKey: "nav.leaderboard" },
@@ -653,6 +683,10 @@ const sectionMeta: Record<Exclude<SectionId, "home">, SectionMeta> = {
   video: {
     introKey: "section.video.intro",
     titleKey: "section.video.title",
+  },
+  models: {
+    introKey: "section.models.intro",
+    titleKey: "section.models.title",
   },
   experts: {
     introKey: "section.experts.intro",
@@ -757,6 +791,18 @@ const studioEquipmentFilters: readonly {
   { id: "greenScreen", key: "studios.equipment.greenScreen" },
   { id: "makeupRoom", key: "studios.equipment.makeupRoom" },
   { id: "freightElevator", key: "studios.equipment.freightElevator" },
+];
+
+const modelGenreFilters: readonly {
+  id: ModelGenreFilter;
+  key: MessageKey;
+}[] = [
+  { id: "all", key: "models.genre.all" },
+  { id: "fashion", key: "models.genre.fashion" },
+  { id: "beauty", key: "models.genre.beauty" },
+  { id: "commercial", key: "models.genre.commercial" },
+  { id: "boudoir", key: "models.genre.boudoir" },
+  { id: "editorial", key: "models.genre.editorial" },
 ];
 
 const externalPhotoProviders: readonly { id: string; key: MessageKey }[] = [
@@ -1056,7 +1102,7 @@ const samplePhotoReviews: Record<string, PhotoReviewRecord[]> = {
 
 const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
   {
-    avatarUrl: sampleImages.city,
+    avatarUrl: sampleImages.expertSofia,
     bioKey: "profile.authorBio.mika",
     coverUrl: sampleImages.city,
     followers: 1204,
@@ -1074,7 +1120,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     wins: 18,
   },
   {
-    avatarUrl: sampleImages.mountain,
+    avatarUrl: sampleImages.expertIryna,
     bioKey: "profile.authorBio.elena",
     coverUrl: sampleImages.mountain,
     followers: 2130,
@@ -1092,7 +1138,8 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     wins: 27,
   },
   {
-    avatarUrl: sampleImages.desert,
+    avatarUrl:
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&h=600&q=84",
     bioKey: "profile.authorBio.yusuf",
     coverUrl: sampleImages.desert,
     followers: 914,
@@ -1110,7 +1157,8 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     wins: 13,
   },
   {
-    avatarUrl: sampleImages.architecture,
+    avatarUrl:
+      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=600&h=600&q=84",
     bioKey: "profile.authorBio.anna",
     coverUrl: sampleImages.architecture,
     followers: 1806,
@@ -1128,7 +1176,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     wins: 21,
   },
   {
-    avatarUrl: sampleImages.tram,
+    avatarUrl: sampleImages.expertMarcus,
     bioKey: "profile.authorBio.joao",
     coverUrl: sampleImages.tram,
     followers: 1022,
@@ -1143,7 +1191,8 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     wins: 14,
   },
   {
-    avatarUrl: sampleImages.night,
+    avatarUrl:
+      "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=600&h=600&q=84",
     bioKey: "profile.authorBio.lucas",
     coverUrl: sampleImages.night,
     followers: 2460,
@@ -1443,12 +1492,22 @@ const experts: readonly ExpertRecord[] = [
 
 const studios: readonly StudioRecord[] = [
   {
+    addressKey: "studios.data.northLight.address",
+    avatarUrl: sampleImages.studioNorth,
     cityId: "kyiv",
     countryId: "ukraine",
+    descriptionKey: "studios.data.northLight.description",
     equipment: ["cyclorama", "flash", "continuousLight", "makeupRoom"],
+    galleryUrls: [
+      sampleImages.architecture,
+      sampleImages.city,
+      sampleImages.street,
+    ],
+    hourlyRateMinor: 8500,
     id: "north-light",
     imageUrl: sampleImages.studioNorth,
     nameKey: "studios.data.northLight",
+    orders: 348,
     rating: 4.9,
     reviews: 86,
     scores: {
@@ -1460,14 +1519,26 @@ const studios: readonly StudioRecord[] = [
       lightingGear: 9.6,
       value: 9.2,
     },
+    topModelIds: ["olena", "aiko"],
+    topPhotographerIds: ["anna", "mika"],
   },
   {
+    addressKey: "studios.data.atelierSeine.address",
+    avatarUrl: sampleImages.studioSeine,
     cityId: "paris",
     countryId: "france",
+    descriptionKey: "studios.data.atelierSeine.description",
     equipment: ["cyclorama", "continuousLight", "greenScreen"],
+    galleryUrls: [
+      sampleImages.street,
+      sampleImages.night,
+      sampleImages.architecture,
+    ],
+    hourlyRateMinor: 14500,
     id: "atelier-seine",
     imageUrl: sampleImages.studioSeine,
     nameKey: "studios.data.atelierSeine",
+    orders: 512,
     rating: 4.8,
     reviews: 112,
     scores: {
@@ -1479,14 +1550,22 @@ const studios: readonly StudioRecord[] = [
       lightingGear: 9.3,
       value: 8.6,
     },
+    topModelIds: ["camille", "daniel"],
+    topPhotographerIds: ["lucas", "elena"],
   },
   {
+    addressKey: "studios.data.hikariStage.address",
+    avatarUrl: sampleImages.studioHikari,
     cityId: "tokyo",
     countryId: "japan",
+    descriptionKey: "studios.data.hikariStage.description",
     equipment: ["flash", "continuousLight", "greenScreen", "freightElevator"],
+    galleryUrls: [sampleImages.city, sampleImages.tram, sampleImages.night],
+    hourlyRateMinor: 16800,
     id: "hikari-stage",
     imageUrl: sampleImages.studioHikari,
     nameKey: "studios.data.hikariStage",
+    orders: 427,
     rating: 4.7,
     reviews: 74,
     scores: {
@@ -1498,14 +1577,26 @@ const studios: readonly StudioRecord[] = [
       lightingGear: 9.5,
       value: 8.8,
     },
+    topModelIds: ["aiko", "noor"],
+    topPhotographerIds: ["mika", "lucas"],
   },
   {
+    addressKey: "studios.data.luzFactory.address",
+    avatarUrl: sampleImages.studioLuz,
     cityId: "lisbon",
     countryId: "portugal",
+    descriptionKey: "studios.data.luzFactory.description",
     equipment: ["cyclorama", "flash", "makeupRoom", "freightElevator"],
+    galleryUrls: [
+      sampleImages.tram,
+      sampleImages.desert,
+      sampleImages.architecture,
+    ],
+    hourlyRateMinor: 9200,
     id: "luz-factory",
     imageUrl: sampleImages.studioLuz,
     nameKey: "studios.data.luzFactory",
+    orders: 286,
     rating: 4.6,
     reviews: 59,
     scores: {
@@ -1517,14 +1608,26 @@ const studios: readonly StudioRecord[] = [
       lightingGear: 8.8,
       value: 9.1,
     },
+    topModelIds: ["daniel", "camille"],
+    topPhotographerIds: ["joao", "yusuf"],
   },
   {
+    addressKey: "studios.data.sagaRoom.address",
+    avatarUrl: sampleImages.studioSaga,
     cityId: "reykjavik",
     countryId: "iceland",
+    descriptionKey: "studios.data.sagaRoom.description",
     equipment: ["flash", "continuousLight", "makeupRoom"],
+    galleryUrls: [
+      sampleImages.mountain,
+      sampleImages.night,
+      sampleImages.street,
+    ],
+    hourlyRateMinor: 10400,
     id: "saga-room",
     imageUrl: sampleImages.studioSaga,
     nameKey: "studios.data.sagaRoom",
+    orders: 194,
     rating: 4.5,
     reviews: 41,
     scores: {
@@ -1536,12 +1639,112 @@ const studios: readonly StudioRecord[] = [
       lightingGear: 8.9,
       value: 8.5,
     },
+    topModelIds: ["camille", "olena"],
+    topPhotographerIds: ["elena", "anna"],
+  },
+];
+
+const models: readonly ModelRecord[] = [
+  {
+    avatarUrl: sampleImages.expertSofia,
+    bioKey: "models.data.aiko.bio",
+    cityId: "tokyo",
+    countryId: "japan",
+    coverUrl: sampleImages.city,
+    genres: ["fashion", "beauty", "editorial"],
+    hourlyRateMinor: 9500,
+    id: "aiko",
+    nameKey: "models.data.aiko",
+    orders: 184,
+    portfolioUrls: [
+      sampleImages.city,
+      sampleImages.night,
+      sampleImages.architecture,
+    ],
+    rating: 4.9,
+    reviews: 126,
+  },
+  {
+    avatarUrl: sampleImages.expertIryna,
+    bioKey: "models.data.camille.bio",
+    cityId: "paris",
+    countryId: "france",
+    coverUrl: sampleImages.street,
+    genres: ["editorial", "beauty", "fashion"],
+    hourlyRateMinor: 12000,
+    id: "camille",
+    nameKey: "models.data.camille",
+    orders: 231,
+    portfolioUrls: [
+      sampleImages.street,
+      sampleImages.architecture,
+      sampleImages.night,
+    ],
+    rating: 4.8,
+    reviews: 168,
+  },
+  {
+    avatarUrl: sampleImages.expertMarcus,
+    bioKey: "models.data.daniel.bio",
+    cityId: "lisbon",
+    countryId: "portugal",
+    coverUrl: sampleImages.tram,
+    genres: ["commercial", "fashion"],
+    hourlyRateMinor: 7800,
+    id: "daniel",
+    nameKey: "models.data.daniel",
+    orders: 143,
+    portfolioUrls: [sampleImages.tram, sampleImages.city, sampleImages.desert],
+    rating: 4.7,
+    reviews: 91,
+  },
+  {
+    avatarUrl:
+      "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=600&h=600&q=84",
+    bioKey: "models.data.noor.bio",
+    cityId: "marrakech",
+    countryId: "morocco",
+    coverUrl: sampleImages.desert,
+    genres: ["fashion", "editorial"],
+    hourlyRateMinor: 6900,
+    id: "noor",
+    nameKey: "models.data.noor",
+    orders: 117,
+    portfolioUrls: [
+      sampleImages.desert,
+      sampleImages.street,
+      sampleImages.mountain,
+    ],
+    rating: 4.7,
+    reviews: 83,
+  },
+  {
+    avatarUrl:
+      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=600&h=600&q=84",
+    bioKey: "models.data.olena.bio",
+    cityId: "kyiv",
+    countryId: "ukraine",
+    coverUrl: sampleImages.architecture,
+    genres: ["beauty", "boudoir", "commercial"],
+    hourlyRateMinor: 7200,
+    id: "olena",
+    nameKey: "models.data.olena",
+    orders: 156,
+    portfolioUrls: [
+      sampleImages.architecture,
+      sampleImages.city,
+      sampleImages.street,
+    ],
+    rating: 4.8,
+    reviews: 104,
   },
 ];
 
 export function HomeClient({
   initialAuthorId,
+  initialModelId,
   initialSection,
+  initialStudioId,
   locale,
 }: HomeClientProps): ReactNode {
   const router = useRouter();
@@ -1635,6 +1838,14 @@ export function HomeClient({
   const [expertCityFilter, setExpertCityFilter] =
     useState<LocationFilter>("all");
   const [expertRatingFilter, setExpertRatingFilter] =
+    useState<MinimumRatingFilter>("all");
+  const [modelSearch, setModelSearch] = useState("");
+  const [modelGenreFilter, setModelGenreFilter] =
+    useState<ModelGenreFilter>("all");
+  const [modelCountryFilter, setModelCountryFilter] =
+    useState<CountryFilter>("all");
+  const [modelCityFilter, setModelCityFilter] = useState<LocationFilter>("all");
+  const [modelRatingFilter, setModelRatingFilter] =
     useState<MinimumRatingFilter>("all");
   const [studioSearch, setStudioSearch] = useState("");
   const [studioCountryFilter, setStudioCountryFilter] =
@@ -1855,6 +2066,28 @@ export function HomeClient({
       Number(expert.rating) >= minimumRating
     );
   });
+  const visibleModels = models.filter((model) => {
+    const query = modelSearch.trim().toLocaleLowerCase(locale);
+    const searchableText = [
+      t(model.nameKey),
+      t(model.bioKey),
+      getLocationLabel(model.cityId, locale),
+      ...model.genres.map((genre) => t(`models.genre.${genre}` as MessageKey)),
+    ]
+      .join(" ")
+      .toLocaleLowerCase(locale);
+    const minimumRating =
+      modelRatingFilter === "all" ? 0 : Number(modelRatingFilter);
+
+    return (
+      (!query || searchableText.includes(query)) &&
+      (modelGenreFilter === "all" || model.genres.includes(modelGenreFilter)) &&
+      (modelCountryFilter === "all" ||
+        model.countryId === modelCountryFilter) &&
+      (modelCityFilter === "all" || model.cityId === modelCityFilter) &&
+      model.rating >= minimumRating
+    );
+  });
   const visibleStudios = studios.filter((studio) => {
     const query = studioSearch.trim().toLocaleLowerCase(locale);
     const searchableText = [
@@ -1897,6 +2130,25 @@ export function HomeClient({
         };
       }),
     [locale, visibleStudios],
+  );
+  const modelMapMarkers = useMemo<readonly PhotoMapMarker[]>(
+    () =>
+      visibleModels.map((model) => {
+        const location =
+          locationPins.find((candidate) => candidate.id === model.cityId) ??
+          locationPins[0]!;
+
+        return {
+          id: model.cityId,
+          imageUrl: model.avatarUrl,
+          label: getLocationLabel(model.cityId, locale),
+          latitude: location.latitude,
+          longitude: location.longitude,
+          photoId: model.id,
+          title: t(model.nameKey),
+        };
+      }),
+    [locale, visibleModels],
   );
 
   useEffect(() => {
@@ -3914,44 +4166,51 @@ export function HomeClient({
 
   function renderSectionPage(sectionId: Exclude<SectionId, "home">): ReactNode {
     const meta = sectionMeta[sectionId];
+    const isEntityProfile =
+      (sectionId === "studios" && Boolean(initialStudioId)) ||
+      (sectionId === "models" && Boolean(initialModelId));
 
     return (
       <>
-        <section className="page-intro">
-          <div>
-            <h1>{t(meta.titleKey)}</h1>
-            {sectionId !== "profile" ? <p>{t(meta.introKey)}</p> : null}
-          </div>
-          {sectionId !== "admin" &&
-          sectionId !== "studios" &&
-          sectionId !== "video" ? (
-            <div className="intro-actions">
-              <button
-                className="primary-action"
-                onClick={openAddPhoto}
-                type="button"
-              >
-                <Camera aria-hidden="true" size={18} />
-                {t("photo.add")}
-              </button>
-              {!currentProfile ? (
+        {!isEntityProfile ? (
+          <section className="page-intro">
+            <div>
+              <h1>{t(meta.titleKey)}</h1>
+              {sectionId !== "profile" ? <p>{t(meta.introKey)}</p> : null}
+            </div>
+            {sectionId !== "admin" &&
+            sectionId !== "studios" &&
+            sectionId !== "video" &&
+            sectionId !== "models" ? (
+              <div className="intro-actions">
                 <button
-                  className="secondary-action"
-                  onClick={() => {
-                    openAuth("login");
-                  }}
+                  className="primary-action"
+                  onClick={openAddPhoto}
                   type="button"
                 >
-                  <LogIn aria-hidden="true" size={18} />
-                  {t("auth.login")}
+                  <Camera aria-hidden="true" size={18} />
+                  {t("photo.add")}
                 </button>
-              ) : null}
-            </div>
-          ) : null}
-        </section>
+                {!currentProfile ? (
+                  <button
+                    className="secondary-action"
+                    onClick={() => {
+                      openAuth("login");
+                    }}
+                    type="button"
+                  >
+                    <LogIn aria-hidden="true" size={18} />
+                    {t("auth.login")}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         {sectionId === "discover" ? renderDiscoverPage() : null}
         {sectionId === "video" ? renderVideoPage() : null}
+        {sectionId === "models" ? renderModelsPage() : null}
         {sectionId === "battles" ? renderBattlesPage() : null}
         {sectionId === "challenges" ? renderChallengesPage() : null}
         {sectionId === "leaderboard" ? renderLeaderboardPage() : null}
@@ -5441,9 +5700,399 @@ export function HomeClient({
     );
   }
 
+  function getModelCommerceAuthor(model: ModelRecord): PublicAuthorProfile {
+    return {
+      avatarUrl: model.avatarUrl,
+      availableForHire: true,
+      bioKey: model.bioKey,
+      completedOrders: model.orders,
+      coverUrl: model.coverUrl,
+      followers: model.reviews * 9,
+      id: model.id,
+      locationId: model.cityId,
+      nameKey: model.nameKey,
+      rating: Math.round(model.rating * 320),
+      reviewPrice: model.hourlyRateMinor,
+      serviceRating: model.rating,
+      tier: "professional",
+      username: model.id,
+      verified: true,
+      wins: 0,
+    };
+  }
+
+  function getStudioCommerceAuthor(studio: StudioRecord): PublicAuthorProfile {
+    return {
+      avatarUrl: studio.avatarUrl,
+      availableForHire: true,
+      bioKey: studio.descriptionKey,
+      completedOrders: studio.orders,
+      coverUrl: studio.imageUrl,
+      followers: studio.reviews * 7,
+      id: studio.id,
+      locationId: studio.cityId,
+      nameKey: studio.nameKey,
+      rating: Math.round(studio.rating * 320),
+      reviewPrice: studio.hourlyRateMinor,
+      serviceRating: studio.rating,
+      tier: "professional",
+      username: studio.id,
+      verified: true,
+      wins: 0,
+    };
+  }
+
+  function renderModelsPage(): ReactNode {
+    const selectedModel = initialModelId
+      ? models.find((model) => model.id === initialModelId)
+      : null;
+
+    if (selectedModel) {
+      return renderModelProfile(selectedModel);
+    }
+
+    return (
+      <section className="page-section entity-directory">
+        <InteractivePhotoMap
+          activeLocationId={modelCityFilter}
+          ariaLabel={t("models.mapLabel")}
+          locations={mapLocations}
+          markers={modelMapMarkers}
+          onLocationSelect={(locationId) =>
+            setModelCityFilter(locationId as LocationFilter)
+          }
+          onPhotoOpen={(src, alt) =>
+            setImagePreview({ alt, src: getLargeImageSource(src) })
+          }
+        />
+
+        <div className="directory-filter-panel">
+          <div className="directory-filter-heading">
+            <div>
+              <Filter aria-hidden="true" size={20} />
+              <strong>{t("filters.title")}</strong>
+            </div>
+            <span>
+              {t("filters.found")}:{" "}
+              {numberFormatter.format(visibleModels.length)}
+            </span>
+          </div>
+          <div className="directory-filter-fields is-models">
+            <label className="search-box directory-search">
+              <Search aria-hidden="true" size={18} />
+              <span className="visually-hidden">{t("common.search")}</span>
+              <input
+                onChange={(event) => setModelSearch(event.target.value)}
+                placeholder={t("filters.searchModels")}
+                type="search"
+                value={modelSearch}
+              />
+            </label>
+            <label className="form-field compact-field">
+              <span>{t("filters.country")}</span>
+              <select
+                onChange={(event) =>
+                  setModelCountryFilter(event.target.value as CountryFilter)
+                }
+                value={modelCountryFilter}
+              >
+                {countryFilters.map((filter) => (
+                  <option key={filter.id} value={filter.id}>
+                    {t(filter.key)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field compact-field">
+              <span>{t("filters.city")}</span>
+              <select
+                onChange={(event) =>
+                  setModelCityFilter(event.target.value as LocationFilter)
+                }
+                value={modelCityFilter}
+              >
+                {locationFilters.map((filter) => (
+                  <option key={filter.id} value={filter.id}>
+                    {t(filter.key)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field compact-field">
+              <span>{t("filters.minRating")}</span>
+              <select
+                onChange={(event) =>
+                  setModelRatingFilter(
+                    event.target.value as MinimumRatingFilter,
+                  )
+                }
+                value={modelRatingFilter}
+              >
+                {minimumRatingFilters.map((filter) => (
+                  <option key={filter.id} value={filter.id}>
+                    {t(filter.key)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div
+            aria-label={t("filters.genre")}
+            className="category-filter-tags model-genre-tags"
+            role="group"
+          >
+            {modelGenreFilters.map((filter) => (
+              <button
+                aria-pressed={modelGenreFilter === filter.id}
+                className={`filter-tag${modelGenreFilter === filter.id ? " is-active" : ""}`}
+                key={filter.id}
+                onClick={() => setModelGenreFilter(filter.id)}
+                type="button"
+              >
+                {t(filter.key)}
+              </button>
+            ))}
+          </div>
+          <button
+            className="secondary-action compact directory-reset"
+            onClick={() => {
+              setModelSearch("");
+              setModelGenreFilter("all");
+              setModelCountryFilter("all");
+              setModelCityFilter("all");
+              setModelRatingFilter("all");
+            }}
+            type="button"
+          >
+            <X aria-hidden="true" size={15} />
+            {t("common.reset")}
+          </button>
+        </div>
+
+        <div className="model-grid">
+          {visibleModels.map((model) => (
+            <article className="model-card" key={model.id}>
+              <Link
+                className="model-avatar-link"
+                href={`${getSectionHref(locale, "models")}?model=${model.id}`}
+              >
+                <img alt={t(model.nameKey)} src={model.avatarUrl} />
+              </Link>
+              <div className="model-card-body">
+                <div className="model-card-heading">
+                  <div>
+                    <h2>
+                      <Link
+                        href={`${getSectionHref(locale, "models")}?model=${model.id}`}
+                      >
+                        {t(model.nameKey)}
+                      </Link>
+                    </h2>
+                    <span>
+                      <MapPin aria-hidden="true" size={14} />
+                      {getLocationLabel(model.cityId, locale)}
+                    </span>
+                  </div>
+                  <strong>
+                    <Star aria-hidden="true" size={16} />
+                    {model.rating.toLocaleString(locale)}
+                  </strong>
+                </div>
+                <div className="studio-equipment-list">
+                  {model.genres.map((genre) => (
+                    <button
+                      className="entity-tag-button"
+                      key={genre}
+                      onClick={() => setModelGenreFilter(genre)}
+                      type="button"
+                    >
+                      {t(`models.genre.${genre}` as MessageKey)}
+                    </button>
+                  ))}
+                </div>
+                <div className="model-card-stats">
+                  <span>
+                    {numberFormatter.format(model.reviews)}{" "}
+                    {t("models.reviews")}
+                  </span>
+                  <span>
+                    {t("models.price")}{" "}
+                    <strong>
+                      {formatMoney(model.hourlyRateMinor, locale)}
+                    </strong>
+                  </span>
+                </div>
+                <button
+                  className="primary-action compact full-width"
+                  onClick={() =>
+                    openCommerceDialog({
+                      author: getModelCommerceAuthor(model),
+                      kind: "service",
+                    })
+                  }
+                  type="button"
+                >
+                  <Send aria-hidden="true" size={15} />
+                  {t("models.book")}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+        {visibleModels.length === 0 ? (
+          <p className="empty-state">{t("models.empty")}</p>
+        ) : null}
+      </section>
+    );
+  }
+
+  function renderModelProfile(model: ModelRecord): ReactNode {
+    return (
+      <section className="entity-profile-page">
+        <div className="entity-profile-cover">
+          <img alt="" aria-hidden="true" src={model.coverUrl} />
+        </div>
+        <div className="entity-profile-layout">
+          <section className="entity-profile-main">
+            <div className="entity-profile-head">
+              <img
+                alt={t(model.nameKey)}
+                className="entity-profile-avatar"
+                src={model.avatarUrl}
+              />
+              <div>
+                <span className="eyebrow">{t("models.profile")}</span>
+                <h1>{t(model.nameKey)}</h1>
+                <p>{t(model.bioKey)}</p>
+                <div className="meta-row">
+                  <span>
+                    <MapPin aria-hidden="true" size={14} />
+                    {getLocationLabel(model.cityId, locale)}
+                  </span>
+                  {model.genres.map((genre) => (
+                    <span key={genre}>
+                      {t(`models.genre.${genre}` as MessageKey)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <button
+                className="primary-action compact"
+                onClick={() =>
+                  openCommerceDialog({
+                    author: getModelCommerceAuthor(model),
+                    kind: "service",
+                  })
+                }
+                type="button"
+              >
+                <Send aria-hidden="true" size={16} />
+                {t("models.book")}
+              </button>
+            </div>
+            <div className="entity-stat-grid">
+              <div>
+                <strong>{model.rating.toLocaleString(locale)}</strong>
+                <span>{t("common.rating")}</span>
+              </div>
+              <div>
+                <strong>{numberFormatter.format(model.reviews)}</strong>
+                <span>{t("models.reviews")}</span>
+              </div>
+              <div>
+                <strong>{numberFormatter.format(model.orders)}</strong>
+                <span>{t("models.orders")}</span>
+              </div>
+              <div>
+                <strong>{formatMoney(model.hourlyRateMinor, locale)}</strong>
+                <span>{t("models.price")}</span>
+              </div>
+            </div>
+            <div className="section-heading">
+              <h2>{t("models.portfolio")}</h2>
+            </div>
+            <div className="entity-gallery">
+              {model.portfolioUrls.map((imageUrl, index) => (
+                <div key={imageUrl}>
+                  {renderPreviewableImage(
+                    imageUrl,
+                    `${t(model.nameKey)} ${index + 1}`,
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="section-heading">
+              <h2>{t("models.reviews")}</h2>
+            </div>
+            <div className="entity-review-grid">
+              {[t("models.reviewOne"), t("models.reviewTwo")].map(
+                (review, index) => (
+                  <blockquote key={review}>
+                    <div>
+                      <Star aria-hidden="true" size={15} />
+                      <strong>5,0</strong>
+                    </div>
+                    <p>{review}</p>
+                    <cite>
+                      {index === 0 ? "Anna Kovalenko" : "Lucas Meyer"}
+                    </cite>
+                  </blockquote>
+                ),
+              )}
+            </div>
+          </section>
+          <aside className="entity-profile-sidebar">
+            <div className="info-panel">
+              <div className="panel-title">
+                <Users aria-hidden="true" size={20} />
+                <h2>{t("models.dashboard")}</h2>
+              </div>
+              <p>{t("models.dashboardCopy")}</p>
+              <div className="definition-list">
+                <div>
+                  <dt>{t("profile.availableForHire")}</dt>
+                  <dd>{t("common.active")}</dd>
+                </div>
+                <div>
+                  <dt>{t("models.price")}</dt>
+                  <dd>{formatMoney(model.hourlyRateMinor, locale)}</dd>
+                </div>
+                <div>
+                  <dt>{t("models.orders")}</dt>
+                  <dd>{numberFormatter.format(model.orders)}</dd>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    );
+  }
+
   function renderStudiosPage(): ReactNode {
+    const selectedStudio = initialStudioId
+      ? studios.find((studio) => studio.id === initialStudioId)
+      : null;
+
+    if (selectedStudio) {
+      return renderStudioProfile(selectedStudio);
+    }
+
     return (
       <section className="page-section studio-directory">
+        <InteractivePhotoMap
+          activeLocationId={studioCityFilter}
+          ariaLabel={t("studios.mapLabel")}
+          locations={mapLocations}
+          markers={studioMapMarkers}
+          onLocationSelect={(locationId) =>
+            setStudioCityFilter(locationId as LocationFilter)
+          }
+          onPhotoOpen={(src, alt) =>
+            setImagePreview({ alt, src: getLargeImageSource(src) })
+          }
+        />
+
         <div className="directory-filter-panel">
           <div className="directory-filter-heading">
             <div>
@@ -5547,19 +6196,6 @@ export function HomeClient({
           </button>
         </div>
 
-        <InteractivePhotoMap
-          activeLocationId={studioCityFilter}
-          ariaLabel={t("studios.mapLabel")}
-          locations={mapLocations}
-          markers={studioMapMarkers}
-          onLocationSelect={(locationId) =>
-            setStudioCityFilter(locationId as LocationFilter)
-          }
-          onPhotoOpen={(src, alt) =>
-            setImagePreview({ alt, src: getLargeImageSource(src) })
-          }
-        />
-
         <div className="studio-grid">
           {visibleStudios.map((studio) => {
             const scores = getStudioScores(studio);
@@ -5572,12 +6208,26 @@ export function HomeClient({
                 </div>
                 <div className="studio-card-body">
                   <div className="studio-card-heading">
-                    <div>
-                      <h2>{t(studio.nameKey)}</h2>
-                      <span>
-                        <MapPin aria-hidden="true" size={14} />
-                        {getLocationLabel(studio.cityId, locale)}
-                      </span>
+                    <div className="studio-card-identity">
+                      <Link
+                        className="studio-avatar-link"
+                        href={`${getSectionHref(locale, "studios")}?studio=${studio.id}`}
+                      >
+                        <img alt={t(studio.nameKey)} src={studio.avatarUrl} />
+                      </Link>
+                      <div>
+                        <h2>
+                          <Link
+                            href={`${getSectionHref(locale, "studios")}?studio=${studio.id}`}
+                          >
+                            {t(studio.nameKey)}
+                          </Link>
+                        </h2>
+                        <span>
+                          <MapPin aria-hidden="true" size={14} />
+                          {getLocationLabel(studio.cityId, locale)}
+                        </span>
+                      </div>
                     </div>
                     <strong>
                       <Star aria-hidden="true" size={16} />
@@ -5669,6 +6319,192 @@ export function HomeClient({
         {visibleStudios.length === 0 ? (
           <p className="empty-state">{t("studios.empty")}</p>
         ) : null}
+      </section>
+    );
+  }
+
+  function renderStudioProfile(studio: StudioRecord): ReactNode {
+    const scores = getStudioScores(studio);
+    const topPhotographers = publicAuthorProfiles.filter((author) =>
+      studio.topPhotographerIds.includes(author.id),
+    );
+    const topModels = models.filter((model) =>
+      studio.topModelIds.includes(model.id),
+    );
+
+    return (
+      <section className="entity-profile-page">
+        <div className="entity-profile-cover">
+          <img alt="" aria-hidden="true" src={studio.imageUrl} />
+        </div>
+        <div className="entity-profile-layout">
+          <section className="entity-profile-main">
+            <div className="entity-profile-head">
+              <img
+                alt={t(studio.nameKey)}
+                className="entity-profile-avatar is-studio"
+                src={studio.avatarUrl}
+              />
+              <div>
+                <span className="eyebrow">{t("studios.profile")}</span>
+                <h1>{t(studio.nameKey)}</h1>
+                <p>{t(studio.descriptionKey)}</p>
+                <div className="meta-row">
+                  <span>
+                    <MapPin aria-hidden="true" size={14} />
+                    {t(studio.addressKey)}
+                  </span>
+                </div>
+              </div>
+              <button
+                className="primary-action compact"
+                onClick={() =>
+                  openCommerceDialog({
+                    author: getStudioCommerceAuthor(studio),
+                    kind: "service",
+                  })
+                }
+                type="button"
+              >
+                <Send aria-hidden="true" size={16} />
+                {t("studios.book")}
+              </button>
+            </div>
+            <div className="entity-stat-grid">
+              <div>
+                <strong>{studio.rating.toLocaleString(locale)}</strong>
+                <span>{t("common.rating")}</span>
+              </div>
+              <div>
+                <strong>{numberFormatter.format(studio.reviews)}</strong>
+                <span>{t("studios.reviews")}</span>
+              </div>
+              <div>
+                <strong>{numberFormatter.format(studio.orders)}</strong>
+                <span>{t("studios.orders")}</span>
+              </div>
+              <div>
+                <strong>{formatMoney(studio.hourlyRateMinor, locale)}</strong>
+                <span>{t("studios.price")}</span>
+              </div>
+            </div>
+            <div className="studio-score-grid entity-score-grid">
+              {studioCriteria.map(({ Icon, id, labelKey }) => (
+                <div key={id} title={t(labelKey)}>
+                  <Icon aria-hidden="true" size={16} />
+                  <span>
+                    {scores[id].toLocaleString(locale, {
+                      maximumFractionDigits: 1,
+                    })}
+                  </span>
+                  <small>{t(labelKey)}</small>
+                </div>
+              ))}
+            </div>
+            <div className="section-heading">
+              <h2>{t("studios.gallery")}</h2>
+            </div>
+            <div className="entity-gallery">
+              {studio.galleryUrls.map((imageUrl, index) => (
+                <div key={imageUrl}>
+                  {renderPreviewableImage(
+                    imageUrl,
+                    `${t(studio.nameKey)} ${index + 1}`,
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="section-heading">
+              <h2>{t("studios.topClients")}</h2>
+            </div>
+            <div className="top-client-grid">
+              {topPhotographers.map((author) => (
+                <Link
+                  href={`${getSectionHref(locale, "profile")}?author=${author.id}`}
+                  key={author.id}
+                >
+                  <img alt="" src={author.avatarUrl} />
+                  <span>
+                    <strong>{t(author.nameKey)}</strong>
+                    <small>{t("profile.role")}</small>
+                  </span>
+                </Link>
+              ))}
+              {topModels.map((model) => (
+                <Link
+                  href={`${getSectionHref(locale, "models")}?model=${model.id}`}
+                  key={model.id}
+                >
+                  <img alt="" src={model.avatarUrl} />
+                  <span>
+                    <strong>{t(model.nameKey)}</strong>
+                    <small>{t("models.profile")}</small>
+                  </span>
+                </Link>
+              ))}
+            </div>
+            <div className="section-heading">
+              <h2>{t("studios.reviewsTitle")}</h2>
+            </div>
+            <div className="entity-review-grid">
+              {[t("studios.reviewOne"), t("studios.reviewTwo")].map(
+                (review, index) => (
+                  <blockquote key={review}>
+                    <div>
+                      <Star aria-hidden="true" size={15} />
+                      <strong>{index === 0 ? "4,9" : "4,8"}</strong>
+                    </div>
+                    <p>{review}</p>
+                    <cite>{index === 0 ? "Mika Tanaka" : "Aiko Ren"}</cite>
+                  </blockquote>
+                ),
+              )}
+            </div>
+          </section>
+          <aside className="entity-profile-sidebar">
+            <div className="info-panel">
+              <div className="panel-title">
+                <Building2 aria-hidden="true" size={20} />
+                <h2>{t("studios.description")}</h2>
+              </div>
+              <p>{t(studio.descriptionKey)}</p>
+              <dl className="definition-list">
+                <div>
+                  <dt>{t("studios.address")}</dt>
+                  <dd>{t(studio.addressKey)}</dd>
+                </div>
+                <div>
+                  <dt>{t("studios.price")}</dt>
+                  <dd>{formatMoney(studio.hourlyRateMinor, locale)}</dd>
+                </div>
+              </dl>
+              <div className="studio-equipment-list">
+                {studio.equipment.map((equipment) => (
+                  <span key={equipment}>
+                    {t(`studios.equipment.${equipment}` as MessageKey)}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="info-panel">
+              <div className="panel-title">
+                <Grid3X3 aria-hidden="true" size={20} />
+                <h2>{t("studios.dashboard")}</h2>
+              </div>
+              <p>{t("studios.dashboardCopy")}</p>
+              <dl className="definition-list">
+                <div>
+                  <dt>{t("profile.availableForHire")}</dt>
+                  <dd>{t("common.active")}</dd>
+                </div>
+                <div>
+                  <dt>{t("studios.orders")}</dt>
+                  <dd>{numberFormatter.format(studio.orders)}</dd>
+                </div>
+              </dl>
+            </div>
+          </aside>
+        </div>
       </section>
     );
   }

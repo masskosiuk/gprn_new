@@ -4,6 +4,7 @@ export const sectionIds = [
   "home",
   "discover",
   "video",
+  "models",
   "battles",
   "challenges",
   "leaderboard",
@@ -17,6 +18,7 @@ export const sectionIds = [
 export const routedSectionIds = [
   "discover",
   "video",
+  "models",
   "battles",
   "challenges",
   "leaderboard",

@@ -5,6 +5,7 @@ const sectionSlugs = [
   "",
   "discover",
   "video",
+  "models",
   "battles",
   "challenges",
   "leaderboard",

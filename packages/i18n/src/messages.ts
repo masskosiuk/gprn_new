@@ -32,6 +32,7 @@ const baseMessages = {
   "nav.menu": "Open navigation",
   "nav.discover": "Photos",
   "nav.video": "Video",
+  "nav.models": "Models",
   "nav.battles": "Battles",
   "nav.challenges": "Challenges",
   "nav.leaderboard": "Leaderboard",
@@ -130,6 +131,9 @@ const baseMessages = {
   "section.video.title": "Video",
   "section.video.intro":
     "Explore creator videos by category, shoot location and publication date.",
+  "section.models.title": "Models",
+  "section.models.intro":
+    "Find models by location, genre and rating, explore portfolios and book a shoot.",
   "section.map.title": "Photo map",
   "section.map.intro":
     "Explore photographs by the location where they were shot, not by the photographer's profile location.",
@@ -375,6 +379,7 @@ const baseMessages = {
   "filters.found": "Found",
   "filters.searchExperts": "Search experts by name or specialty",
   "filters.searchStudios": "Search studios by name, city or equipment",
+  "filters.searchModels": "Search models by name, city or genre",
   "filters.genre": "Genre",
   "filters.country": "Country",
   "filters.city": "City",
@@ -394,6 +399,7 @@ const baseMessages = {
 
   "studios.mapLabel": "Photo studio locations",
   "studios.reviews": "reviews",
+  "studios.reviewsTitle": "Reviews",
   "studios.rate": "Rate studio",
   "studios.submitRating": "Submit rating",
   "studios.ratingSaved": "Your studio rating has been saved.",
@@ -417,6 +423,74 @@ const baseMessages = {
   "studios.data.hikariStage": "Hikari Stage",
   "studios.data.luzFactory": "Luz Factory",
   "studios.data.sagaRoom": "Saga Room",
+  "studios.profile": "Studio profile",
+  "studios.description": "About the studio",
+  "studios.address": "Address",
+  "studios.price": "Hourly rate",
+  "studios.orders": "Client bookings",
+  "studios.gallery": "Shot in this studio",
+  "studios.topClients": "Top clients",
+  "studios.dashboard": "Studio dashboard",
+  "studios.dashboardCopy":
+    "Manage availability, pricing, equipment and incoming bookings.",
+  "studios.book": "Book studio",
+  "studios.bookingStarted": "Studio booking form opened.",
+  "studios.data.northLight.description":
+    "A daylight studio with a wide cyclorama, flexible lighting grid and a quiet makeup area.",
+  "studios.data.atelierSeine.description":
+    "A refined Paris production space for fashion, portrait and editorial teams.",
+  "studios.data.hikariStage.description":
+    "A high-capacity Tokyo stage with precision lighting, green screen and freight access.",
+  "studios.data.luzFactory.description":
+    "An industrial daylight loft built for commercial productions and large crews.",
+  "studios.data.sagaRoom.description":
+    "An intimate Nordic studio with soft daylight and a calm environment for portrait sessions.",
+  "studios.data.northLight.address": "14 Podil Embankment, Kyiv",
+  "studios.data.atelierSeine.address": "28 Quai de la Seine, Paris",
+  "studios.data.hikariStage.address": "4-12 Shibuya, Tokyo",
+  "studios.data.luzFactory.address": "19 Rua da Luz, Lisbon",
+  "studios.data.sagaRoom.address": "7 Harbor Lane, Reykjavik",
+
+  "models.mapLabel": "Model locations",
+  "models.empty": "No models match the selected filters.",
+  "models.reviews": "reviews",
+  "models.orders": "completed bookings",
+  "models.portfolio": "Portfolio",
+  "models.profile": "Model profile",
+  "models.dashboard": "Model dashboard",
+  "models.dashboardCopy":
+    "Manage availability, rates, portfolio and incoming shoot requests.",
+  "models.book": "Book model",
+  "models.rate": "Rate",
+  "models.price": "Rate from",
+  "models.genre.all": "All genres",
+  "models.genre.fashion": "Fashion",
+  "models.genre.beauty": "Beauty",
+  "models.genre.commercial": "Commercial",
+  "models.genre.boudoir": "Boudoir",
+  "models.genre.editorial": "Editorial",
+  "models.data.aiko": "Aiko Ren",
+  "models.data.aiko.bio":
+    "Tokyo fashion and beauty model focused on editorial movement and clean studio work.",
+  "models.data.camille": "Camille Durand",
+  "models.data.camille.bio":
+    "Paris editorial model with experience in beauty campaigns and independent magazines.",
+  "models.data.daniel": "Daniel Costa",
+  "models.data.daniel.bio":
+    "Lisbon commercial and lifestyle model available for photo and motion productions.",
+  "models.data.noor": "Noor Amrani",
+  "models.data.noor.bio":
+    "Marrakech fashion model bringing expressive movement to location and studio stories.",
+  "models.data.olena": "Olena Marchenko",
+  "models.data.olena.bio":
+    "Kyiv beauty and boudoir model with a calm, precise approach to collaborative shoots.",
+  "models.reviewOne": "Professional, punctual and confident on set.",
+  "models.reviewTwo":
+    "Understands direction quickly and brings strong ideas to every frame.",
+  "studios.reviewOne":
+    "The team prepared the space perfectly and the lighting kit was complete.",
+  "studios.reviewTwo":
+    "Comfortable workflow, clear administration and excellent value.",
 
   "legal.community.body":
     "Upload only work you created or are authorized to publish. Buying or selling high or low ratings, coordinated voting, biased ratings intended to harm a creator, and artificial boosts for friends are prohibited. Violations may reduce reputation or lead to account suspension and removal of affected ratings. The GPRN team continuously audits rating quality, correlation and anomalies; attempts to manipulate the system are investigated and stopped.",
@@ -737,6 +811,7 @@ const ruMessages: Partial<MessageMap> = {
   "nav.menu": "Открыть навигацию",
   "nav.discover": "Фото",
   "nav.video": "Видео",
+  "nav.models": "Модели",
   "nav.battles": "Батлы",
   "nav.challenges": "Челленджи",
   "nav.leaderboard": "Рейтинг",
@@ -825,6 +900,9 @@ const ruMessages: Partial<MessageMap> = {
   "section.video.title": "Видео",
   "section.video.intro":
     "Ищите видео авторов по категории, месту съёмки и дате публикации.",
+  "section.models.title": "Модели",
+  "section.models.intro":
+    "Ищите моделей по локации, жанру и рейтингу, смотрите портфолио и оформляйте заказ.",
   "section.marketplace.title": "Маркетплейс",
   "section.marketplace.intro":
     "Покупайте и продавайте фотографии, лицензии, принты и товары авторов через кошелёк GPRN.",
@@ -1053,6 +1131,7 @@ const ruMessages: Partial<MessageMap> = {
   "filters.found": "Найдено",
   "filters.searchExperts": "Поиск эксперта по имени или специализации",
   "filters.searchStudios": "Поиск студии по названию, городу или оснащению",
+  "filters.searchModels": "Поиск модели по имени, городу или жанру",
   "filters.genre": "Жанр",
   "filters.country": "Страна",
   "filters.city": "Город",
@@ -1071,6 +1150,7 @@ const ruMessages: Partial<MessageMap> = {
   "country.ukraine": "Украина",
   "studios.mapLabel": "Расположение фотостудий",
   "studios.reviews": "оценок",
+  "studios.reviewsTitle": "Отзывы",
   "studios.rate": "Оценить студию",
   "studios.submitRating": "Отправить оценку",
   "studios.ratingSaved": "Ваша оценка студии сохранена.",
@@ -1094,6 +1174,75 @@ const ruMessages: Partial<MessageMap> = {
   "studios.data.hikariStage": "Hikari Stage",
   "studios.data.luzFactory": "Luz Factory",
   "studios.data.sagaRoom": "Saga Room",
+  "studios.profile": "Профиль студии",
+  "studios.description": "О студии",
+  "studios.address": "Адрес",
+  "studios.price": "Стоимость часа",
+  "studios.orders": "Заказов клиентов",
+  "studios.gallery": "Снято в этой студии",
+  "studios.topClients": "Топовые заказчики",
+  "studios.dashboard": "Личный кабинет студии",
+  "studios.dashboardCopy":
+    "Управление доступностью, стоимостью, оборудованием и входящими заказами.",
+  "studios.book": "Заказать студию",
+  "studios.bookingStarted": "Открыта форма заказа студии.",
+  "studios.data.northLight.description":
+    "Студия дневного света с широкой циклорамой, гибкой световой сеткой и отдельной гримёрной.",
+  "studios.data.atelierSeine.description":
+    "Парижское пространство для fashion-, портретных и редакционных съёмок.",
+  "studios.data.hikariStage.description":
+    "Просторный токийский павильон с точным светом, хромакеем и грузовым доступом.",
+  "studios.data.luzFactory.description":
+    "Индустриальный лофт с дневным светом для коммерческих продакшенов и больших команд.",
+  "studios.data.sagaRoom.description":
+    "Камерная северная студия с мягким дневным светом и спокойной атмосферой для портретов.",
+  "studios.data.northLight.address": "Набережная Подола, 14, Киев",
+  "studios.data.atelierSeine.address": "Набережная Сены, 28, Париж",
+  "studios.data.hikariStage.address": "Сибуя, 4-12, Токио",
+  "studios.data.luzFactory.address": "Руа-да-Луш, 19, Лиссабон",
+  "studios.data.sagaRoom.address": "Харбор-лейн, 7, Рейкьявик",
+
+  "models.mapLabel": "Расположение моделей",
+  "models.empty": "По выбранным фильтрам модели не найдены.",
+  "models.reviews": "отзывов",
+  "models.orders": "выполненных заказов",
+  "models.portfolio": "Портфолио",
+  "models.profile": "Профиль модели",
+  "models.dashboard": "Личный кабинет модели",
+  "models.dashboardCopy":
+    "Управление доступностью, ставкой, портфолио и запросами на съёмку.",
+  "models.book": "Заказать модель",
+  "models.rate": "Оценить",
+  "models.price": "Ставка от",
+  "models.genre.all": "Все жанры",
+  "models.genre.fashion": "Fashion",
+  "models.genre.beauty": "Beauty",
+  "models.genre.commercial": "Коммерция",
+  "models.genre.boudoir": "Будуар",
+  "models.genre.editorial": "Editorial",
+  "models.data.aiko": "Aiko Ren",
+  "models.data.aiko.bio":
+    "Токийская fashion- и beauty-модель с акцентом на редакционную пластику и студийные съёмки.",
+  "models.data.camille": "Camille Durand",
+  "models.data.camille.bio":
+    "Парижская editorial-модель с опытом в бьюти-кампаниях и независимых журналах.",
+  "models.data.daniel": "Daniel Costa",
+  "models.data.daniel.bio":
+    "Коммерческая и lifestyle-модель из Лиссабона для фото- и видеопродакшенов.",
+  "models.data.noor": "Noor Amrani",
+  "models.data.noor.bio":
+    "Fashion-модель из Марракеша с выразительной пластикой для студийных и выездных историй.",
+  "models.data.olena": "Олена Марченко",
+  "models.data.olena.bio":
+    "Beauty- и будуарная модель из Киева с точным и спокойным подходом к совместной работе.",
+  "models.reviewOne":
+    "Профессиональная работа, пунктуальность и уверенность в кадре.",
+  "models.reviewTwo":
+    "Быстро понимает задачу и предлагает сильные идеи для каждого кадра.",
+  "studios.reviewOne":
+    "Команда отлично подготовила пространство, а комплект света был полностью укомплектован.",
+  "studios.reviewTwo":
+    "Комфортный процесс, понятная администрация и отличное соотношение цены и качества.",
   "legal.community.body":
     "Загружать можно только собственные работы или материалы, на публикацию которых у вас есть право. Запрещены покупка и продажа высоких или низких оценок, сговор при голосовании, предвзятые оценки с целью навредить автору и искусственное завышение оценок друзьям. Нарушения могут привести к снижению репутации, блокировке аккаунта и удалению связанных оценок. Команда GPRN постоянно проверяет качество и корреляцию оценок, выявляет аномалии и пресекает попытки манипулировать системой.",
   "legal.community.title": "Правила сообщества",
