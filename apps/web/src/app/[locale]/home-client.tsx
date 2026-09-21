@@ -21,6 +21,7 @@ import {
   Crown,
   CreditCard,
   Download,
+  Eye,
   ExternalLink,
   Filter,
   Grid3X3,
@@ -36,6 +37,7 @@ import {
   Megaphone,
   Medal,
   Menu,
+  Moon,
   Paperclip,
   Palette,
   Search,
@@ -53,6 +55,7 @@ import {
   Upload,
   UserCircle,
   UserPlus,
+  Video,
   WalletCards,
   X,
   type LucideIcon,
@@ -76,6 +79,7 @@ import {
 import { getSectionHref, type SectionId } from "./sections";
 
 type AuthMode = "login" | "register";
+type ThemeMode = "dark" | "light";
 type AccountTier =
   "viewer" | "amateur" | "beginner" | "experienced" | "professional" | "star";
 type CategoryId =
@@ -256,6 +260,20 @@ interface PhotoRecord {
   readonly votes: number;
 }
 
+interface VideoRecord {
+  readonly authorId: string;
+  readonly authorKey: MessageKey;
+  readonly categoryId: CategoryId;
+  readonly duration: string;
+  readonly id: string;
+  readonly locationId: LocationId;
+  readonly posterUrl: string;
+  readonly publishedAt: string;
+  readonly src: string;
+  readonly titleKey: MessageKey;
+  readonly views: number;
+}
+
 interface BattleEntry {
   readonly id: string;
   readonly imageUrl: string;
@@ -289,6 +307,7 @@ interface BattleRecord {
 interface ChallengeRecord {
   readonly categoryId: CategoryId;
   readonly copyKey: MessageKey;
+  readonly coverUrl: string;
   readonly deadline: string;
   readonly id: string;
   readonly participants: number;
@@ -454,6 +473,7 @@ const serviceOrdersStorageKey = "gprn.serviceOrders.v1";
 const promotionsStorageKey = "gprn.promotions.v1";
 const marketplaceListingsStorageKey = "gprn.marketplaceListings.v1";
 const deletionRequestStorageKey = "gprn.deletionRequested.v2";
+const themeStorageKey = "gprn.theme.v1";
 const localeCookieName = "gprn_locale";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -565,10 +585,10 @@ const promotionPriceMinor: Record<PromotionPlacement, number> = {
 const navItems: readonly NavItem[] = [
   { Icon: Compass, id: "home", messageKey: "nav.home" },
   { Icon: ImagePlus, id: "discover", messageKey: "nav.discover" },
+  { Icon: Video, id: "video", messageKey: "nav.video" },
   { Icon: Swords, id: "battles", messageKey: "nav.battles" },
   { Icon: BadgeCheck, id: "challenges", messageKey: "nav.challenges" },
   { Icon: Medal, id: "leaderboard", messageKey: "nav.leaderboard" },
-  { Icon: MapPin, id: "map", messageKey: "nav.map" },
   { Icon: ShoppingBag, id: "marketplace", messageKey: "nav.marketplace" },
   { Icon: Trophy, id: "experts", messageKey: "nav.experts" },
   { Icon: Building2, id: "studios", messageKey: "nav.studios" },
@@ -630,6 +650,10 @@ const sectionMeta: Record<Exclude<SectionId, "home">, SectionMeta> = {
     introKey: "section.discover.intro",
     titleKey: "section.discover.title",
   },
+  video: {
+    introKey: "section.video.intro",
+    titleKey: "section.video.title",
+  },
   experts: {
     introKey: "section.experts.intro",
     titleKey: "section.experts.title",
@@ -641,10 +665,6 @@ const sectionMeta: Record<Exclude<SectionId, "home">, SectionMeta> = {
   leaderboard: {
     introKey: "section.leaderboard.intro",
     titleKey: "section.leaderboard.title",
-  },
-  map: {
-    introKey: "section.map.intro",
-    titleKey: "section.map.title",
   },
   marketplace: {
     introKey: "section.marketplace.intro",
@@ -932,6 +952,87 @@ const curatedPhotos: readonly PhotoRecord[] = [
   },
 ];
 
+const curatedVideos: readonly VideoRecord[] = [
+  {
+    authorId: "mika",
+    authorKey: "data.author.mika",
+    categoryId: "street",
+    duration: "01:18",
+    id: "video-tokyo",
+    locationId: "tokyo",
+    posterUrl: sampleImages.city,
+    publishedAt: "2026-09-05T12:30:00.000Z",
+    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+    titleKey: "video.title.tokyo",
+    views: 18420,
+  },
+  {
+    authorId: "elena",
+    authorKey: "data.author.elena",
+    categoryId: "landscape",
+    duration: "02:06",
+    id: "video-iceland",
+    locationId: "reykjavik",
+    posterUrl: sampleImages.mountain,
+    publishedAt: "2026-08-29T09:10:00.000Z",
+    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+    titleKey: "video.title.iceland",
+    views: 12780,
+  },
+  {
+    authorId: "yusuf",
+    authorKey: "data.author.yusuf",
+    categoryId: "documentary",
+    duration: "00:54",
+    id: "video-marrakech",
+    locationId: "marrakech",
+    posterUrl: sampleImages.desert,
+    publishedAt: "2026-08-16T16:05:00.000Z",
+    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+    titleKey: "video.title.marrakech",
+    views: 9560,
+  },
+  {
+    authorId: "anna",
+    authorKey: "data.author.anna",
+    categoryId: "architecture",
+    duration: "01:42",
+    id: "video-kyiv",
+    locationId: "kyiv",
+    posterUrl: sampleImages.architecture,
+    publishedAt: "2026-07-26T11:40:00.000Z",
+    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+    titleKey: "video.title.kyiv",
+    views: 11030,
+  },
+  {
+    authorId: "joao",
+    authorKey: "data.author.joao",
+    categoryId: "street",
+    duration: "01:09",
+    id: "video-lisbon",
+    locationId: "lisbon",
+    posterUrl: sampleImages.tram,
+    publishedAt: "2026-07-02T18:20:00.000Z",
+    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+    titleKey: "video.title.lisbon",
+    views: 7340,
+  },
+  {
+    authorId: "lucas",
+    authorKey: "data.author.lucas",
+    categoryId: "nature",
+    duration: "02:24",
+    id: "video-paris",
+    locationId: "paris",
+    posterUrl: sampleImages.night,
+    publishedAt: "2026-05-22T21:15:00.000Z",
+    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
+    titleKey: "video.title.paris",
+    views: 14210,
+  },
+];
+
 const samplePhotoReviews: Record<string, PhotoReviewRecord[]> = {
   "curated-tokyo": [
     {
@@ -1152,6 +1253,7 @@ const challenges: readonly ChallengeRecord[] = [
   {
     categoryId: "street",
     copyKey: "data.challenge.cityNight.copy",
+    coverUrl: sampleImages.city,
     deadline: "2026-09-18T21:00:00.000Z",
     id: "city-night",
     participants: 428,
@@ -1161,6 +1263,7 @@ const challenges: readonly ChallengeRecord[] = [
   {
     categoryId: "architecture",
     copyKey: "data.challenge.humanScale.copy",
+    coverUrl: sampleImages.architecture,
     deadline: "2026-09-24T21:00:00.000Z",
     id: "human-scale",
     participants: 211,
@@ -1170,6 +1273,7 @@ const challenges: readonly ChallengeRecord[] = [
   {
     categoryId: "landscape",
     copyKey: "data.challenge.wildWeather.copy",
+    coverUrl: sampleImages.mountain,
     deadline: "2026-10-02T21:00:00.000Z",
     id: "wild-weather",
     participants: 96,
@@ -1446,6 +1550,7 @@ export function HomeClient({
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const languageMenuRef = useRef<HTMLDivElement>(null);
   const [isHydrated, setHydrated] = useState(false);
+  const [theme, setTheme] = useState<ThemeMode>("light");
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLanguageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("register");
@@ -1482,6 +1587,13 @@ export function HomeClient({
     useState<LocationFilter>("all");
   const [discoverDateFrom, setDiscoverDateFrom] = useState("");
   const [discoverDateTo, setDiscoverDateTo] = useState("");
+  const [videoSearchTerm, setVideoSearchTerm] = useState("");
+  const [videoCategoryFilter, setVideoCategoryFilter] =
+    useState<CategoryFilter>("all");
+  const [videoLocationFilter, setVideoLocationFilter] =
+    useState<LocationFilter>("all");
+  const [videoDateFrom, setVideoDateFrom] = useState("");
+  const [videoDateTo, setVideoDateTo] = useState("");
   const [battleFilter, setBattleFilter] = useState<BattleFilter>("all");
   const [battles, setBattles] = useState<BattleRecord[]>(() => [
     ...initialBattles,
@@ -1495,7 +1607,6 @@ export function HomeClient({
   const [seasonJoined, setSeasonJoined] = useState(false);
   const [leaderboardScope, setLeaderboardScope] =
     useState<LeaderboardScope>("global");
-  const [locationFilter, setLocationFilter] = useState<LocationFilter>("all");
   const [savedPhotoIds, setSavedPhotoIds] = useState<string[]>([]);
   const [likedPhotoIds, setLikedPhotoIds] = useState<string[]>([]);
   const [moodboardPhotoIds, setMoodboardPhotoIds] = useState<string[]>([]);
@@ -1635,9 +1746,31 @@ export function HomeClient({
   const visibleBattles = battles.filter(
     (battle) => battleFilter === "all" || battle.scope === battleFilter,
   );
-  const visibleMapPhotos = publicPhotos.filter(
-    (photo) => locationFilter === "all" || photo.locationId === locationFilter,
-  );
+  const visibleVideos = curatedVideos.filter((video) => {
+    const query = videoSearchTerm.trim().toLocaleLowerCase(locale);
+    const title = t(video.titleKey).toLocaleLowerCase(locale);
+    const author = t(video.authorKey).toLocaleLowerCase(locale);
+    const location = getLocationLabel(
+      video.locationId,
+      locale,
+    ).toLocaleLowerCase(locale);
+    const publishedAt = new Date(video.publishedAt);
+
+    return (
+      (videoCategoryFilter === "all" ||
+        video.categoryId === videoCategoryFilter) &&
+      (videoLocationFilter === "all" ||
+        video.locationId === videoLocationFilter) &&
+      (!videoDateFrom ||
+        publishedAt >= new Date(`${videoDateFrom}T00:00:00`)) &&
+      (!videoDateTo ||
+        publishedAt <= new Date(`${videoDateTo}T23:59:59.999`)) &&
+      (!query ||
+        title.includes(query) ||
+        author.includes(query) ||
+        location.includes(query))
+    );
+  });
   const profilePhotos = uploadedPhotos.filter((photo) => photo.isMine);
   const mapLocations = useMemo(
     () =>
@@ -1673,6 +1806,32 @@ export function HomeClient({
       };
     });
   }, [locale, publicPhotos]);
+  const mapVideoMarkers = useMemo<readonly PhotoMapMarker[]>(() => {
+    const locationVideoCounts = new Map<LocationId, number>();
+
+    return curatedVideos.map((video) => {
+      const location =
+        locationPins.find((candidate) => candidate.id === video.locationId) ??
+        locationPins[0]!;
+      const locationVideoIndex = locationVideoCounts.get(location.id) ?? 0;
+      locationVideoCounts.set(location.id, locationVideoIndex + 1);
+      const angle = (locationVideoIndex * 137.5 * Math.PI) / 180;
+      const radius =
+        locationVideoIndex === 0
+          ? 0
+          : 0.045 * Math.ceil(locationVideoIndex / 5);
+
+      return {
+        id: location.id,
+        imageUrl: video.posterUrl,
+        label: getLocationLabel(location.id, locale),
+        latitude: location.latitude + Math.cos(angle) * radius,
+        longitude: location.longitude + Math.sin(angle) * radius,
+        photoId: video.id,
+        title: t(video.titleKey),
+      };
+    });
+  }, [locale]);
   const visibleExperts = experts.filter((expert) => {
     const query = expertSearch.trim().toLocaleLowerCase(locale);
     const searchableText = [
@@ -1741,6 +1900,19 @@ export function HomeClient({
   );
 
   useEffect(() => {
+    const storedTheme = readLocalStorage<ThemeMode | null>(
+      themeStorageKey,
+      null,
+    );
+    const resolvedTheme =
+      storedTheme ??
+      (window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light");
+
+    setTheme(resolvedTheme);
+    document.documentElement.dataset.theme = resolvedTheme;
+
     const storedAccount = readLocalStorage<AccountRecord | null>(
       accountStorageKey,
       null,
@@ -1808,6 +1980,15 @@ export function HomeClient({
     );
     setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    document.documentElement.dataset.theme = theme;
+    writeLocalStorage(themeStorageKey, theme);
+  }, [isHydrated, theme]);
 
   useEffect(() => {
     writeLocaleCookie(locale);
@@ -3293,6 +3474,24 @@ export function HomeClient({
         </nav>
 
         <div className={`header-tools${isMobileMenuOpen ? " is-open" : ""}`}>
+          <button
+            aria-label={theme === "dark" ? t("theme.light") : t("theme.dark")}
+            aria-pressed={theme === "dark"}
+            className="header-icon-button theme-toggle"
+            onClick={() => {
+              setTheme((currentTheme) =>
+                currentTheme === "dark" ? "light" : "dark",
+              );
+            }}
+            title={theme === "dark" ? t("theme.light") : t("theme.dark")}
+            type="button"
+          >
+            {theme === "dark" ? (
+              <SunMedium aria-hidden="true" size={18} />
+            ) : (
+              <Moon aria-hidden="true" size={18} />
+            )}
+          </button>
           <div className="language-picker" ref={languageMenuRef}>
             <button
               aria-expanded={isLanguageMenuOpen}
@@ -3723,7 +3922,9 @@ export function HomeClient({
             <h1>{t(meta.titleKey)}</h1>
             {sectionId !== "profile" ? <p>{t(meta.introKey)}</p> : null}
           </div>
-          {sectionId !== "admin" && sectionId !== "studios" ? (
+          {sectionId !== "admin" &&
+          sectionId !== "studios" &&
+          sectionId !== "video" ? (
             <div className="intro-actions">
               <button
                 className="primary-action"
@@ -3750,10 +3951,10 @@ export function HomeClient({
         </section>
 
         {sectionId === "discover" ? renderDiscoverPage() : null}
+        {sectionId === "video" ? renderVideoPage() : null}
         {sectionId === "battles" ? renderBattlesPage() : null}
         {sectionId === "challenges" ? renderChallengesPage() : null}
         {sectionId === "leaderboard" ? renderLeaderboardPage() : null}
-        {sectionId === "map" ? renderMapPage() : null}
         {sectionId === "marketplace" ? renderMarketplacePage() : null}
         {sectionId === "experts" ? renderExpertsPage() : null}
         {sectionId === "studios" ? renderStudiosPage() : null}
@@ -3766,6 +3967,21 @@ export function HomeClient({
   function renderDiscoverPage(): ReactNode {
     return (
       <section className="workspace-grid discover-workspace">
+        <div className="discover-map-section">
+          <InteractivePhotoMap
+            activeLocationId={discoverLocationFilter}
+            ariaLabel={t("map.pins")}
+            locations={mapLocations}
+            markers={mapPhotoMarkers}
+            onLocationSelect={(locationId) => {
+              setDiscoverLocationFilter(locationId as LocationFilter);
+            }}
+            onPhotoOpen={(src, alt) => {
+              setImagePreview({ alt, src: getLargeImageSource(src) });
+            }}
+          />
+        </div>
+
         <div className="main-column">
           <div className="toolbar discover-toolbar">
             <label className="search-box">
@@ -3924,6 +4140,251 @@ export function HomeClient({
           </aside>
         </div>
       </section>
+    );
+  }
+
+  function renderVideoPage(): ReactNode {
+    return (
+      <section className="workspace-grid discover-workspace video-workspace">
+        <div className="discover-map-section">
+          <InteractivePhotoMap
+            activeLocationId={videoLocationFilter}
+            ariaLabel={t("video.mapLabel")}
+            locations={mapLocations}
+            markers={mapVideoMarkers}
+            onLocationSelect={(locationId) => {
+              setVideoLocationFilter(locationId as LocationFilter);
+            }}
+            onPhotoOpen={(src, alt) => {
+              setImagePreview({ alt, src: getLargeImageSource(src) });
+            }}
+          />
+        </div>
+
+        <div className="main-column">
+          <div className="toolbar discover-toolbar">
+            <label className="search-box">
+              <Search aria-hidden="true" size={18} />
+              <span className="visually-hidden">{t("common.search")}</span>
+              <input
+                onChange={(event) => {
+                  setVideoSearchTerm(event.target.value);
+                }}
+                placeholder={t("video.searchPlaceholder")}
+                type="search"
+                value={videoSearchTerm}
+              />
+            </label>
+          </div>
+
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">{t("video.featured")}</span>
+              <h2>{t("section.video.title")}</h2>
+            </div>
+            <span className="count-pill">
+              {numberFormatter.format(visibleVideos.length)}
+            </span>
+          </div>
+
+          {visibleVideos.length > 0 ? (
+            <div className="photo-gallery video-gallery">
+              {visibleVideos.map((video) => renderVideoCard(video))}
+            </div>
+          ) : (
+            <p className="empty-state">{t("video.empty")}</p>
+          )}
+        </div>
+
+        <div className="side-column discover-filter-column">
+          <aside className="discover-filter-panel">
+            <div className="panel-title">
+              <Filter aria-hidden="true" size={20} />
+              <h2>{t("discover.filters")}</h2>
+            </div>
+
+            <div className="discover-filter-fields">
+              <div className="discover-filter-field">
+                <span>{t("discover.category")}</span>
+                <div
+                  aria-label={t("discover.category")}
+                  className="category-filter-tags"
+                  role="group"
+                >
+                  {categoryFilters.map((filter) => (
+                    <button
+                      aria-pressed={videoCategoryFilter === filter.id}
+                      className={`filter-tag${
+                        videoCategoryFilter === filter.id ? " is-active" : ""
+                      }`}
+                      key={filter.id}
+                      onClick={() => {
+                        setVideoCategoryFilter(filter.id);
+                      }}
+                      type="button"
+                    >
+                      {t(filter.key)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="discover-filter-field">
+                <span>{t("discover.location")}</span>
+                <select
+                  onChange={(event) => {
+                    setVideoLocationFilter(
+                      event.target.value as LocationFilter,
+                    );
+                  }}
+                  value={videoLocationFilter}
+                >
+                  {locationFilters.map((filter) => (
+                    <option key={filter.id} value={filter.id}>
+                      {t(filter.key)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <fieldset className="discover-date-filter">
+                <legend>{t("discover.date")}</legend>
+                <div className="discover-date-grid">
+                  <label className="discover-filter-field discover-date-field">
+                    <span className="discover-date-prefix">
+                      {t("discover.dateFrom")}
+                    </span>
+                    <span
+                      className={`discover-date-value${videoDateFrom ? "" : " is-placeholder"}`}
+                    >
+                      {formatDateInputDisplay(locale, videoDateFrom)}
+                    </span>
+                    <CalendarDays aria-hidden="true" size={17} />
+                    <input
+                      aria-label={t("discover.dateFrom")}
+                      max={videoDateTo || undefined}
+                      onChange={(event) => {
+                        setVideoDateFrom(event.target.value);
+                      }}
+                      type="date"
+                      value={videoDateFrom}
+                    />
+                  </label>
+                  <label className="discover-filter-field discover-date-field">
+                    <span className="discover-date-prefix">
+                      {t("discover.dateTo")}
+                    </span>
+                    <span
+                      className={`discover-date-value${videoDateTo ? "" : " is-placeholder"}`}
+                    >
+                      {formatDateInputDisplay(locale, videoDateTo)}
+                    </span>
+                    <CalendarDays aria-hidden="true" size={17} />
+                    <input
+                      aria-label={t("discover.dateTo")}
+                      min={videoDateFrom || undefined}
+                      onChange={(event) => {
+                        setVideoDateTo(event.target.value);
+                      }}
+                      type="date"
+                      value={videoDateTo}
+                    />
+                  </label>
+                </div>
+              </fieldset>
+            </div>
+
+            <div className="discover-filter-footer">
+              <span>
+                {t("discover.results").replace(
+                  "{count}",
+                  numberFormatter.format(visibleVideos.length),
+                )}
+              </span>
+              <button
+                className="secondary-action compact-action"
+                onClick={() => {
+                  setVideoSearchTerm("");
+                  setVideoCategoryFilter("all");
+                  setVideoLocationFilter("all");
+                  setVideoDateFrom("");
+                  setVideoDateTo("");
+                }}
+                type="button"
+              >
+                <X aria-hidden="true" size={15} />
+                {t("discover.clearFilters")}
+              </button>
+            </div>
+          </aside>
+        </div>
+      </section>
+    );
+  }
+
+  function renderVideoCard(video: VideoRecord): ReactNode {
+    return (
+      <article className="photo-card video-card" key={video.id}>
+        <div className="video-card-media">
+          <video controls playsInline poster={video.posterUrl} preload="none">
+            <source src={video.src} type="video/mp4" />
+          </video>
+          <span className="video-duration">{video.duration}</span>
+        </div>
+        <div className="photo-card-body">
+          <div className="photo-card-heading">
+            <div className="photo-card-heading-copy">
+              <strong>{t(video.titleKey)}</strong>
+              <Link
+                className="photo-author-link"
+                href={`${getSectionHref(locale, "profile")}?author=${video.authorId}`}
+              >
+                {t(video.authorKey)}
+              </Link>
+            </div>
+            <div className="photo-card-heading-tags">
+              <button
+                aria-pressed={videoLocationFilter === video.locationId}
+                className="photo-meta-tag"
+                onClick={() => {
+                  setVideoLocationFilter(video.locationId);
+                }}
+                type="button"
+              >
+                <MapPin aria-hidden="true" size={14} />
+                {getLocationLabel(video.locationId, locale)}
+              </button>
+              <button
+                aria-pressed={videoCategoryFilter === video.categoryId}
+                className="photo-meta-tag"
+                onClick={() => {
+                  setVideoCategoryFilter(video.categoryId);
+                }}
+                type="button"
+              >
+                {t(`category.${video.categoryId}` as MessageKey)}
+              </button>
+            </div>
+          </div>
+          <div className="video-card-stats">
+            <span>
+              <Eye aria-hidden="true" size={15} />
+              {t("video.views").replace(
+                "{count}",
+                numberFormatter.format(video.views),
+              )}
+            </span>
+            <span>
+              <CalendarDays aria-hidden="true" size={15} />
+              {new Intl.DateTimeFormat(locale, {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              }).format(new Date(video.publishedAt))}
+            </span>
+          </div>
+        </div>
+      </article>
     );
   }
 
@@ -4449,14 +4910,22 @@ export function HomeClient({
     return (
       <section className="page-section">
         <div className="notice-panel season-panel">
-          <Trophy aria-hidden="true" size={22} />
-          <div>
-            <strong>{t("season.title")}</strong>
-            <p>{t("season.copy")}</p>
-            <span className="season-status">
-              {t("season.status")}:{" "}
-              {seasonJoined ? t("season.joined") : t("common.available")}
-            </span>
+          <img
+            alt=""
+            aria-hidden="true"
+            className="season-cover"
+            src={sampleImages.night}
+          />
+          <div className="season-copy">
+            <Trophy aria-hidden="true" size={22} />
+            <div>
+              <strong>{t("season.title")}</strong>
+              <p>{t("season.copy")}</p>
+              <span className="season-status">
+                {t("season.status")}:{" "}
+                {seasonJoined ? t("season.joined") : t("common.available")}
+              </span>
+            </div>
           </div>
           <button
             className="primary-action compact"
@@ -4478,47 +4947,55 @@ export function HomeClient({
 
             return (
               <article className="challenge-card" key={challenge.id}>
-                <div className="challenge-top">
-                  <span className="pill">{t(challenge.statusKey)}</span>
-                  <span>{t(getCategoryKey(challenge.categoryId))}</span>
-                </div>
-                <h2>{t(challenge.titleKey)}</h2>
-                <p>{t(challenge.copyKey)}</p>
-                <dl className="stats-list">
-                  <div>
-                    <dt>{t("challenges.participants")}</dt>
-                    <dd>{numberFormatter.format(challenge.participants)}</dd>
+                <img
+                  alt=""
+                  aria-hidden="true"
+                  className="challenge-cover"
+                  src={challenge.coverUrl}
+                />
+                <div className="challenge-card-body">
+                  <div className="challenge-top">
+                    <span className="pill">{t(challenge.statusKey)}</span>
+                    <span>{t(getCategoryKey(challenge.categoryId))}</span>
                   </div>
-                  <div>
-                    <dt>{t("challenges.deadline")}</dt>
-                    <dd>{formatDate(locale, challenge.deadline)}</dd>
-                  </div>
-                </dl>
-                {submittedPhoto ? (
-                  <div className="selected-file compact-file">
-                    {renderPreviewableImage(
-                      submittedPhoto.src,
-                      getPhotoTitle(submittedPhoto, locale),
-                    )}
+                  <h2>{t(challenge.titleKey)}</h2>
+                  <p>{t(challenge.copyKey)}</p>
+                  <dl className="stats-list challenge-stats">
                     <div>
-                      <strong>{t("challenges.already")}</strong>
-                      <span>{getPhotoTitle(submittedPhoto, locale)}</span>
+                      <dt>{t("challenges.participants")}</dt>
+                      <dd>{numberFormatter.format(challenge.participants)}</dd>
                     </div>
-                  </div>
-                ) : null}
-                <button
-                  className="primary-action full-width"
-                  disabled={Boolean(submittedPhotoId)}
-                  onClick={() => {
-                    submitChallenge(challenge.id);
-                  }}
-                  type="button"
-                >
-                  <Check aria-hidden="true" size={18} />
-                  {submittedPhotoId
-                    ? t("challenges.already")
-                    : t("challenges.submit")}
-                </button>
+                    <div>
+                      <dt>{t("challenges.deadline")}</dt>
+                      <dd>{formatDate(locale, challenge.deadline)}</dd>
+                    </div>
+                  </dl>
+                  {submittedPhoto ? (
+                    <div className="selected-file compact-file">
+                      {renderPreviewableImage(
+                        submittedPhoto.src,
+                        getPhotoTitle(submittedPhoto, locale),
+                      )}
+                      <div>
+                        <strong>{t("challenges.already")}</strong>
+                        <span>{getPhotoTitle(submittedPhoto, locale)}</span>
+                      </div>
+                    </div>
+                  ) : null}
+                  <button
+                    className="primary-action full-width"
+                    disabled={Boolean(submittedPhotoId)}
+                    onClick={() => {
+                      submitChallenge(challenge.id);
+                    }}
+                    type="button"
+                  >
+                    <Check aria-hidden="true" size={18} />
+                    {submittedPhotoId
+                      ? t("challenges.already")
+                      : t("challenges.submit")}
+                  </button>
+                </div>
               </article>
             );
           })}
@@ -4631,60 +5108,6 @@ export function HomeClient({
               </span>
             </div>
           ))}
-        </div>
-      </section>
-    );
-  }
-
-  function renderMapPage(): ReactNode {
-    return (
-      <section className="workspace-grid">
-        <div className="main-column">
-          <InteractivePhotoMap
-            activeLocationId={locationFilter}
-            ariaLabel={t("map.pins")}
-            locations={mapLocations}
-            markers={mapPhotoMarkers}
-            onLocationSelect={(locationId) => {
-              setLocationFilter(locationId as LocationFilter);
-            }}
-            onPhotoOpen={(src, alt) => {
-              setImagePreview({ alt, src: getLargeImageSource(src) });
-            }}
-          />
-          <p className="helper-message">{t("map.location.note")}</p>
-        </div>
-
-        <aside className="side-column">
-          <div className="segmented vertical">
-            {locationFilters.map((filter) => (
-              <button
-                className={locationFilter === filter.id ? "is-active" : ""}
-                key={filter.id}
-                onClick={() => {
-                  setLocationFilter(filter.id);
-                }}
-                type="button"
-              >
-                {t(filter.key)}
-              </button>
-            ))}
-          </div>
-          <div className="info-panel">
-            <div className="panel-title">
-              <MapPin aria-hidden="true" size={20} />
-              <div>
-                <h2>{t("map.photosHere")}</h2>
-                <p>{numberFormatter.format(visibleMapPhotos.length)}</p>
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        <div className="main-column full-span">
-          <div className="photo-gallery">
-            {visibleMapPhotos.map((photo) => renderPhotoCard(photo))}
-          </div>
         </div>
       </section>
     );

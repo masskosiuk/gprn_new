@@ -3,10 +3,10 @@ import type { SupportedLocale } from "@gprn/i18n";
 export const sectionIds = [
   "home",
   "discover",
+  "video",
   "battles",
   "challenges",
   "leaderboard",
-  "map",
   "marketplace",
   "experts",
   "studios",
@@ -16,10 +16,10 @@ export const sectionIds = [
 
 export const routedSectionIds = [
   "discover",
+  "video",
   "battles",
   "challenges",
   "leaderboard",
-  "map",
   "marketplace",
   "experts",
   "studios",

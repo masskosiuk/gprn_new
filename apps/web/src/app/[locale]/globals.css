@@ -16,6 +16,25 @@
   --success: #137333;
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --accent: #54b7aa;
+  --accent-strong: #78d1c5;
+  --accent-soft: #173a3a;
+  --amber: #e3a84a;
+  --background: #090d13;
+  --border: #293545;
+  --danger: #ff8d86;
+  --foreground: #eef4fb;
+  --gold: #ddb45b;
+  --muted: #9aa9ba;
+  --panel: #111823;
+  --panel-strong: #182230;
+  --rose: #dc77ac;
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+  --success: #6fcf8a;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -106,6 +125,10 @@ img {
   position: sticky;
   top: 0;
   z-index: 30;
+}
+
+:root[data-theme="dark"] .topbar {
+  background: rgba(9, 13, 19, 0.92);
 }
 
 .topbar > *,
@@ -214,6 +237,10 @@ img {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.theme-toggle {
+  flex: 0 0 38px;
 }
 
 .language-picker {
@@ -905,11 +932,22 @@ img {
 }
 
 .discover-workspace .discover-filter-column {
-  grid-row: 1;
+  grid-row: 2;
 }
 
 .discover-workspace .main-column {
-  grid-row: 2;
+  grid-row: 3;
+}
+
+.discover-map-section {
+  display: grid;
+  gap: 12px;
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.discover-map-section .map-board {
+  height: clamp(340px, 42vw, 520px);
 }
 
 .discover-workspace .photo-gallery {
@@ -1274,6 +1312,51 @@ img {
   background: var(--panel-strong);
   object-fit: cover;
   width: 100%;
+}
+
+.video-card-media {
+  aspect-ratio: 16 / 9;
+  background: #0c1422;
+  overflow: hidden;
+  position: relative;
+}
+
+.video-card-media video {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.video-duration {
+  background: rgba(12, 20, 34, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: 4px;
+  bottom: 10px;
+  color: #ffffff;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  padding: 4px 6px;
+  pointer-events: none;
+  position: absolute;
+  right: 10px;
+}
+
+.video-card-stats {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding-top: 11px;
+}
+
+.video-card-stats span {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
 }
 
 .photo-card-body {
@@ -2062,6 +2145,24 @@ img {
   padding: 18px;
 }
 
+.challenge-card {
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.challenge-cover {
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  width: 100%;
+}
+
+.challenge-card-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
 .challenge-top {
   align-items: center;
   color: var(--muted);
@@ -2074,6 +2175,15 @@ img {
 .product-card h2,
 .expert-card h2 {
   font-size: 22px;
+}
+
+.challenge-stats {
+  align-items: end;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.challenge-stats > div:last-child {
+  text-align: right;
 }
 
 .leaderboard-table {
@@ -2249,8 +2359,30 @@ img {
 }
 
 .season-panel {
-  align-items: flex-start;
+  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr) auto;
   justify-content: space-between;
+  overflow: hidden;
+  padding: 0;
+}
+
+.season-cover {
+  height: 100%;
+  min-height: 150px;
+  object-fit: cover;
+  width: 100%;
+}
+
+.season-copy {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  padding: 20px 4px;
+}
+
+.season-panel > .primary-action {
+  margin-right: 20px;
 }
 
 .season-status {
@@ -2259,6 +2391,35 @@ img {
   font-size: 12px;
   font-weight: 800;
   margin-top: 8px;
+}
+
+:root[data-theme="dark"] .status-message.success,
+:root[data-theme="dark"] .dialog-feedback.success {
+  background: #142b21;
+}
+
+:root[data-theme="dark"] .status-message.error,
+:root[data-theme="dark"] .dialog-feedback.error,
+:root[data-theme="dark"] .warning-message {
+  background: #321c1c;
+}
+
+:root[data-theme="dark"] .leaderboard-row.is-you {
+  background: #2c2516;
+}
+
+:root[data-theme="dark"] .professional-avatar-badge {
+  background: #342a16;
+  border-color: var(--panel);
+}
+
+:root[data-theme="dark"] .account-tier-badge {
+  background: color-mix(in srgb, var(--tier-color) 28%, var(--panel));
+  border-color: var(--panel);
+}
+
+:root[data-theme="dark"] .map-board .leaflet-control-attribution {
+  background: rgba(17, 24, 35, 0.9);
 }
 
 .product-card {
@@ -3586,6 +3747,23 @@ img {
   .site-footer {
     align-items: stretch;
     display: grid;
+  }
+
+  .season-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .season-cover {
+    height: 190px;
+    min-height: 0;
+  }
+
+  .season-copy {
+    padding: 16px;
+  }
+
+  .season-panel > .primary-action {
+    margin: 0 16px 16px;
   }
 
   .footer-links {

@@ -25,10 +25,13 @@ const baseMessages = {
   "language.ja": "Japanese",
   "language.zh": "Chinese",
   "language.ko": "Korean",
+  "theme.dark": "Use dark theme",
+  "theme.light": "Use light theme",
 
   "nav.home": "Home",
   "nav.menu": "Open navigation",
-  "nav.discover": "Discover",
+  "nav.discover": "Photos",
+  "nav.video": "Video",
   "nav.battles": "Battles",
   "nav.challenges": "Challenges",
   "nav.leaderboard": "Leaderboard",
@@ -112,7 +115,7 @@ const baseMessages = {
   "home.previewCopy":
     "Our team continuously verifies authorship, original files and the integrity of ratings across the platform.",
 
-  "section.discover.title": "Discover photographs",
+  "section.discover.title": "Photos",
   "section.discover.intro":
     "Browse published work by category, shoot location and publication date, or upload your own original file from the device.",
   "section.battles.title": "Photo battles",
@@ -124,6 +127,9 @@ const baseMessages = {
   "section.leaderboard.title": "Reputation leaderboard",
   "section.leaderboard.intro":
     "Compare photographers by global, city and category reputation signals.",
+  "section.video.title": "Video",
+  "section.video.intro":
+    "Explore creator videos by category, shoot location and publication date.",
   "section.map.title": "Photo map",
   "section.map.intro":
     "Explore photographs by the location where they were shot, not by the photographer's profile location.",
@@ -215,6 +221,18 @@ const baseMessages = {
   "discover.save": "Save photo",
   "discover.saved": "Photo saved to your local collection.",
   "discover.unsave": "Remove saved photo",
+
+  "video.searchPlaceholder": "Search by title, creator or location",
+  "video.featured": "Featured videos",
+  "video.empty": "No videos match this filter.",
+  "video.views": "{count} views",
+  "video.mapLabel": "Video shoot locations",
+  "video.title.tokyo": "Tokyo in motion",
+  "video.title.iceland": "Northern silence",
+  "video.title.marrakech": "Medina rhythm",
+  "video.title.kyiv": "Geometry in motion",
+  "video.title.lisbon": "Lisbon after rain",
+  "video.title.paris": "Night horizon",
 
   "share.done": "Share link is ready.",
   "share.failed": "The share link could not be copied.",
@@ -713,13 +731,15 @@ const ruMessages: Partial<MessageMap> = {
   "language.ja": "Японский",
   "language.zh": "Китайский",
   "language.ko": "Корейский",
+  "theme.dark": "Включить чёрную тему",
+  "theme.light": "Включить светлую тему",
   "nav.home": "Главная",
   "nav.menu": "Открыть навигацию",
-  "nav.discover": "Обзор",
+  "nav.discover": "Фото",
+  "nav.video": "Видео",
   "nav.battles": "Батлы",
   "nav.challenges": "Челленджи",
   "nav.leaderboard": "Рейтинг",
-  "nav.map": "Карта",
   "nav.marketplace": "Маркетплейс",
   "nav.experts": "Эксперты",
   "nav.studios": "Студии",
@@ -790,7 +810,7 @@ const ruMessages: Partial<MessageMap> = {
   "home.previewTitle": "Строгая проверка",
   "home.previewCopy":
     "Команда платформы постоянно проверяет подлинность работ, авторство и честность оценок.",
-  "section.discover.title": "Обзор фотографий",
+  "section.discover.title": "Фото",
   "section.discover.intro":
     "Ищите опубликованные работы по категории, месту съёмки и дате публикации или загрузите свой оригинальный файл.",
   "section.battles.title": "Фотобатлы",
@@ -802,9 +822,9 @@ const ruMessages: Partial<MessageMap> = {
   "section.leaderboard.title": "Рейтинг репутации",
   "section.leaderboard.intro":
     "Сравнивайте фотографов по глобальным, городским и категорийным сигналам репутации.",
-  "section.map.title": "Карта фотографий",
-  "section.map.intro":
-    "Исследуйте фотографии по месту съёмки, а не по месту профиля автора.",
+  "section.video.title": "Видео",
+  "section.video.intro":
+    "Ищите видео авторов по категории, месту съёмки и дате публикации.",
   "section.marketplace.title": "Маркетплейс",
   "section.marketplace.intro":
     "Покупайте и продавайте фотографии, лицензии, принты и товары авторов через кошелёк GPRN.",
@@ -891,6 +911,17 @@ const ruMessages: Partial<MessageMap> = {
   "discover.save": "Сохранить фото",
   "discover.saved": "Фото сохранено в локальную коллекцию.",
   "discover.unsave": "Убрать из сохранённых",
+  "video.searchPlaceholder": "Искать по названию, автору или месту",
+  "video.featured": "Рекомендуемые видео",
+  "video.empty": "По этому фильтру видео нет.",
+  "video.views": "{count} просмотров",
+  "video.mapLabel": "Места съёмки видео",
+  "video.title.tokyo": "Токио в движении",
+  "video.title.iceland": "Северная тишина",
+  "video.title.marrakech": "Ритм медины",
+  "video.title.kyiv": "Геометрия в движении",
+  "video.title.lisbon": "Лиссабон после дождя",
+  "video.title.paris": "Ночной горизонт",
   "share.done": "Ссылка для публикации готова.",
   "share.failed": "Не удалось скопировать ссылку.",
   "category.all": "Все категории",
