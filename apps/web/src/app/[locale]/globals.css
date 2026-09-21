@@ -3796,6 +3796,7 @@ img {
 
 .compact-field {
   gap: 6px;
+  min-width: 0;
 }
 
 .compact-field > span {
@@ -3803,8 +3804,10 @@ img {
 }
 
 .compact-field select {
+  min-width: 0;
   min-height: 46px;
   padding-right: 40px;
+  width: 100%;
 }
 
 .directory-reset {
