@@ -920,6 +920,16 @@ img {
   padding-block: 22px 52px;
 }
 
+.experts-ranking {
+  padding-bottom: 16px;
+}
+
+.experts-ranking .section-heading p {
+  color: var(--muted);
+  margin: 8px 0 0;
+  max-width: 720px;
+}
+
 .workspace-grid {
   display: grid;
   gap: 24px;

@@ -3,7 +3,7 @@ import {
   supportedLocales,
   type SupportedLocale,
 } from "@gprn/i18n";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { HomeClient } from "../home-client";
 import {
@@ -45,6 +45,10 @@ export default async function SectionPage({
   }
 
   const locale = isSupportedLocale(requestedLocale) ? requestedLocale : "en";
+
+  if (requestedSection === "leaderboard") {
+    redirect(`/${locale}/experts`);
+  }
 
   return (
     <HomeClient

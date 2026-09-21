@@ -6,12 +6,11 @@ const sectionSlugs = [
   "discover",
   "video",
   "models",
+  "studios",
   "battles",
   "challenges",
-  "leaderboard",
   "marketplace",
   "experts",
-  "studios",
   "profile",
 ] as const;
 const legalSlugs = [

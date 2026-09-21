@@ -616,12 +616,11 @@ const navItems: readonly NavItem[] = [
   { Icon: ImagePlus, id: "discover", messageKey: "nav.discover" },
   { Icon: Video, id: "video", messageKey: "nav.video" },
   { Icon: Users, id: "models", messageKey: "nav.models" },
+  { Icon: Building2, id: "studios", messageKey: "nav.studios" },
   { Icon: Swords, id: "battles", messageKey: "nav.battles" },
   { Icon: BadgeCheck, id: "challenges", messageKey: "nav.challenges" },
-  { Icon: Medal, id: "leaderboard", messageKey: "nav.leaderboard" },
   { Icon: ShoppingBag, id: "marketplace", messageKey: "nav.marketplace" },
   { Icon: Trophy, id: "experts", messageKey: "nav.experts" },
-  { Icon: Building2, id: "studios", messageKey: "nav.studios" },
   { Icon: UserCircle, id: "profile", messageKey: "nav.profile" },
 ];
 
@@ -893,6 +892,30 @@ const sampleImages = {
     "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&h=600&q=84",
   expertSofia:
     "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&h=600&q=84",
+  authorMika:
+    "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=600&h=600&q=84",
+  authorElena:
+    "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=600&h=600&q=84",
+  authorYusuf:
+    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&h=600&q=84",
+  authorAnna:
+    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=600&h=600&q=84",
+  authorJoao:
+    "https://images.unsplash.com/photo-1552374196-c4e7ffc6e126?auto=format&fit=crop&w=600&h=600&q=84",
+  authorLucas:
+    "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=600&h=600&q=84",
+  modelAiko:
+    "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&h=600&q=84",
+  modelCamille:
+    "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=600&h=600&q=84",
+  modelDaniel:
+    "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=600&h=600&q=84",
+  modelNoor:
+    "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=600&h=600&q=84",
+  modelOlena:
+    "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=600&h=600&q=84",
+  accountDefault:
+    "https://images.unsplash.com/photo-1542206395-9feb3edaa68d?auto=format&fit=crop&w=600&h=600&q=84",
   studioNorth:
     "https://images.unsplash.com/photo-1768818928341-3b31b8965c6d?auto=format&fit=crop&w=1400&q=82",
   studioSeine:
@@ -1102,7 +1125,7 @@ const samplePhotoReviews: Record<string, PhotoReviewRecord[]> = {
 
 const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
   {
-    avatarUrl: sampleImages.expertSofia,
+    avatarUrl: sampleImages.authorMika,
     bioKey: "profile.authorBio.mika",
     coverUrl: sampleImages.city,
     followers: 1204,
@@ -1120,7 +1143,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     wins: 18,
   },
   {
-    avatarUrl: sampleImages.expertIryna,
+    avatarUrl: sampleImages.authorElena,
     bioKey: "profile.authorBio.elena",
     coverUrl: sampleImages.mountain,
     followers: 2130,
@@ -1138,8 +1161,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     wins: 27,
   },
   {
-    avatarUrl:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&h=600&q=84",
+    avatarUrl: sampleImages.authorYusuf,
     bioKey: "profile.authorBio.yusuf",
     coverUrl: sampleImages.desert,
     followers: 914,
@@ -1157,8 +1179,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     wins: 13,
   },
   {
-    avatarUrl:
-      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=600&h=600&q=84",
+    avatarUrl: sampleImages.authorAnna,
     bioKey: "profile.authorBio.anna",
     coverUrl: sampleImages.architecture,
     followers: 1806,
@@ -1176,7 +1197,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     wins: 21,
   },
   {
-    avatarUrl: sampleImages.expertMarcus,
+    avatarUrl: sampleImages.authorJoao,
     bioKey: "profile.authorBio.joao",
     coverUrl: sampleImages.tram,
     followers: 1022,
@@ -1191,8 +1212,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     wins: 14,
   },
   {
-    avatarUrl:
-      "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=600&h=600&q=84",
+    avatarUrl: sampleImages.authorLucas,
     bioKey: "profile.authorBio.lucas",
     coverUrl: sampleImages.night,
     followers: 2460,
@@ -1334,7 +1354,7 @@ const challenges: readonly ChallengeRecord[] = [
 const leaderboardRows: readonly LeaderboardRow[] = [
   {
     authorId: "mika",
-    avatarUrl: sampleImages.city,
+    avatarUrl: sampleImages.authorMika,
     battles: 72,
     change: 4,
     locationId: "tokyo",
@@ -1343,7 +1363,7 @@ const leaderboardRows: readonly LeaderboardRow[] = [
   },
   {
     authorId: "elena",
-    avatarUrl: sampleImages.mountain,
+    avatarUrl: sampleImages.authorElena,
     battles: 68,
     change: 2,
     locationId: "reykjavik",
@@ -1352,7 +1372,7 @@ const leaderboardRows: readonly LeaderboardRow[] = [
   },
   {
     authorId: "anna",
-    avatarUrl: sampleImages.architecture,
+    avatarUrl: sampleImages.authorAnna,
     battles: 59,
     change: 7,
     locationId: "kyiv",
@@ -1361,7 +1381,7 @@ const leaderboardRows: readonly LeaderboardRow[] = [
   },
   {
     authorId: "yusuf",
-    avatarUrl: sampleImages.desert,
+    avatarUrl: sampleImages.authorYusuf,
     battles: 64,
     change: -1,
     locationId: "marrakech",
@@ -1370,7 +1390,7 @@ const leaderboardRows: readonly LeaderboardRow[] = [
   },
   {
     authorId: "joao",
-    avatarUrl: sampleImages.tram,
+    avatarUrl: sampleImages.authorJoao,
     battles: 45,
     change: 3,
     locationId: "lisbon",
@@ -1646,7 +1666,7 @@ const studios: readonly StudioRecord[] = [
 
 const models: readonly ModelRecord[] = [
   {
-    avatarUrl: sampleImages.expertSofia,
+    avatarUrl: sampleImages.modelAiko,
     bioKey: "models.data.aiko.bio",
     cityId: "tokyo",
     countryId: "japan",
@@ -1665,7 +1685,7 @@ const models: readonly ModelRecord[] = [
     reviews: 126,
   },
   {
-    avatarUrl: sampleImages.expertIryna,
+    avatarUrl: sampleImages.modelCamille,
     bioKey: "models.data.camille.bio",
     cityId: "paris",
     countryId: "france",
@@ -1684,7 +1704,7 @@ const models: readonly ModelRecord[] = [
     reviews: 168,
   },
   {
-    avatarUrl: sampleImages.expertMarcus,
+    avatarUrl: sampleImages.modelDaniel,
     bioKey: "models.data.daniel.bio",
     cityId: "lisbon",
     countryId: "portugal",
@@ -1699,8 +1719,7 @@ const models: readonly ModelRecord[] = [
     reviews: 91,
   },
   {
-    avatarUrl:
-      "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=600&h=600&q=84",
+    avatarUrl: sampleImages.modelNoor,
     bioKey: "models.data.noor.bio",
     cityId: "marrakech",
     countryId: "morocco",
@@ -1719,8 +1738,7 @@ const models: readonly ModelRecord[] = [
     reviews: 83,
   },
   {
-    avatarUrl:
-      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=600&h=600&q=84",
+    avatarUrl: sampleImages.modelOlena,
     bioKey: "models.data.olena.bio",
     cityId: "kyiv",
     countryId: "ukraine",
@@ -5263,7 +5281,7 @@ export function HomeClient({
     );
   }
 
-  function renderLeaderboardPage(): ReactNode {
+  function renderLeaderboardPage(embedded = false): ReactNode {
     const scopeOffset =
       leaderboardScope === "global"
         ? 0
@@ -5280,7 +5298,8 @@ export function HomeClient({
           ? [
               {
                 authorId: "me",
-                avatarUrl: currentProfile.avatarUrl ?? sampleImages.street,
+                avatarUrl:
+                  currentProfile.avatarUrl ?? sampleImages.accountDefault,
                 battles:
                   currentProfile.battles + Object.keys(battleVotes).length,
                 change: 12,
@@ -5295,7 +5314,16 @@ export function HomeClient({
       .sort((first, second) => second.rating - first.rating);
 
     return (
-      <section className="page-section">
+      <section className={`page-section${embedded ? " experts-ranking" : ""}`}>
+        {embedded ? (
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">{t("nav.leaderboard")}</span>
+              <h2>{t("section.leaderboard.title")}</h2>
+              <p>{t("section.leaderboard.intro")}</p>
+            </div>
+          </div>
+        ) : null}
         <div className="segmented">
           {leaderboardScopes.map((scope) => (
             <button
@@ -5546,157 +5574,164 @@ export function HomeClient({
 
   function renderExpertsPage(): ReactNode {
     return (
-      <section className="page-section">
-        <div className="directory-filter-panel">
-          <div className="directory-filter-heading">
-            <div>
-              <Filter aria-hidden="true" size={20} />
-              <strong>{t("filters.title")}</strong>
-            </div>
-            <span>
-              {t("filters.found")}:{" "}
-              {numberFormatter.format(visibleExperts.length)}
-            </span>
-          </div>
-          <div className="directory-filter-fields is-experts">
-            <label className="search-box directory-search">
-              <Search aria-hidden="true" size={18} />
-              <span className="visually-hidden">{t("common.search")}</span>
-              <input
-                onChange={(event) => setExpertSearch(event.target.value)}
-                placeholder={t("filters.searchExperts")}
-                type="search"
-                value={expertSearch}
-              />
-            </label>
-            <label className="form-field compact-field">
-              <span>{t("filters.genre")}</span>
-              <select
-                onChange={(event) =>
-                  setExpertCategoryFilter(event.target.value as CategoryFilter)
-                }
-                value={expertCategoryFilter}
-              >
-                {categoryFilters.map((filter) => (
-                  <option key={filter.id} value={filter.id}>
-                    {t(filter.key)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="form-field compact-field">
-              <span>{t("filters.country")}</span>
-              <select
-                onChange={(event) =>
-                  setExpertCountryFilter(event.target.value as CountryFilter)
-                }
-                value={expertCountryFilter}
-              >
-                {countryFilters.map((filter) => (
-                  <option key={filter.id} value={filter.id}>
-                    {t(filter.key)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="form-field compact-field">
-              <span>{t("filters.city")}</span>
-              <select
-                onChange={(event) =>
-                  setExpertCityFilter(event.target.value as LocationFilter)
-                }
-                value={expertCityFilter}
-              >
-                {locationFilters.map((filter) => (
-                  <option key={filter.id} value={filter.id}>
-                    {t(filter.key)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="form-field compact-field">
-              <span>{t("filters.minRating")}</span>
-              <select
-                onChange={(event) =>
-                  setExpertRatingFilter(
-                    event.target.value as MinimumRatingFilter,
-                  )
-                }
-                value={expertRatingFilter}
-              >
-                {minimumRatingFilters.map((filter) => (
-                  <option key={filter.id} value={filter.id}>
-                    {t(filter.key)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <button
-            className="secondary-action compact directory-reset"
-            onClick={() => {
-              setExpertSearch("");
-              setExpertCategoryFilter("all");
-              setExpertCountryFilter("all");
-              setExpertCityFilter("all");
-              setExpertRatingFilter("all");
-            }}
-            type="button"
-          >
-            <X aria-hidden="true" size={15} />
-            {t("common.reset")}
-          </button>
-        </div>
-
-        <div className="expert-grid">
-          {visibleExperts.map((expert) => (
-            <article className="expert-card" key={expert.id}>
-              <div className="expert-avatar-frame is-professional">
-                {renderAuthorAvatar(
-                  expert.avatarUrl,
-                  t(expert.nameKey),
-                  expert.id,
-                )}
-                {renderProfessionalBadge()}
-              </div>
+      <>
+        {renderLeaderboardPage(true)}
+        <section className="page-section">
+          <div className="directory-filter-panel">
+            <div className="directory-filter-heading">
               <div>
-                <span className="pill">{t(expert.specialtyKey)}</span>
-                <h2 className="author-name-line">
-                  <Link
-                    href={`${getSectionHref(locale, "profile")}?author=${expert.id}`}
-                  >
-                    {t(expert.nameKey)}
-                  </Link>
-                  {renderVerifiedBadge()}
-                </h2>
-                <p>{t(expert.headlineKey)}</p>
-                <div className="meta-row">
-                  <span>
-                    <MapPin aria-hidden="true" size={14} />
-                    {getLocationLabel(expert.locationId, locale)}
-                  </span>
-                  <span>
-                    <Star aria-hidden="true" size={14} />
-                    {expert.rating} {t("experts.rating")}
-                  </span>
-                  <span>
-                    {numberFormatter.format(expert.reviews)}{" "}
-                    {t("experts.reviews")}
-                  </span>
-                </div>
-                <div className="language-list">
-                  {expert.languages.map((expertLocale) => (
-                    <span key={expertLocale}>{expertLocale.toUpperCase()}</span>
-                  ))}
-                </div>
+                <Filter aria-hidden="true" size={20} />
+                <strong>{t("filters.title")}</strong>
               </div>
-            </article>
-          ))}
-        </div>
-        {visibleExperts.length === 0 ? (
-          <p className="empty-state">{t("experts.empty")}</p>
-        ) : null}
-      </section>
+              <span>
+                {t("filters.found")}:{" "}
+                {numberFormatter.format(visibleExperts.length)}
+              </span>
+            </div>
+            <div className="directory-filter-fields is-experts">
+              <label className="search-box directory-search">
+                <Search aria-hidden="true" size={18} />
+                <span className="visually-hidden">{t("common.search")}</span>
+                <input
+                  onChange={(event) => setExpertSearch(event.target.value)}
+                  placeholder={t("filters.searchExperts")}
+                  type="search"
+                  value={expertSearch}
+                />
+              </label>
+              <label className="form-field compact-field">
+                <span>{t("filters.genre")}</span>
+                <select
+                  onChange={(event) =>
+                    setExpertCategoryFilter(
+                      event.target.value as CategoryFilter,
+                    )
+                  }
+                  value={expertCategoryFilter}
+                >
+                  {categoryFilters.map((filter) => (
+                    <option key={filter.id} value={filter.id}>
+                      {t(filter.key)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field compact-field">
+                <span>{t("filters.country")}</span>
+                <select
+                  onChange={(event) =>
+                    setExpertCountryFilter(event.target.value as CountryFilter)
+                  }
+                  value={expertCountryFilter}
+                >
+                  {countryFilters.map((filter) => (
+                    <option key={filter.id} value={filter.id}>
+                      {t(filter.key)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field compact-field">
+                <span>{t("filters.city")}</span>
+                <select
+                  onChange={(event) =>
+                    setExpertCityFilter(event.target.value as LocationFilter)
+                  }
+                  value={expertCityFilter}
+                >
+                  {locationFilters.map((filter) => (
+                    <option key={filter.id} value={filter.id}>
+                      {t(filter.key)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field compact-field">
+                <span>{t("filters.minRating")}</span>
+                <select
+                  onChange={(event) =>
+                    setExpertRatingFilter(
+                      event.target.value as MinimumRatingFilter,
+                    )
+                  }
+                  value={expertRatingFilter}
+                >
+                  {minimumRatingFilters.map((filter) => (
+                    <option key={filter.id} value={filter.id}>
+                      {t(filter.key)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <button
+              className="secondary-action compact directory-reset"
+              onClick={() => {
+                setExpertSearch("");
+                setExpertCategoryFilter("all");
+                setExpertCountryFilter("all");
+                setExpertCityFilter("all");
+                setExpertRatingFilter("all");
+              }}
+              type="button"
+            >
+              <X aria-hidden="true" size={15} />
+              {t("common.reset")}
+            </button>
+          </div>
+
+          <div className="expert-grid">
+            {visibleExperts.map((expert) => (
+              <article className="expert-card" key={expert.id}>
+                <div className="expert-avatar-frame is-professional">
+                  {renderAuthorAvatar(
+                    expert.avatarUrl,
+                    t(expert.nameKey),
+                    expert.id,
+                  )}
+                  {renderProfessionalBadge()}
+                </div>
+                <div>
+                  <span className="pill">{t(expert.specialtyKey)}</span>
+                  <h2 className="author-name-line">
+                    <Link
+                      href={`${getSectionHref(locale, "profile")}?author=${expert.id}`}
+                    >
+                      {t(expert.nameKey)}
+                    </Link>
+                    {renderVerifiedBadge()}
+                  </h2>
+                  <p>{t(expert.headlineKey)}</p>
+                  <div className="meta-row">
+                    <span>
+                      <MapPin aria-hidden="true" size={14} />
+                      {getLocationLabel(expert.locationId, locale)}
+                    </span>
+                    <span>
+                      <Star aria-hidden="true" size={14} />
+                      {expert.rating} {t("experts.rating")}
+                    </span>
+                    <span>
+                      {numberFormatter.format(expert.reviews)}{" "}
+                      {t("experts.reviews")}
+                    </span>
+                  </div>
+                  <div className="language-list">
+                    {expert.languages.map((expertLocale) => (
+                      <span key={expertLocale}>
+                        {expertLocale.toUpperCase()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+          {visibleExperts.length === 0 ? (
+            <p className="empty-state">{t("experts.empty")}</p>
+          ) : null}
+        </section>
+      </>
     );
   }
 
