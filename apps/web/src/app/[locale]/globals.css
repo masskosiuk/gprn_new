@@ -1840,6 +1840,32 @@ img {
   padding: 6px 10px;
 }
 
+.photo-card-criteria {
+  background: var(--panel);
+  border-top: 0;
+  padding: 8px 10px 9px;
+}
+
+.photo-card-criteria .criterion-score {
+  border-radius: 0;
+  padding: 4px 1px;
+}
+
+.photo-card-criteria .criterion-score:hover,
+.photo-card-criteria .criterion-score:focus-visible,
+.photo-card-criteria .criterion-score.is-open {
+  background: transparent;
+}
+
+.photo-card-criteria .criterion-score svg {
+  height: 12px;
+  width: 12px;
+}
+
+.photo-card-criteria .criterion-score strong {
+  font-size: 14px;
+}
+
 .criterion-score {
   --criterion-color: #718884;
   align-items: center;

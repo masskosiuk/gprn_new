@@ -1439,6 +1439,10 @@ export function HomeClient({
   const [photoReviews, setPhotoReviews] = useState<
     Record<string, PhotoReviewRecord[]>
   >({});
+  const [activePhotoCriterion, setActivePhotoCriterion] = useState<{
+    criterionId: BattleCriterion;
+    photoId: string;
+  } | null>(null);
   const [authForm, setAuthForm] = useState<AuthForm>(emptyAuthForm);
   const [authFeedback, setAuthFeedback] = useState<Feedback | null>(null);
   const [globalFeedback, setGlobalFeedback] = useState<Feedback | null>(null);
@@ -2183,6 +2187,39 @@ export function HomeClient({
           (studio.reviews + reviews.length),
       ]),
     ) as StudioScores;
+  }
+
+  function getPhotoCriterionScores(photo: PhotoRecord): BattleScores | null {
+    const reviews = photoReviews[photo.id] ?? [];
+    if (reviews.length > 0) {
+      return Object.fromEntries(
+        battleCriteria.map(({ id }) => [
+          id,
+          reviews.reduce((sum, review) => sum + review.scores[id], 0) /
+            reviews.length,
+        ]),
+      ) as BattleScores;
+    }
+
+    if (photo.score <= 0) return null;
+
+    const baseScore = photo.score / 10;
+    const offsets: BattleScores = {
+      color: 0.2,
+      composition: 0.3,
+      emotionalImpact: 0,
+      lighting: -0.2,
+      originality: -0.1,
+      storytelling: -0.3,
+      technicalQuality: 0.1,
+    };
+
+    return Object.fromEntries(
+      battleCriteria.map(({ id }) => [
+        id,
+        Math.min(10, Math.max(1, baseScore + offsets[id])),
+      ]),
+    ) as BattleScores;
   }
 
   function openStudioReview(studioId: string): void {
@@ -3919,6 +3956,7 @@ export function HomeClient({
     const authorProfile = publicAuthorProfiles.find(
       (author) => author.id === getPhotoAuthorId(photo),
     );
+    const criterionScores = getPhotoCriterionScores(photo);
 
     const openDiscoverWithCategory = (): void => {
       setCategoryFilter(photo.categoryId);
@@ -3947,6 +3985,49 @@ export function HomeClient({
           getPhotoTitle(photo, locale),
           photo.id,
         )}
+        <div
+          aria-label={t("photo.detailedScores")}
+          className="criterion-results photo-card-criteria"
+        >
+          {battleCriteria.map(({ Icon, id, labelKey }) => {
+            const isOpen =
+              activePhotoCriterion?.photoId === photo.id &&
+              activePhotoCriterion.criterionId === id;
+            const value = criterionScores?.[id];
+
+            return (
+              <button
+                aria-label={`${t(labelKey)}: ${
+                  value === undefined
+                    ? t("common.no")
+                    : value.toLocaleString(locale, {
+                        maximumFractionDigits: 1,
+                        minimumFractionDigits: 1,
+                      })
+                }`}
+                className={`criterion-score${isOpen ? " is-open" : ""}`}
+                key={id}
+                onClick={() => {
+                  setActivePhotoCriterion(
+                    isOpen ? null : { criterionId: id, photoId: photo.id },
+                  );
+                }}
+                type="button"
+              >
+                <Icon aria-hidden="true" />
+                <strong>
+                  {value === undefined
+                    ? "—"
+                    : value.toLocaleString(locale, {
+                        maximumFractionDigits: 1,
+                        minimumFractionDigits: 1,
+                      })}
+                </strong>
+                <span className="criterion-tooltip">{t(labelKey)}</span>
+              </button>
+            );
+          })}
+        </div>
         <div className="photo-card-body">
           <div>
             <strong>{getPhotoTitle(photo, locale)}</strong>
@@ -6298,9 +6379,6 @@ export function HomeClient({
   function renderImagePreviewDialog(): ReactNode {
     if (!imagePreview) return null;
 
-    const reviews = imagePreview.photoId
-      ? (photoReviews[imagePreview.photoId] ?? [])
-      : [];
     const currentTier =
       currentProfile?.tier ?? (currentProfile ? "viewer" : null);
     const canSubmitDetailedReview =
@@ -6415,62 +6493,6 @@ export function HomeClient({
                 {t("photo.submitReview")}
               </button>
             </form>
-          ) : null}
-
-          {reviews.length > 0 && !isPhotoReviewOpen ? (
-            <section
-              aria-label={t("photo.publishedReviews")}
-              className="photo-public-reviews"
-            >
-              <div className="photo-public-reviews-heading">
-                <strong>{t("photo.publishedReviews")}</strong>
-                <span>{numberFormatter.format(reviews.length)}</span>
-              </div>
-              {reviews.map((review) => {
-                const average =
-                  battleCriteria.reduce(
-                    (sum, criterion) => sum + review.scores[criterion.id],
-                    0,
-                  ) / battleCriteria.length;
-
-                return (
-                  <article
-                    className="photo-public-review"
-                    key={`${review.reviewerName}-${review.createdAt}`}
-                  >
-                    <header>
-                      <div>
-                        <strong>{review.reviewerName}</strong>
-                        <span>{t(getAccountTierKey(review.reviewerTier))}</span>
-                      </div>
-                      <div className="photo-public-review-average">
-                        <strong>
-                          {average.toLocaleString(locale, {
-                            maximumFractionDigits: 1,
-                            minimumFractionDigits: 1,
-                          })}
-                        </strong>
-                        <span>{t("photo.averageScore")}</span>
-                      </div>
-                    </header>
-                    <div className="photo-public-review-scores">
-                      {battleCriteria.map((criterion) => {
-                        const CriterionIcon = criterion.Icon;
-
-                        return (
-                          <div key={criterion.id} title={t(criterion.labelKey)}>
-                            <CriterionIcon aria-hidden="true" size={14} />
-                            <span>{t(criterion.labelKey)}</span>
-                            <strong>{review.scores[criterion.id]}</strong>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {review.comment ? <p>{review.comment}</p> : null}
-                  </article>
-                );
-              })}
-            </section>
           ) : null}
         </figure>
       </div>
