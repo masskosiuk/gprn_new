@@ -409,6 +409,13 @@ interface ModelRecord {
   readonly reviews: number;
 }
 
+interface PresetOffer {
+  readonly id: string;
+  readonly imageUrl: string;
+  readonly priceMinor: number;
+  readonly titleKey: MessageKey;
+}
+
 interface PublicAuthorProfile {
   readonly avatarUrl: string;
   readonly bioKey: MessageKey;
@@ -426,9 +433,7 @@ interface PublicAuthorProfile {
   readonly reviewPrice?: number;
   readonly serviceRating?: number;
   readonly completedOrders?: number;
-  readonly presetImageUrl?: string;
-  readonly presetPrice?: number;
-  readonly presetSalesEnabled?: boolean;
+  readonly presets?: readonly PresetOffer[];
 }
 
 type OrderStatus =
@@ -1002,6 +1007,169 @@ const sampleImages = {
     "https://images.unsplash.com/photo-1780642208543-7a84b61f13ca?auto=format&fit=crop&w=1400&q=82",
 } as const;
 
+const demoPresetOffers: Readonly<Record<string, readonly PresetOffer[]>> = {
+  mika: [
+    {
+      id: "mika-neon-night",
+      imageUrl: sampleImages.city,
+      priceMinor: 3900,
+      titleKey: "preset.style.neonNight",
+    },
+    {
+      id: "mika-rain-cinema",
+      imageUrl: sampleImages.photoTokyoNeon,
+      priceMinor: 3200,
+      titleKey: "preset.style.rainCinema",
+    },
+    {
+      id: "mika-soft-film",
+      imageUrl: sampleImages.photoTokyoUmbrellas,
+      priceMinor: 2900,
+      titleKey: "preset.style.softFilm",
+    },
+  ],
+  elena: [
+    {
+      id: "elena-nordic-matte",
+      imageUrl: sampleImages.mountain,
+      priceMinor: 3200,
+      titleKey: "preset.style.nordicMatte",
+    },
+    {
+      id: "elena-coastal-air",
+      imageUrl: sampleImages.photoIcelandShore,
+      priceMinor: 2800,
+      titleKey: "preset.style.coastalAir",
+    },
+    {
+      id: "elena-deep-contrast",
+      imageUrl: sampleImages.photoIcelandGlacier,
+      priceMinor: 3600,
+      titleKey: "preset.style.deepContrast",
+    },
+  ],
+  yusuf: [
+    {
+      id: "yusuf-desert-gold",
+      imageUrl: sampleImages.desert,
+      priceMinor: 2700,
+      titleKey: "preset.style.desertGold",
+    },
+    {
+      id: "yusuf-copper-film",
+      imageUrl: sampleImages.photoMarrakechCopper,
+      priceMinor: 3100,
+      titleKey: "preset.style.copperFilm",
+    },
+    {
+      id: "yusuf-market-warmth",
+      imageUrl: sampleImages.photoMarrakechMarket,
+      priceMinor: 2400,
+      titleKey: "preset.style.marketWarmth",
+    },
+  ],
+  anna: [
+    {
+      id: "anna-concrete-minimal",
+      imageUrl: sampleImages.architecture,
+      priceMinor: 3600,
+      titleKey: "preset.style.concreteMinimal",
+    },
+    {
+      id: "anna-urban-chrome",
+      imageUrl: sampleImages.photoKyivConcrete,
+      priceMinor: 3300,
+      titleKey: "preset.style.urbanChrome",
+    },
+    {
+      id: "anna-studio-neutral",
+      imageUrl: sampleImages.photoKyivStudio,
+      priceMinor: 2900,
+      titleKey: "preset.style.studioNeutral",
+    },
+  ],
+  lucas: [
+    {
+      id: "lucas-paris-night",
+      imageUrl: sampleImages.night,
+      priceMinor: 4900,
+      titleKey: "preset.style.parisNight",
+    },
+    {
+      id: "lucas-motion-teal",
+      imageUrl: sampleImages.photoParisNight,
+      priceMinor: 4400,
+      titleKey: "preset.style.motionTeal",
+    },
+    {
+      id: "lucas-forest-analog",
+      imageUrl: sampleImages.photoParisGarden,
+      priceMinor: 3700,
+      titleKey: "preset.style.forestAnalog",
+    },
+  ],
+  iryna: [
+    {
+      id: "iryna-kyiv-grain",
+      imageUrl: sampleImages.videoPosterKyiv,
+      priceMinor: 3500,
+      titleKey: "preset.style.kyivGrain",
+    },
+    {
+      id: "iryna-storm-story",
+      imageUrl: sampleImages.videoPosterIcelandStorm,
+      priceMinor: 3900,
+      titleKey: "preset.style.stormStory",
+    },
+    {
+      id: "iryna-editorial-skin",
+      imageUrl: sampleImages.videoPosterMarrakechPortrait,
+      priceMinor: 3200,
+      titleKey: "preset.style.editorialSkin",
+    },
+  ],
+  marcus: [
+    {
+      id: "marcus-clean-portrait",
+      imageUrl: sampleImages.street,
+      priceMinor: 4200,
+      titleKey: "preset.style.cleanPortrait",
+    },
+    {
+      id: "marcus-lisbon-blue",
+      imageUrl: sampleImages.videoPosterLisbon,
+      priceMinor: 3600,
+      titleKey: "preset.style.lisbonBlue",
+    },
+    {
+      id: "marcus-motion-teal",
+      imageUrl: sampleImages.videoPosterParisMotion,
+      priceMinor: 3900,
+      titleKey: "preset.style.motionTeal",
+    },
+  ],
+  sofia: [
+    {
+      id: "sofia-vintage-transit",
+      imageUrl: sampleImages.tram,
+      priceMinor: 4600,
+      titleKey: "preset.style.vintageTransit",
+    },
+    {
+      id: "sofia-coastal-air",
+      imageUrl: sampleImages.videoPosterLisbonCoast,
+      priceMinor: 3800,
+      titleKey: "preset.style.coastalAir",
+    },
+    {
+      id: "sofia-fine-art-light",
+      imageUrl: sampleImages.videoPosterParis,
+      priceMinor: 4100,
+      titleKey: "preset.style.fineArtLight",
+    },
+  ],
+};
+
 const curatedPhotos: readonly PhotoRecord[] = [
   {
     authorKey: "data.author.mika",
@@ -1491,9 +1659,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1532,
     availableForHire: true,
     completedOrders: 42,
-    presetImageUrl: sampleImages.city,
-    presetPrice: 3900,
-    presetSalesEnabled: true,
+    presets: demoPresetOffers.mika,
     reviewPrice: 6500,
     serviceRating: 4.9,
     tier: "star",
@@ -1512,9 +1678,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1608,
     availableForHire: true,
     completedOrders: 65,
-    presetImageUrl: sampleImages.mountain,
-    presetPrice: 3200,
-    presetSalesEnabled: true,
+    presets: demoPresetOffers.elena,
     reviewPrice: 4500,
     serviceRating: 4.8,
     tier: "professional",
@@ -1533,9 +1697,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1496,
     availableForHire: true,
     completedOrders: 18,
-    presetImageUrl: sampleImages.desert,
-    presetPrice: 2700,
-    presetSalesEnabled: true,
+    presets: demoPresetOffers.yusuf,
     reviewPrice: 3200,
     serviceRating: 4.7,
     tier: "experienced",
@@ -1554,9 +1716,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1574,
     availableForHire: false,
     completedOrders: 31,
-    presetImageUrl: sampleImages.architecture,
-    presetPrice: 3600,
-    presetSalesEnabled: true,
+    presets: demoPresetOffers.anna,
     reviewPrice: 4200,
     serviceRating: 4.9,
     tier: "professional",
@@ -1590,9 +1750,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1612,
     availableForHire: true,
     completedOrders: 77,
-    presetImageUrl: sampleImages.night,
-    presetPrice: 4900,
-    presetSalesEnabled: true,
+    presets: demoPresetOffers.lucas,
     reviewPrice: 7500,
     serviceRating: 5,
     tier: "star",
@@ -3026,10 +3184,7 @@ export function HomeClient({
       id: expert.id,
       locationId: expert.locationId,
       nameKey: expert.nameKey,
-      presetImageUrl: expert.coverUrl,
-      presetPrice:
-        expert.id === "iryna" ? 3500 : expert.id === "marcus" ? 4200 : 4600,
-      presetSalesEnabled: true,
+      presets: demoPresetOffers[expert.id],
       rating: Math.round(Number(expert.rating) * 320),
       reviewPrice: 4500,
       serviceRating: Number(expert.rating),
@@ -7312,42 +7467,49 @@ export function HomeClient({
               </div>
             ) : null}
 
-            {author.presetSalesEnabled && author.presetPrice ? (
-              <article className="profile-preset-offer">
-                <img
-                  alt=""
-                  aria-hidden="true"
-                  src={author.presetImageUrl ?? author.coverUrl}
-                />
-                <div className="profile-preset-copy">
-                  <span className="eyebrow">
-                    {t("profile.presetOfferEyebrow")}
-                  </span>
-                  <h2>
-                    {t(author.nameKey)} · {t("profile.presetOfferTitle")}
-                  </h2>
-                  <p>{t("profile.presetOfferCopy")}</p>
-                  <span className="profile-preset-includes">
-                    {t("profile.presetOfferIncludes")}
-                  </span>
+            {author.presets?.length ? (
+              <section className="profile-presets-section">
+                <div className="section-heading profile-subsection-heading">
+                  <div>
+                    <span className="eyebrow">
+                      {t("profile.presetOfferEyebrow")}
+                    </span>
+                    <h2>{t("profile.presetOfferTitle")}</h2>
+                    <p>{t("profile.presetOfferCopy")}</p>
+                  </div>
                 </div>
-                <div className="profile-preset-purchase">
-                  <strong>{formatMoney(author.presetPrice, locale)}</strong>
-                  <button
-                    className="primary-action compact"
-                    onClick={() => {
-                      buyMarketplaceItem(
-                        `${t(author.nameKey)} · ${t("profile.presetOfferTitle")}`,
-                        author.presetPrice!,
-                      );
-                    }}
-                    type="button"
-                  >
-                    <ShoppingBag aria-hidden="true" size={16} />
-                    {t("marketplace.buy")}
-                  </button>
+                <div className="profile-preset-grid">
+                  {author.presets.map((preset) => (
+                    <article className="profile-preset-tile" key={preset.id}>
+                      <img alt={t(preset.titleKey)} src={preset.imageUrl} />
+                      <div className="profile-preset-tile-body">
+                        <span className="pill">{t("marketplace.preset")}</span>
+                        <h3>{t(preset.titleKey)}</h3>
+                        <p>{t("profile.presetOfferIncludes")}</p>
+                        <div className="profile-preset-tile-footer">
+                          <strong>
+                            {formatMoney(preset.priceMinor, locale)}
+                          </strong>
+                          <button
+                            aria-label={`${t("marketplace.buy")}: ${t(preset.titleKey)}`}
+                            className="primary-action compact"
+                            onClick={() => {
+                              buyMarketplaceItem(
+                                `${t(author.nameKey)} · ${t(preset.titleKey)}`,
+                                preset.priceMinor,
+                              );
+                            }}
+                            type="button"
+                          >
+                            <ShoppingBag aria-hidden="true" size={16} />
+                            {t("marketplace.buy")}
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
                 </div>
-              </article>
+              </section>
             ) : null}
 
             <div className="section-heading">

@@ -5237,63 +5237,78 @@ img {
   grid-column: 1 / -1;
 }
 
-.profile-preset-offer {
-  align-items: stretch;
+.profile-presets-section {
+  margin-top: 28px;
+}
+
+.profile-presets-section .section-heading {
+  align-items: flex-end;
+  margin: 0 0 16px;
+}
+
+.profile-presets-section .section-heading p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 7px 0 0;
+  max-width: 680px;
+}
+
+.profile-preset-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.profile-preset-tile {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr) auto;
-  margin-top: 22px;
+  min-width: 0;
   overflow: hidden;
 }
 
-.profile-preset-offer > img {
-  height: 100%;
-  min-height: 170px;
+.profile-preset-tile > img {
+  aspect-ratio: 1;
   object-fit: cover;
   width: 100%;
 }
 
-.profile-preset-copy {
-  align-content: center;
+.profile-preset-tile-body {
+  align-content: start;
   display: grid;
-  gap: 7px;
-  padding: 20px;
+  gap: 9px;
+  padding: 14px;
 }
 
-.profile-preset-copy h2,
-.profile-preset-copy p {
+.profile-preset-tile-body .pill {
+  justify-self: start;
+}
+
+.profile-preset-tile h3,
+.profile-preset-tile p {
   margin: 0;
 }
 
-.profile-preset-copy h2 {
-  font-size: 20px;
+.profile-preset-tile h3 {
+  font-size: 17px;
 }
 
-.profile-preset-copy p,
-.profile-preset-includes {
+.profile-preset-tile p {
   color: var(--muted);
-  line-height: 1.5;
-}
-
-.profile-preset-includes {
   font-size: 12px;
-  font-weight: 750;
 }
 
-.profile-preset-purchase {
-  align-content: center;
-  border-left: 1px solid var(--border);
-  display: grid;
-  gap: 12px;
-  justify-items: end;
-  min-width: 150px;
-  padding: 20px;
+.profile-preset-tile-footer {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-top: 3px;
 }
 
-.profile-preset-purchase strong {
-  font-size: 22px;
+.profile-preset-tile-footer strong {
+  font-size: 18px;
 }
 
 .private-profile-section {
@@ -5673,20 +5688,8 @@ img {
     gap: 14px;
   }
 
-  .profile-preset-offer {
+  .profile-preset-grid {
     grid-template-columns: 1fr;
-  }
-
-  .profile-preset-offer > img {
-    aspect-ratio: 16 / 8;
-    min-height: 0;
-  }
-
-  .profile-preset-purchase {
-    border-left: 0;
-    border-top: 1px solid var(--border);
-    grid-template-columns: 1fr auto;
-    justify-items: start;
   }
 
   .header-notification-menu {
