@@ -561,6 +561,11 @@ const baseMessages = {
   "profile.presetTitle": "Preset pack name",
   "profile.presetPrice": "Price",
   "profile.presetDefaultTitle": "Signature preset pack",
+  "profile.presetOfferEyebrow": "Presets by the master",
+  "profile.presetOfferTitle": "Signature preset collection",
+  "profile.presetOfferCopy":
+    "A ready-to-use color and tonal workflow built from the author's production process.",
+  "profile.presetOfferIncludes": "12 presets · Lightroom / Camera Raw",
   "profile.openAuthorProfile": "Open photographer profile",
   "profile.saveProfile": "Save profile",
   "profile.saved": "Profile updated.",
@@ -1345,6 +1350,11 @@ const ruMessages: Partial<MessageMap> = {
   "profile.presetTitle": "Название набора",
   "profile.presetPrice": "Стоимость",
   "profile.presetDefaultTitle": "Авторский набор пресетов",
+  "profile.presetOfferEyebrow": "Пресеты мастера",
+  "profile.presetOfferTitle": "Авторская коллекция пресетов",
+  "profile.presetOfferCopy":
+    "Готовая цветовая и тональная обработка, собранная на основе рабочего процесса автора.",
+  "profile.presetOfferIncludes": "12 пресетов · Lightroom / Camera Raw",
   "profile.openAuthorProfile": "Открыть профиль фотографа",
   "profile.saveProfile": "Сохранить профиль",
   "profile.saved": "Профиль обновлён.",

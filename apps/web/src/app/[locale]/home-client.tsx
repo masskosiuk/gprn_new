@@ -426,6 +426,9 @@ interface PublicAuthorProfile {
   readonly reviewPrice?: number;
   readonly serviceRating?: number;
   readonly completedOrders?: number;
+  readonly presetImageUrl?: string;
+  readonly presetPrice?: number;
+  readonly presetSalesEnabled?: boolean;
 }
 
 type OrderStatus =
@@ -1488,6 +1491,9 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1532,
     availableForHire: true,
     completedOrders: 42,
+    presetImageUrl: sampleImages.city,
+    presetPrice: 3900,
+    presetSalesEnabled: true,
     reviewPrice: 6500,
     serviceRating: 4.9,
     tier: "star",
@@ -1506,6 +1512,9 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1608,
     availableForHire: true,
     completedOrders: 65,
+    presetImageUrl: sampleImages.mountain,
+    presetPrice: 3200,
+    presetSalesEnabled: true,
     reviewPrice: 4500,
     serviceRating: 4.8,
     tier: "professional",
@@ -1524,6 +1533,9 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1496,
     availableForHire: true,
     completedOrders: 18,
+    presetImageUrl: sampleImages.desert,
+    presetPrice: 2700,
+    presetSalesEnabled: true,
     reviewPrice: 3200,
     serviceRating: 4.7,
     tier: "experienced",
@@ -1542,6 +1554,9 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1574,
     availableForHire: false,
     completedOrders: 31,
+    presetImageUrl: sampleImages.architecture,
+    presetPrice: 3600,
+    presetSalesEnabled: true,
     reviewPrice: 4200,
     serviceRating: 4.9,
     tier: "professional",
@@ -1575,6 +1590,9 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1612,
     availableForHire: true,
     completedOrders: 77,
+    presetImageUrl: sampleImages.night,
+    presetPrice: 4900,
+    presetSalesEnabled: true,
     reviewPrice: 7500,
     serviceRating: 5,
     tier: "star",
@@ -3008,6 +3026,10 @@ export function HomeClient({
       id: expert.id,
       locationId: expert.locationId,
       nameKey: expert.nameKey,
+      presetImageUrl: expert.coverUrl,
+      presetPrice:
+        expert.id === "iryna" ? 3500 : expert.id === "marcus" ? 4200 : 4600,
+      presetSalesEnabled: true,
       rating: Math.round(Number(expert.rating) * 320),
       reviewPrice: 4500,
       serviceRating: Number(expert.rating),
@@ -7288,6 +7310,44 @@ export function HomeClient({
                   <span>{t("service.completedOrders")}</span>
                 </div>
               </div>
+            ) : null}
+
+            {author.presetSalesEnabled && author.presetPrice ? (
+              <article className="profile-preset-offer">
+                <img
+                  alt=""
+                  aria-hidden="true"
+                  src={author.presetImageUrl ?? author.coverUrl}
+                />
+                <div className="profile-preset-copy">
+                  <span className="eyebrow">
+                    {t("profile.presetOfferEyebrow")}
+                  </span>
+                  <h2>
+                    {t(author.nameKey)} · {t("profile.presetOfferTitle")}
+                  </h2>
+                  <p>{t("profile.presetOfferCopy")}</p>
+                  <span className="profile-preset-includes">
+                    {t("profile.presetOfferIncludes")}
+                  </span>
+                </div>
+                <div className="profile-preset-purchase">
+                  <strong>{formatMoney(author.presetPrice, locale)}</strong>
+                  <button
+                    className="primary-action compact"
+                    onClick={() => {
+                      buyMarketplaceItem(
+                        `${t(author.nameKey)} · ${t("profile.presetOfferTitle")}`,
+                        author.presetPrice!,
+                      );
+                    }}
+                    type="button"
+                  >
+                    <ShoppingBag aria-hidden="true" size={16} />
+                    {t("marketplace.buy")}
+                  </button>
+                </div>
+              </article>
             ) : null}
 
             <div className="section-heading">
