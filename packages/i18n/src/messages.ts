@@ -191,6 +191,8 @@ const baseMessages = {
   "photo.publicComment": "Public review comment",
   "photo.submitReview": "Publish assessment",
   "photo.reviewSaved": "Professional assessment published.",
+  "photo.publishedReviews": "Published professional assessments",
+  "photo.averageScore": "Average score",
   "photo.starComments": "Comments from professionals and superstars",
 
   "discover.searchPlaceholder": "Search by title, author or location",
@@ -223,6 +225,7 @@ const baseMessages = {
   "category.aiGenerated": "Full AI generation",
   "category.commercial": "Commercial photography",
   "category.product": "Product photography",
+  "category.boudoir": "Boudoir",
 
   "battles.scope.all": "All battles",
   "battles.scope.global": "Global",
@@ -805,6 +808,8 @@ const ruMessages: Partial<MessageMap> = {
   "photo.publicComment": "Публичный комментарий к оценке",
   "photo.submitReview": "Опубликовать оценку",
   "photo.reviewSaved": "Профессиональная оценка опубликована.",
+  "photo.publishedReviews": "Опубликованные профессиональные оценки",
+  "photo.averageScore": "Средний балл",
   "photo.starComments": "Комментарии профессионалов и суперстаров",
   "discover.searchPlaceholder": "Искать по названию, автору или месту",
   "discover.filters": "Фильтры",
@@ -834,6 +839,7 @@ const ruMessages: Partial<MessageMap> = {
   "category.aiGenerated": "Полная AI-генерация",
   "category.commercial": "Коммерческая фотография",
   "category.product": "Предметная съёмка",
+  "category.boudoir": "Будуар",
   "battles.scope.all": "Все батлы",
   "battles.scope.global": "Глобальные",
   "battles.scope.country": "Страна",

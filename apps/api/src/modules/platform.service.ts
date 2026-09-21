@@ -1103,6 +1103,51 @@ export class PlatformService {
     return { review };
   }
 
+  async photoReviews(photoId: string) {
+    const photo = await prisma.photo.findFirst({
+      select: { id: true },
+      where: { id: photoId, status: "PUBLISHED" },
+    });
+    if (!photo)
+      throw new NotFoundException({
+        code: "PHOTO_NOT_FOUND",
+        message: "Published photo does not exist.",
+      });
+
+    const reviews = await prisma.photoReview.findMany({
+      include: {
+        reviewer: {
+          select: {
+            profile: {
+              select: { displayName: true, tier: true, username: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      where: { photoId },
+    });
+
+    return {
+      reviews: reviews.map((review) => ({
+        average: review.averageMinor / 100,
+        comment: review.comment,
+        createdAt: review.createdAt,
+        reviewer: {
+          displayName:
+            review.reviewer.profile?.displayName ??
+            review.reviewer.profile?.username ??
+            "Photographer",
+          tier: review.reviewerTier,
+          username: review.reviewer.profile?.username ?? null,
+        },
+        scores: Object.fromEntries(
+          reviewCriteria.map((criterion) => [criterion, review[criterion]]),
+        ),
+      })),
+    };
+  }
+
   private async ensureWallet(userId: string) {
     return prisma.wallet.upsert({
       create: { balanceMinor: 0, currency: "USD", userId },

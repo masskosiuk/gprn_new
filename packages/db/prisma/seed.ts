@@ -15,7 +15,8 @@ const categories = [
   "travel",
   "wildlife",
   "documentary",
-  "night"
+  "night",
+  "boudoir"
 ];
 
 const featureFlags = [

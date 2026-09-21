@@ -196,6 +196,11 @@ export class PlatformController {
     );
   }
 
+  @Get("photos/:photoId/reviews")
+  photoReviews(@Param("photoId") photoId: string) {
+    return this.platformService.photoReviews(photoId);
+  }
+
   @Post("photos/:photoId/review")
   async reviewPhoto(
     @Req() request: CookieRequest,

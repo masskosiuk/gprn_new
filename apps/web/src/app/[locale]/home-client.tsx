@@ -87,7 +87,8 @@ type CategoryId =
   | "aiEdited"
   | "aiGenerated"
   | "commercial"
-  | "product";
+  | "product"
+  | "boudoir";
 type CategoryFilter = "all" | CategoryId;
 type BattleScope = "global" | "country" | "city" | "season" | "friend";
 type BattleFilter = "all" | BattleScope;
@@ -594,6 +595,7 @@ const categoryFilters: readonly { id: CategoryFilter; key: MessageKey }[] = [
   { id: "aiGenerated", key: "category.aiGenerated" },
   { id: "commercial", key: "category.commercial" },
   { id: "product", key: "category.product" },
+  { id: "boudoir", key: "category.boudoir" },
 ];
 
 const battleFilters: readonly { id: BattleFilter; key: MessageKey }[] = [
@@ -798,6 +800,27 @@ const curatedPhotos: readonly PhotoRecord[] = [
     votes: 151,
   },
 ];
+
+const samplePhotoReviews: Record<string, PhotoReviewRecord[]> = {
+  "curated-tokyo": [
+    {
+      comment:
+        "Strong visual rhythm and controlled highlights. The central perspective keeps the city energy focused without losing atmosphere.",
+      createdAt: "2026-09-04T14:30:00.000Z",
+      reviewerName: "Elena Moreau",
+      reviewerTier: "professional",
+      scores: {
+        color: 8,
+        composition: 9,
+        emotionalImpact: 8,
+        lighting: 8,
+        originality: 7,
+        storytelling: 9,
+        technicalQuality: 9,
+      },
+    },
+  ],
+};
 
 const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
   {
@@ -1407,12 +1430,13 @@ export function HomeClient({
     setNotifications(
       readLocalStorage<LocalNotification[]>(notificationsStorageKey, []),
     );
-    setPhotoReviews(
-      readLocalStorage<Record<string, PhotoReviewRecord[]>>(
+    setPhotoReviews({
+      ...samplePhotoReviews,
+      ...readLocalStorage<Record<string, PhotoReviewRecord[]>>(
         photoReviewsStorageKey,
         {},
       ),
-    );
+    });
     setWalletBalanceMinor(readLocalStorage<number>(walletStorageKey, 0));
     setWalletTransactions(
       readLocalStorage<LocalWalletTransaction[]>(
@@ -2130,9 +2154,7 @@ export function HomeClient({
       bio: profileForm.bio.trim() || t("profile.defaultBio"),
       location: profileForm.location.trim() || t("profile.defaultLocation"),
       name: profileForm.displayName.trim() || currentProfile.name,
-      reviewPrice: canOfferReviews
-        ? reviewPrice
-        : currentProfile.reviewPrice,
+      reviewPrice: canOfferReviews ? reviewPrice : currentProfile.reviewPrice,
       username:
         normalizeUsername(profileForm.username) || currentProfile.username,
       website: profileForm.website.trim(),
@@ -5055,9 +5077,7 @@ export function HomeClient({
                 />
               </label>
 
-              {["experienced", "professional", "star"].includes(
-                currentTier,
-              ) ? (
+              {["experienced", "professional", "star"].includes(currentTier) ? (
                 <label className="form-field" htmlFor="profile-review-price">
                   <span>{t("review.pricePerPhoto")}</span>
                   <div className="review-price-input">
@@ -5534,6 +5554,8 @@ export function HomeClient({
       : [];
     const currentTier =
       currentProfile?.tier ?? (currentProfile ? "viewer" : null);
+    const canSubmitDetailedReview =
+      currentTier === "professional" || currentTier === "star";
 
     return (
       <div
@@ -5568,7 +5590,7 @@ export function HomeClient({
           <img alt={imagePreview.alt} src={imagePreview.src} />
           <figcaption className="image-lightbox-caption">
             <strong>{imagePreview.alt}</strong>
-            {imagePreview.photoId ? (
+            {imagePreview.photoId && canSubmitDetailedReview ? (
               <button
                 className="secondary-action compact"
                 onClick={openDetailedPhotoReview}
@@ -5646,21 +5668,60 @@ export function HomeClient({
             </form>
           ) : null}
 
-          {reviews.some((review) => review.comment) ? (
-            <div className="photo-public-comments">
-              <strong>{t("photo.starComments")}</strong>
-              {reviews
-                .filter((review) => review.comment)
-                .map((review) => (
-                  <blockquote key={review.createdAt}>
-                    <p>{review.comment}</p>
-                    <footer>
-                      {review.reviewerName} ·{" "}
-                      {t(getAccountTierKey(review.reviewerTier))}
-                    </footer>
-                  </blockquote>
-                ))}
-            </div>
+          {reviews.length > 0 && !isPhotoReviewOpen ? (
+            <section
+              aria-label={t("photo.publishedReviews")}
+              className="photo-public-reviews"
+            >
+              <div className="photo-public-reviews-heading">
+                <strong>{t("photo.publishedReviews")}</strong>
+                <span>{numberFormatter.format(reviews.length)}</span>
+              </div>
+              {reviews.map((review) => {
+                const average =
+                  battleCriteria.reduce(
+                    (sum, criterion) => sum + review.scores[criterion.id],
+                    0,
+                  ) / battleCriteria.length;
+
+                return (
+                  <article
+                    className="photo-public-review"
+                    key={`${review.reviewerName}-${review.createdAt}`}
+                  >
+                    <header>
+                      <div>
+                        <strong>{review.reviewerName}</strong>
+                        <span>{t(getAccountTierKey(review.reviewerTier))}</span>
+                      </div>
+                      <div className="photo-public-review-average">
+                        <strong>
+                          {average.toLocaleString(locale, {
+                            maximumFractionDigits: 1,
+                            minimumFractionDigits: 1,
+                          })}
+                        </strong>
+                        <span>{t("photo.averageScore")}</span>
+                      </div>
+                    </header>
+                    <div className="photo-public-review-scores">
+                      {battleCriteria.map((criterion) => {
+                        const CriterionIcon = criterion.Icon;
+
+                        return (
+                          <div key={criterion.id} title={t(criterion.labelKey)}>
+                            <CriterionIcon aria-hidden="true" size={14} />
+                            <span>{t(criterion.labelKey)}</span>
+                            <strong>{review.scores[criterion.id]}</strong>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {review.comment ? <p>{review.comment}</p> : null}
+                  </article>
+                );
+              })}
+            </section>
           ) : null}
         </figure>
       </div>
