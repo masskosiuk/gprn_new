@@ -326,6 +326,7 @@ interface MarketplaceProduct {
 interface ExpertRecord {
   readonly avatarUrl: string;
   readonly categoryId: CategoryId;
+  readonly coverUrl: string;
   readonly headlineKey: MessageKey;
   readonly id: string;
   readonly languages: readonly SupportedLocale[];
@@ -820,6 +821,22 @@ const sampleImages = {
   street:
     "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80",
   tram: "https://images.unsplash.com/photo-1491553895911-0055eca6402d?auto=format&fit=crop&w=1200&q=80",
+  expertIryna:
+    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=600&h=600&q=84",
+  expertMarcus:
+    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&h=600&q=84",
+  expertSofia:
+    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&h=600&q=84",
+  studioNorth:
+    "https://images.unsplash.com/photo-1768818928341-3b31b8965c6d?auto=format&fit=crop&w=1400&q=82",
+  studioSeine:
+    "https://images.unsplash.com/photo-1736580602204-b940bb0423ec?auto=format&fit=crop&w=1400&q=82",
+  studioHikari:
+    "https://images.unsplash.com/photo-1765372860684-69f0e2524694?auto=format&fit=crop&w=1400&q=82",
+  studioLuz:
+    "https://images.unsplash.com/photo-1648740678671-c37d78567ea8?auto=format&fit=crop&w=1400&q=82",
+  studioSaga:
+    "https://images.unsplash.com/photo-1780642208543-7a84b61f13ca?auto=format&fit=crop&w=1400&q=82",
 } as const;
 
 const curatedPhotos: readonly PhotoRecord[] = [
@@ -1280,8 +1297,9 @@ const marketplaceProducts: readonly MarketplaceProduct[] = [
 
 const experts: readonly ExpertRecord[] = [
   {
-    avatarUrl: sampleImages.desert,
+    avatarUrl: sampleImages.expertIryna,
     categoryId: "documentary",
+    coverUrl: sampleImages.desert,
     headlineKey: "data.expert.iryna.headline",
     id: "iryna",
     languages: ["uk", "en"],
@@ -1292,8 +1310,9 @@ const experts: readonly ExpertRecord[] = [
     specialtyKey: "category.documentary",
   },
   {
-    avatarUrl: sampleImages.street,
+    avatarUrl: sampleImages.expertMarcus,
     categoryId: "portrait",
+    coverUrl: sampleImages.street,
     headlineKey: "data.expert.marcus.headline",
     id: "marcus",
     languages: ["en", "de"],
@@ -1304,8 +1323,9 @@ const experts: readonly ExpertRecord[] = [
     specialtyKey: "category.portrait",
   },
   {
-    avatarUrl: sampleImages.mountain,
+    avatarUrl: sampleImages.expertSofia,
     categoryId: "landscape",
+    coverUrl: sampleImages.mountain,
     headlineKey: "data.expert.sofia.headline",
     id: "sofia",
     languages: ["fr", "en"],
@@ -1323,7 +1343,7 @@ const studios: readonly StudioRecord[] = [
     countryId: "ukraine",
     equipment: ["cyclorama", "flash", "continuousLight", "makeupRoom"],
     id: "north-light",
-    imageUrl: sampleImages.architecture,
+    imageUrl: sampleImages.studioNorth,
     nameKey: "studios.data.northLight",
     rating: 4.9,
     reviews: 86,
@@ -1342,7 +1362,7 @@ const studios: readonly StudioRecord[] = [
     countryId: "france",
     equipment: ["cyclorama", "continuousLight", "greenScreen"],
     id: "atelier-seine",
-    imageUrl: sampleImages.city,
+    imageUrl: sampleImages.studioSeine,
     nameKey: "studios.data.atelierSeine",
     rating: 4.8,
     reviews: 112,
@@ -1361,7 +1381,7 @@ const studios: readonly StudioRecord[] = [
     countryId: "japan",
     equipment: ["flash", "continuousLight", "greenScreen", "freightElevator"],
     id: "hikari-stage",
-    imageUrl: sampleImages.street,
+    imageUrl: sampleImages.studioHikari,
     nameKey: "studios.data.hikariStage",
     rating: 4.7,
     reviews: 74,
@@ -1380,7 +1400,7 @@ const studios: readonly StudioRecord[] = [
     countryId: "portugal",
     equipment: ["cyclorama", "flash", "makeupRoom", "freightElevator"],
     id: "luz-factory",
-    imageUrl: sampleImages.tram,
+    imageUrl: sampleImages.studioLuz,
     nameKey: "studios.data.luzFactory",
     rating: 4.6,
     reviews: 59,
@@ -1399,7 +1419,7 @@ const studios: readonly StudioRecord[] = [
     countryId: "iceland",
     equipment: ["flash", "continuousLight", "makeupRoom"],
     id: "saga-room",
-    imageUrl: sampleImages.mountain,
+    imageUrl: sampleImages.studioSaga,
     nameKey: "studios.data.sagaRoom",
     rating: 4.5,
     reviews: 41,
@@ -2160,7 +2180,7 @@ export function HomeClient({
       availableForHire: true,
       bioKey: expert.headlineKey,
       completedOrders: expert.reviews,
-      coverUrl: expert.avatarUrl,
+      coverUrl: expert.coverUrl,
       followers: expert.reviews * 12,
       id: expert.id,
       locationId: expert.locationId,
