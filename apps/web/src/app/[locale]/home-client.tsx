@@ -4029,44 +4029,50 @@ export function HomeClient({
           })}
         </div>
         <div className="photo-card-body">
-          <div>
-            <strong>{getPhotoTitle(photo, locale)}</strong>
-            <Link
-              className="photo-author-link"
-              href={
-                photo.isMine
-                  ? getSectionHref(locale, "profile")
-                  : `${getSectionHref(locale, "profile")}?author=${encodeURIComponent(getPhotoAuthorId(photo))}`
-              }
-            >
-              <span>{getPhotoAuthor(photo, locale)}</span>
-              {authorProfile?.verified ? renderVerifiedBadge() : null}
-            </Link>
-          </div>
-          <div className="meta-row">
-            <button
-              aria-pressed={
-                initialSection === "discover" &&
-                discoverLocationFilter === photo.locationId
-              }
-              className="photo-meta-tag"
-              onClick={openDiscoverWithLocation}
-              type="button"
-            >
-              <MapPin aria-hidden="true" size={14} />
-              {getLocationLabel(photo.locationId, locale, photo.locationLabel)}
-            </button>
-            <button
-              aria-pressed={
-                initialSection === "discover" &&
-                categoryFilter === photo.categoryId
-              }
-              className="photo-meta-tag"
-              onClick={openDiscoverWithCategory}
-              type="button"
-            >
-              {t(getCategoryKey(photo.categoryId))}
-            </button>
+          <div className="photo-card-heading">
+            <div className="photo-card-heading-copy">
+              <strong>{getPhotoTitle(photo, locale)}</strong>
+              <Link
+                className="photo-author-link"
+                href={
+                  photo.isMine
+                    ? getSectionHref(locale, "profile")
+                    : `${getSectionHref(locale, "profile")}?author=${encodeURIComponent(getPhotoAuthorId(photo))}`
+                }
+              >
+                <span>{getPhotoAuthor(photo, locale)}</span>
+                {authorProfile?.verified ? renderVerifiedBadge() : null}
+              </Link>
+            </div>
+            <div className="photo-card-heading-tags">
+              <button
+                aria-pressed={
+                  initialSection === "discover" &&
+                  discoverLocationFilter === photo.locationId
+                }
+                className="photo-meta-tag"
+                onClick={openDiscoverWithLocation}
+                type="button"
+              >
+                <MapPin aria-hidden="true" size={14} />
+                {getLocationLabel(
+                  photo.locationId,
+                  locale,
+                  photo.locationLabel,
+                )}
+              </button>
+              <button
+                aria-pressed={
+                  initialSection === "discover" &&
+                  categoryFilter === photo.categoryId
+                }
+                className="photo-meta-tag"
+                onClick={openDiscoverWithCategory}
+                type="button"
+              >
+                {t(getCategoryKey(photo.categoryId))}
+              </button>
+            </div>
           </div>
           {photo.isMine ? (
             <div className="photo-status-row">

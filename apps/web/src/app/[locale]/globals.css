@@ -1287,6 +1287,31 @@ img {
   font-size: 15px;
 }
 
+.photo-card-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.photo-card-heading-copy {
+  min-width: 0;
+}
+
+.photo-card-heading-tags {
+  align-items: flex-end;
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  max-width: 58%;
+}
+
+.photo-card-heading-tags .photo-meta-tag {
+  flex: 0 0 auto;
+}
+
 .photo-card-body span {
   font-size: 13px;
 }
