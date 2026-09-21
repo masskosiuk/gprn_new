@@ -8,6 +8,7 @@ import {
   Bell,
   BookOpen,
   Bookmark,
+  Building2,
   CalendarDays,
   Camera,
   Check,
@@ -90,6 +91,10 @@ type CategoryId =
   | "product"
   | "boudoir";
 type CategoryFilter = "all" | CategoryId;
+type CountryId =
+  "france" | "iceland" | "japan" | "morocco" | "portugal" | "ukraine";
+type CountryFilter = "all" | CountryId;
+type MinimumRatingFilter = "all" | "4" | "4.5" | "4.8";
 type BattleScope = "global" | "country" | "city" | "season" | "friend";
 type BattleFilter = "all" | BattleScope;
 type BattleCriterion =
@@ -105,6 +110,23 @@ type LeaderboardScope = "global" | "city" | "category";
 type LocationId =
   "paris" | "kyiv" | "tokyo" | "reykjavik" | "lisbon" | "marrakech";
 type LocationFilter = "all" | LocationId;
+type StudioEquipment =
+  | "cyclorama"
+  | "flash"
+  | "freightElevator"
+  | "greenScreen"
+  | "makeupRoom"
+  | "continuousLight";
+type StudioEquipmentFilter = "all" | StudioEquipment;
+type StudioCriterion =
+  | "lightingGear"
+  | "cyclorama"
+  | "decorations"
+  | "administration"
+  | "atmosphere"
+  | "comfort"
+  | "value";
+type StudioScores = Record<StudioCriterion, number>;
 type SocialPlatformId =
   "instagram" | "facebook" | "artstation" | "adobe" | "behance";
 
@@ -275,6 +297,7 @@ interface ChallengeRecord {
 }
 
 interface LeaderboardRow {
+  readonly authorId: string;
   readonly avatarUrl: string;
   readonly battles: number;
   readonly change: number;
@@ -302,13 +325,27 @@ interface MarketplaceProduct {
 
 interface ExpertRecord {
   readonly avatarUrl: string;
+  readonly categoryId: CategoryId;
   readonly headlineKey: MessageKey;
   readonly id: string;
   readonly languages: readonly SupportedLocale[];
+  readonly locationId: LocationId;
   readonly nameKey: MessageKey;
   readonly rating: string;
   readonly reviews: number;
   readonly specialtyKey: MessageKey;
+}
+
+interface StudioRecord {
+  readonly cityId: LocationId;
+  readonly countryId: CountryId;
+  readonly equipment: readonly StudioEquipment[];
+  readonly id: string;
+  readonly imageUrl: string;
+  readonly nameKey: MessageKey;
+  readonly rating: number;
+  readonly reviews: number;
+  readonly scores: StudioScores;
 }
 
 interface PublicAuthorProfile {
@@ -409,6 +446,7 @@ const moodboardStorageKey = "gprn.moodboard.v2";
 const wishlistStorageKey = "gprn.marketWishlist.v2";
 const notificationsStorageKey = "gprn.notifications.v2";
 const photoReviewsStorageKey = "gprn.photoReviews.v2";
+const studioReviewsStorageKey = "gprn.studioReviews.v1";
 const walletStorageKey = "gprn.wallet.v1";
 const walletTransactionsStorageKey = "gprn.walletTransactions.v1";
 const serviceOrdersStorageKey = "gprn.serviceOrders.v1";
@@ -451,6 +489,35 @@ const battleCriteria: readonly {
     id: "emotionalImpact",
     labelKey: "battles.criterion.emotionalImpact",
   },
+];
+const studioCriteria: readonly {
+  readonly Icon: LucideIcon;
+  readonly id: StudioCriterion;
+  readonly labelKey: MessageKey;
+}[] = [
+  {
+    Icon: SunMedium,
+    id: "lightingGear",
+    labelKey: "studios.criterion.lightingGear",
+  },
+  { Icon: Crop, id: "cyclorama", labelKey: "studios.criterion.cyclorama" },
+  {
+    Icon: Images,
+    id: "decorations",
+    labelKey: "studios.criterion.decorations",
+  },
+  {
+    Icon: UserCircle,
+    id: "administration",
+    labelKey: "studios.criterion.administration",
+  },
+  {
+    Icon: Sparkles,
+    id: "atmosphere",
+    labelKey: "studios.criterion.atmosphere",
+  },
+  { Icon: CheckCircle2, id: "comfort", labelKey: "studios.criterion.comfort" },
+  { Icon: CreditCard, id: "value", labelKey: "studios.criterion.value" },
 ];
 const defaultBattleScores: BattleScores = {
   color: 5,
@@ -503,6 +570,7 @@ const navItems: readonly NavItem[] = [
   { Icon: MapPin, id: "map", messageKey: "nav.map" },
   { Icon: ShoppingBag, id: "marketplace", messageKey: "nav.marketplace" },
   { Icon: Trophy, id: "experts", messageKey: "nav.experts" },
+  { Icon: Building2, id: "studios", messageKey: "nav.studios" },
   { Icon: UserCircle, id: "profile", messageKey: "nav.profile" },
 ];
 
@@ -565,6 +633,10 @@ const sectionMeta: Record<Exclude<SectionId, "home">, SectionMeta> = {
     introKey: "section.experts.intro",
     titleKey: "section.experts.title",
   },
+  studios: {
+    introKey: "section.studios.intro",
+    titleKey: "section.studios.title",
+  },
   leaderboard: {
     introKey: "section.leaderboard.intro",
     titleKey: "section.leaderboard.title",
@@ -622,6 +694,48 @@ const locationFilters: readonly { id: LocationFilter; key: MessageKey }[] = [
   { id: "reykjavik", key: "map.location.reykjavik" },
   { id: "lisbon", key: "map.location.lisbon" },
   { id: "marrakech", key: "map.location.marrakech" },
+];
+
+const countryFilters: readonly { id: CountryFilter; key: MessageKey }[] = [
+  { id: "all", key: "filters.countryAll" },
+  { id: "france", key: "country.france" },
+  { id: "iceland", key: "country.iceland" },
+  { id: "japan", key: "country.japan" },
+  { id: "morocco", key: "country.morocco" },
+  { id: "portugal", key: "country.portugal" },
+  { id: "ukraine", key: "country.ukraine" },
+];
+
+const locationCountries: Record<LocationId, CountryId> = {
+  kyiv: "ukraine",
+  lisbon: "portugal",
+  marrakech: "morocco",
+  paris: "france",
+  reykjavik: "iceland",
+  tokyo: "japan",
+};
+
+const minimumRatingFilters: readonly {
+  id: MinimumRatingFilter;
+  key: MessageKey;
+}[] = [
+  { id: "all", key: "filters.ratingAny" },
+  { id: "4", key: "filters.ratingFour" },
+  { id: "4.5", key: "filters.ratingFourHalf" },
+  { id: "4.8", key: "filters.ratingFourEight" },
+];
+
+const studioEquipmentFilters: readonly {
+  id: StudioEquipmentFilter;
+  key: MessageKey;
+}[] = [
+  { id: "all", key: "studios.equipmentAll" },
+  { id: "cyclorama", key: "studios.equipment.cyclorama" },
+  { id: "flash", key: "studios.equipment.flash" },
+  { id: "continuousLight", key: "studios.equipment.continuousLight" },
+  { id: "greenScreen", key: "studios.equipment.greenScreen" },
+  { id: "makeupRoom", key: "studios.equipment.makeupRoom" },
+  { id: "freightElevator", key: "studios.equipment.freightElevator" },
 ];
 
 const externalPhotoProviders: readonly { id: string; key: MessageKey }[] = [
@@ -1049,6 +1163,7 @@ const challenges: readonly ChallengeRecord[] = [
 
 const leaderboardRows: readonly LeaderboardRow[] = [
   {
+    authorId: "mika",
     avatarUrl: sampleImages.city,
     battles: 72,
     change: 4,
@@ -1057,6 +1172,7 @@ const leaderboardRows: readonly LeaderboardRow[] = [
     rating: 1824,
   },
   {
+    authorId: "elena",
     avatarUrl: sampleImages.mountain,
     battles: 68,
     change: 2,
@@ -1065,6 +1181,7 @@ const leaderboardRows: readonly LeaderboardRow[] = [
     rating: 1792,
   },
   {
+    authorId: "anna",
     avatarUrl: sampleImages.architecture,
     battles: 59,
     change: 7,
@@ -1073,6 +1190,7 @@ const leaderboardRows: readonly LeaderboardRow[] = [
     rating: 1711,
   },
   {
+    authorId: "yusuf",
     avatarUrl: sampleImages.desert,
     battles: 64,
     change: -1,
@@ -1081,6 +1199,7 @@ const leaderboardRows: readonly LeaderboardRow[] = [
     rating: 1688,
   },
   {
+    authorId: "joao",
     avatarUrl: sampleImages.tram,
     battles: 45,
     change: 3,
@@ -1162,9 +1281,11 @@ const marketplaceProducts: readonly MarketplaceProduct[] = [
 const experts: readonly ExpertRecord[] = [
   {
     avatarUrl: sampleImages.desert,
+    categoryId: "documentary",
     headlineKey: "data.expert.iryna.headline",
     id: "iryna",
     languages: ["uk", "en"],
+    locationId: "kyiv",
     nameKey: "data.expert.iryna",
     rating: "4.9",
     reviews: 128,
@@ -1172,9 +1293,11 @@ const experts: readonly ExpertRecord[] = [
   },
   {
     avatarUrl: sampleImages.street,
+    categoryId: "portrait",
     headlineKey: "data.expert.marcus.headline",
     id: "marcus",
     languages: ["en", "de"],
+    locationId: "lisbon",
     nameKey: "data.expert.marcus",
     rating: "4.8",
     reviews: 94,
@@ -1182,13 +1305,113 @@ const experts: readonly ExpertRecord[] = [
   },
   {
     avatarUrl: sampleImages.mountain,
+    categoryId: "landscape",
     headlineKey: "data.expert.sofia.headline",
     id: "sofia",
     languages: ["fr", "en"],
+    locationId: "paris",
     nameKey: "data.expert.sofia",
     rating: "4.9",
     reviews: 156,
     specialtyKey: "category.landscape",
+  },
+];
+
+const studios: readonly StudioRecord[] = [
+  {
+    cityId: "kyiv",
+    countryId: "ukraine",
+    equipment: ["cyclorama", "flash", "continuousLight", "makeupRoom"],
+    id: "north-light",
+    imageUrl: sampleImages.architecture,
+    nameKey: "studios.data.northLight",
+    rating: 4.9,
+    reviews: 86,
+    scores: {
+      administration: 9.3,
+      atmosphere: 9.5,
+      comfort: 9.1,
+      cyclorama: 9.7,
+      decorations: 8.8,
+      lightingGear: 9.6,
+      value: 9.2,
+    },
+  },
+  {
+    cityId: "paris",
+    countryId: "france",
+    equipment: ["cyclorama", "continuousLight", "greenScreen"],
+    id: "atelier-seine",
+    imageUrl: sampleImages.city,
+    nameKey: "studios.data.atelierSeine",
+    rating: 4.8,
+    reviews: 112,
+    scores: {
+      administration: 9.1,
+      atmosphere: 9.6,
+      comfort: 8.9,
+      cyclorama: 9.2,
+      decorations: 9.4,
+      lightingGear: 9.3,
+      value: 8.6,
+    },
+  },
+  {
+    cityId: "tokyo",
+    countryId: "japan",
+    equipment: ["flash", "continuousLight", "greenScreen", "freightElevator"],
+    id: "hikari-stage",
+    imageUrl: sampleImages.street,
+    nameKey: "studios.data.hikariStage",
+    rating: 4.7,
+    reviews: 74,
+    scores: {
+      administration: 9,
+      atmosphere: 8.8,
+      comfort: 8.7,
+      cyclorama: 8.9,
+      decorations: 8.4,
+      lightingGear: 9.5,
+      value: 8.8,
+    },
+  },
+  {
+    cityId: "lisbon",
+    countryId: "portugal",
+    equipment: ["cyclorama", "flash", "makeupRoom", "freightElevator"],
+    id: "luz-factory",
+    imageUrl: sampleImages.tram,
+    nameKey: "studios.data.luzFactory",
+    rating: 4.6,
+    reviews: 59,
+    scores: {
+      administration: 8.7,
+      atmosphere: 9.2,
+      comfort: 8.8,
+      cyclorama: 9,
+      decorations: 8.9,
+      lightingGear: 8.8,
+      value: 9.1,
+    },
+  },
+  {
+    cityId: "reykjavik",
+    countryId: "iceland",
+    equipment: ["flash", "continuousLight", "makeupRoom"],
+    id: "saga-room",
+    imageUrl: sampleImages.mountain,
+    nameKey: "studios.data.sagaRoom",
+    rating: 4.5,
+    reviews: 41,
+    scores: {
+      administration: 8.9,
+      atmosphere: 9.4,
+      comfort: 8.6,
+      cyclorama: 8.2,
+      decorations: 8.7,
+      lightingGear: 8.9,
+      value: 8.5,
+    },
   },
 ];
 
@@ -1269,6 +1492,39 @@ export function HomeClient({
   const [promotions, setPromotions] = useState<LocalPromotion[]>([]);
   const [listedPhotoIds, setListedPhotoIds] = useState<string[]>([]);
   const [deletionRequested, setDeletionRequested] = useState(false);
+  const [expertSearch, setExpertSearch] = useState("");
+  const [expertCategoryFilter, setExpertCategoryFilter] =
+    useState<CategoryFilter>("all");
+  const [expertCountryFilter, setExpertCountryFilter] =
+    useState<CountryFilter>("all");
+  const [expertCityFilter, setExpertCityFilter] =
+    useState<LocationFilter>("all");
+  const [expertRatingFilter, setExpertRatingFilter] =
+    useState<MinimumRatingFilter>("all");
+  const [studioSearch, setStudioSearch] = useState("");
+  const [studioCountryFilter, setStudioCountryFilter] =
+    useState<CountryFilter>("all");
+  const [studioCityFilter, setStudioCityFilter] =
+    useState<LocationFilter>("all");
+  const [studioRatingFilter, setStudioRatingFilter] =
+    useState<MinimumRatingFilter>("all");
+  const [studioEquipmentFilter, setStudioEquipmentFilter] =
+    useState<StudioEquipmentFilter>("all");
+  const [activeStudioReviewId, setActiveStudioReviewId] = useState<
+    string | null
+  >(null);
+  const [studioReviewScores, setStudioReviewScores] = useState<StudioScores>({
+    administration: 5,
+    atmosphere: 5,
+    comfort: 5,
+    cyclorama: 5,
+    decorations: 5,
+    lightingGear: 5,
+    value: 5,
+  });
+  const [studioReviews, setStudioReviews] = useState<
+    Record<string, StudioScores[]>
+  >({});
 
   useEffect(() => {
     if (initialSection !== "discover") {
@@ -1393,6 +1649,72 @@ export function HomeClient({
       };
     });
   }, [locale, publicPhotos]);
+  const visibleExperts = experts.filter((expert) => {
+    const query = expertSearch.trim().toLocaleLowerCase(locale);
+    const searchableText = [
+      t(expert.nameKey),
+      t(expert.headlineKey),
+      t(expert.specialtyKey),
+      getLocationLabel(expert.locationId, locale),
+    ]
+      .join(" ")
+      .toLocaleLowerCase(locale);
+    const minimumRating =
+      expertRatingFilter === "all" ? 0 : Number(expertRatingFilter);
+
+    return (
+      (!query || searchableText.includes(query)) &&
+      (expertCategoryFilter === "all" ||
+        expert.categoryId === expertCategoryFilter) &&
+      (expertCountryFilter === "all" ||
+        locationCountries[expert.locationId] === expertCountryFilter) &&
+      (expertCityFilter === "all" || expert.locationId === expertCityFilter) &&
+      Number(expert.rating) >= minimumRating
+    );
+  });
+  const visibleStudios = studios.filter((studio) => {
+    const query = studioSearch.trim().toLocaleLowerCase(locale);
+    const searchableText = [
+      t(studio.nameKey),
+      getLocationLabel(studio.cityId, locale),
+      ...studio.equipment.map((equipment) =>
+        t(`studios.equipment.${equipment}` as MessageKey),
+      ),
+    ]
+      .join(" ")
+      .toLocaleLowerCase(locale);
+    const minimumRating =
+      studioRatingFilter === "all" ? 0 : Number(studioRatingFilter);
+
+    return (
+      (!query || searchableText.includes(query)) &&
+      (studioCountryFilter === "all" ||
+        studio.countryId === studioCountryFilter) &&
+      (studioCityFilter === "all" || studio.cityId === studioCityFilter) &&
+      (studioEquipmentFilter === "all" ||
+        studio.equipment.includes(studioEquipmentFilter)) &&
+      studio.rating >= minimumRating
+    );
+  });
+  const studioMapMarkers = useMemo<readonly PhotoMapMarker[]>(
+    () =>
+      visibleStudios.map((studio) => {
+        const location =
+          locationPins.find((candidate) => candidate.id === studio.cityId) ??
+          locationPins[0]!;
+
+        return {
+          id: studio.cityId,
+          imageUrl: studio.imageUrl,
+          label: getLocationLabel(studio.cityId, locale),
+          latitude: location.latitude,
+          longitude: location.longitude,
+          photoId: studio.id,
+          title: t(studio.nameKey),
+        };
+      }),
+    [locale, visibleStudios],
+  );
 
   useEffect(() => {
     const storedAccount = readLocalStorage<AccountRecord | null>(
@@ -1437,6 +1759,12 @@ export function HomeClient({
         {},
       ),
     });
+    setStudioReviews(
+      readLocalStorage<Record<string, StudioScores[]>>(
+        studioReviewsStorageKey,
+        {},
+      ),
+    );
     setWalletBalanceMinor(readLocalStorage<number>(walletStorageKey, 0));
     setWalletTransactions(
       readLocalStorage<LocalWalletTransaction[]>(
@@ -1550,6 +1878,11 @@ export function HomeClient({
 
     writeLocalStorage(photoReviewsStorageKey, photoReviews);
   }, [isHydrated, photoReviews]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    writeLocalStorage(studioReviewsStorageKey, studioReviews);
+  }, [isHydrated, studioReviews]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -1793,6 +2126,96 @@ export function HomeClient({
         title={t("photo.openPreview")}
       />
     );
+  }
+
+  function renderAuthorAvatar(
+    src: string,
+    alt: string,
+    authorId: string,
+  ): ReactNode {
+    const href =
+      authorId === "me"
+        ? getSectionHref(locale, "profile")
+        : `${getSectionHref(locale, "profile")}?author=${encodeURIComponent(authorId)}`;
+
+    return (
+      <Link
+        aria-label={`${t("profile.openAuthorProfile")}: ${alt}`}
+        className="author-avatar-link"
+        href={href}
+        title={t("profile.openAuthorProfile")}
+      >
+        <img alt={alt} src={src} />
+      </Link>
+    );
+  }
+
+  function getExpertAuthor(expert: ExpertRecord): PublicAuthorProfile {
+    return {
+      avatarUrl: expert.avatarUrl,
+      availableForHire: true,
+      bioKey: expert.headlineKey,
+      completedOrders: expert.reviews,
+      coverUrl: expert.avatarUrl,
+      followers: expert.reviews * 12,
+      id: expert.id,
+      locationId: expert.locationId,
+      nameKey: expert.nameKey,
+      rating: Math.round(Number(expert.rating) * 320),
+      reviewPrice: 4500,
+      serviceRating: Number(expert.rating),
+      tier: "professional",
+      username: expert.id,
+      verified: true,
+      wins: 0,
+    };
+  }
+
+  function getStudioScores(studio: StudioRecord): StudioScores {
+    const reviews = studioReviews[studio.id] ?? [];
+    if (reviews.length === 0) return studio.scores;
+
+    return Object.fromEntries(
+      studioCriteria.map(({ id }) => [
+        id,
+        (studio.scores[id] * studio.reviews +
+          reviews.reduce((sum, review) => sum + review[id], 0)) /
+          (studio.reviews + reviews.length),
+      ]),
+    ) as StudioScores;
+  }
+
+  function openStudioReview(studioId: string): void {
+    if (!currentProfile) {
+      openAuth("login");
+      setGlobalFeedback({ kind: "error", text: t("common.signInRequired") });
+      return;
+    }
+    setActiveStudioReviewId(studioId);
+    setStudioReviewScores({
+      administration: 5,
+      atmosphere: 5,
+      comfort: 5,
+      cyclorama: 5,
+      decorations: 5,
+      lightingGear: 5,
+      value: 5,
+    });
+  }
+
+  function submitStudioReview(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    if (!activeStudioReviewId || !currentProfile) return;
+
+    setStudioReviews((current) => ({
+      ...current,
+      [activeStudioReviewId]: [
+        ...(current[activeStudioReviewId] ?? []),
+        studioReviewScores,
+      ],
+    }));
+    setActiveStudioReviewId(null);
+    setGlobalFeedback({ kind: "success", text: t("studios.ratingSaved") });
   }
 
   function openPhotoPicker(): void {
@@ -3243,7 +3666,7 @@ export function HomeClient({
             <h1>{t(meta.titleKey)}</h1>
             {sectionId !== "profile" ? <p>{t(meta.introKey)}</p> : null}
           </div>
-          {sectionId !== "admin" ? (
+          {sectionId !== "admin" && sectionId !== "studios" ? (
             <div className="intro-actions">
               <button
                 className="primary-action"
@@ -3276,6 +3699,7 @@ export function HomeClient({
         {sectionId === "map" ? renderMapPage() : null}
         {sectionId === "marketplace" ? renderMarketplacePage() : null}
         {sectionId === "experts" ? renderExpertsPage() : null}
+        {sectionId === "studios" ? renderStudiosPage() : null}
         {sectionId === "profile" ? renderProfilePage() : null}
         {sectionId === "admin" ? renderAdminPage() : null}
       </>
@@ -4012,6 +4436,7 @@ export function HomeClient({
         currentProfile
           ? [
               {
+                authorId: "me",
                 avatarUrl: currentProfile.avatarUrl ?? sampleImages.street,
                 battles:
                   currentProfile.battles + Object.keys(battleVotes).length,
@@ -4065,7 +4490,13 @@ export function HomeClient({
             >
               <span className="leaderboard-rank">{index + 1}</span>
               <span className="leaderboard-person">
-                {renderPreviewableImage(row.avatarUrl, t(row.nameKey))}
+                {renderAuthorAvatar(
+                  row.avatarUrl,
+                  row.nameKey === "common.you" && currentProfile
+                    ? currentProfile.name
+                    : t(row.nameKey),
+                  row.authorId,
+                )}
                 <strong>
                   {row.nameKey === "common.you" && currentProfile
                     ? currentProfile.name
@@ -4327,85 +4758,387 @@ export function HomeClient({
   function renderExpertsPage(): ReactNode {
     return (
       <section className="page-section">
-        <div className="notice-panel">
-          <Crown aria-hidden="true" size={22} />
-          <div>
-            <strong>{t("experts.verifiedDisabled")}</strong>
-            <p>{t("experts.requestDisabled")}</p>
+        <div className="directory-filter-panel">
+          <div className="directory-filter-heading">
+            <div>
+              <Filter aria-hidden="true" size={20} />
+              <strong>{t("filters.title")}</strong>
+            </div>
+            <span>
+              {t("filters.found")}:{" "}
+              {numberFormatter.format(visibleExperts.length)}
+            </span>
           </div>
+          <div className="directory-filter-fields is-experts">
+            <label className="search-box directory-search">
+              <Search aria-hidden="true" size={18} />
+              <span className="visually-hidden">{t("common.search")}</span>
+              <input
+                onChange={(event) => setExpertSearch(event.target.value)}
+                placeholder={t("filters.searchExperts")}
+                type="search"
+                value={expertSearch}
+              />
+            </label>
+            <label className="form-field compact-field">
+              <span>{t("filters.genre")}</span>
+              <select
+                onChange={(event) =>
+                  setExpertCategoryFilter(event.target.value as CategoryFilter)
+                }
+                value={expertCategoryFilter}
+              >
+                {categoryFilters.map((filter) => (
+                  <option key={filter.id} value={filter.id}>
+                    {t(filter.key)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field compact-field">
+              <span>{t("filters.country")}</span>
+              <select
+                onChange={(event) =>
+                  setExpertCountryFilter(event.target.value as CountryFilter)
+                }
+                value={expertCountryFilter}
+              >
+                {countryFilters.map((filter) => (
+                  <option key={filter.id} value={filter.id}>
+                    {t(filter.key)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field compact-field">
+              <span>{t("filters.city")}</span>
+              <select
+                onChange={(event) =>
+                  setExpertCityFilter(event.target.value as LocationFilter)
+                }
+                value={expertCityFilter}
+              >
+                {locationFilters.map((filter) => (
+                  <option key={filter.id} value={filter.id}>
+                    {t(filter.key)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field compact-field">
+              <span>{t("filters.minRating")}</span>
+              <select
+                onChange={(event) =>
+                  setExpertRatingFilter(
+                    event.target.value as MinimumRatingFilter,
+                  )
+                }
+                value={expertRatingFilter}
+              >
+                {minimumRatingFilters.map((filter) => (
+                  <option key={filter.id} value={filter.id}>
+                    {t(filter.key)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <button
+            className="secondary-action compact directory-reset"
+            onClick={() => {
+              setExpertSearch("");
+              setExpertCategoryFilter("all");
+              setExpertCountryFilter("all");
+              setExpertCityFilter("all");
+              setExpertRatingFilter("all");
+            }}
+            type="button"
+          >
+            <X aria-hidden="true" size={15} />
+            {t("common.reset")}
+          </button>
         </div>
 
         <div className="expert-grid">
-          {experts.map((expert) => {
-            const expertAuthor: PublicAuthorProfile = {
-              avatarUrl: expert.avatarUrl,
-              availableForHire: true,
-              bioKey: expert.headlineKey,
-              completedOrders: expert.reviews,
-              coverUrl: expert.avatarUrl,
-              followers: expert.reviews * 12,
-              id: expert.id,
-              locationId: "paris",
-              nameKey: expert.nameKey,
-              rating: Math.round(Number(expert.rating) * 320),
-              reviewPrice: 4500,
-              serviceRating: Number(expert.rating),
-              tier: "professional",
-              username: expert.id,
-              verified: true,
-              wins: 0,
-            };
+          {visibleExperts.map((expert) => (
+            <article className="expert-card" key={expert.id}>
+              <div className="expert-avatar-frame is-professional">
+                {renderAuthorAvatar(
+                  expert.avatarUrl,
+                  t(expert.nameKey),
+                  expert.id,
+                )}
+                {renderProfessionalBadge()}
+              </div>
+              <div>
+                <span className="pill">{t(expert.specialtyKey)}</span>
+                <h2 className="author-name-line">
+                  <Link
+                    href={`${getSectionHref(locale, "profile")}?author=${expert.id}`}
+                  >
+                    {t(expert.nameKey)}
+                  </Link>
+                  {renderVerifiedBadge()}
+                </h2>
+                <p>{t(expert.headlineKey)}</p>
+                <div className="meta-row">
+                  <span>
+                    <MapPin aria-hidden="true" size={14} />
+                    {getLocationLabel(expert.locationId, locale)}
+                  </span>
+                  <span>
+                    <Star aria-hidden="true" size={14} />
+                    {expert.rating} {t("experts.rating")}
+                  </span>
+                  <span>
+                    {numberFormatter.format(expert.reviews)}{" "}
+                    {t("experts.reviews")}
+                  </span>
+                </div>
+                <div className="language-list">
+                  {expert.languages.map((expertLocale) => (
+                    <span key={expertLocale}>{expertLocale.toUpperCase()}</span>
+                  ))}
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+        {visibleExperts.length === 0 ? (
+          <p className="empty-state">{t("experts.empty")}</p>
+        ) : null}
+      </section>
+    );
+  }
+
+  function renderStudiosPage(): ReactNode {
+    return (
+      <section className="page-section studio-directory">
+        <div className="directory-filter-panel">
+          <div className="directory-filter-heading">
+            <div>
+              <Filter aria-hidden="true" size={20} />
+              <strong>{t("filters.title")}</strong>
+            </div>
+            <span>
+              {t("filters.found")}:{" "}
+              {numberFormatter.format(visibleStudios.length)}
+            </span>
+          </div>
+          <div className="directory-filter-fields is-studios">
+            <label className="search-box directory-search">
+              <Search aria-hidden="true" size={18} />
+              <span className="visually-hidden">{t("common.search")}</span>
+              <input
+                onChange={(event) => setStudioSearch(event.target.value)}
+                placeholder={t("filters.searchStudios")}
+                type="search"
+                value={studioSearch}
+              />
+            </label>
+            <label className="form-field compact-field">
+              <span>{t("filters.country")}</span>
+              <select
+                onChange={(event) =>
+                  setStudioCountryFilter(event.target.value as CountryFilter)
+                }
+                value={studioCountryFilter}
+              >
+                {countryFilters.map((filter) => (
+                  <option key={filter.id} value={filter.id}>
+                    {t(filter.key)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field compact-field">
+              <span>{t("filters.city")}</span>
+              <select
+                onChange={(event) =>
+                  setStudioCityFilter(event.target.value as LocationFilter)
+                }
+                value={studioCityFilter}
+              >
+                {locationFilters.map((filter) => (
+                  <option key={filter.id} value={filter.id}>
+                    {t(filter.key)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field compact-field">
+              <span>{t("filters.minRating")}</span>
+              <select
+                onChange={(event) =>
+                  setStudioRatingFilter(
+                    event.target.value as MinimumRatingFilter,
+                  )
+                }
+                value={studioRatingFilter}
+              >
+                {minimumRatingFilters.map((filter) => (
+                  <option key={filter.id} value={filter.id}>
+                    {t(filter.key)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field compact-field">
+              <span>{t("filters.equipment")}</span>
+              <select
+                onChange={(event) =>
+                  setStudioEquipmentFilter(
+                    event.target.value as StudioEquipmentFilter,
+                  )
+                }
+                value={studioEquipmentFilter}
+              >
+                {studioEquipmentFilters.map((filter) => (
+                  <option key={filter.id} value={filter.id}>
+                    {t(filter.key)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <button
+            className="secondary-action compact directory-reset"
+            onClick={() => {
+              setStudioSearch("");
+              setStudioCountryFilter("all");
+              setStudioCityFilter("all");
+              setStudioRatingFilter("all");
+              setStudioEquipmentFilter("all");
+            }}
+            type="button"
+          >
+            <X aria-hidden="true" size={15} />
+            {t("common.reset")}
+          </button>
+        </div>
+
+        <InteractivePhotoMap
+          activeLocationId={studioCityFilter}
+          ariaLabel={t("studios.mapLabel")}
+          locations={mapLocations}
+          markers={studioMapMarkers}
+          onLocationSelect={(locationId) =>
+            setStudioCityFilter(locationId as LocationFilter)
+          }
+          onPhotoOpen={(src, alt) =>
+            setImagePreview({ alt, src: getLargeImageSource(src) })
+          }
+        />
+
+        <div className="studio-grid">
+          {visibleStudios.map((studio) => {
+            const scores = getStudioScores(studio);
+            const localReviewCount = studioReviews[studio.id]?.length ?? 0;
 
             return (
-              <article className="expert-card" key={expert.id}>
-                <div className="expert-avatar-frame is-professional">
-                  {renderPreviewableImage(expert.avatarUrl, t(expert.nameKey))}
-                  {renderProfessionalBadge()}
+              <article className="studio-card" key={studio.id}>
+                <div className="studio-card-image">
+                  {renderPreviewableImage(studio.imageUrl, t(studio.nameKey))}
                 </div>
-                <div>
-                  <span className="pill">{t(expert.specialtyKey)}</span>
-                  <h2 className="author-name-line">
-                    {t(expert.nameKey)}
-                    {renderVerifiedBadge()}
-                  </h2>
-                  <p>{t(expert.headlineKey)}</p>
-                  <div className="meta-row">
-                    <span>
-                      <Star aria-hidden="true" size={14} />
-                      {expert.rating} {t("experts.rating")}
-                    </span>
-                    <span>
-                      {numberFormatter.format(expert.reviews)}{" "}
-                      {t("experts.reviews")}
-                    </span>
+                <div className="studio-card-body">
+                  <div className="studio-card-heading">
+                    <div>
+                      <h2>{t(studio.nameKey)}</h2>
+                      <span>
+                        <MapPin aria-hidden="true" size={14} />
+                        {getLocationLabel(studio.cityId, locale)}
+                      </span>
+                    </div>
+                    <strong>
+                      <Star aria-hidden="true" size={16} />
+                      {studio.rating.toLocaleString(locale)}
+                    </strong>
                   </div>
-                  <div className="language-list">
-                    {expert.languages.map((expertLocale) => (
-                      <span key={expertLocale}>
-                        {expertLocale.toUpperCase()}
+                  <div className="studio-equipment-list">
+                    {studio.equipment.map((equipment) => (
+                      <span key={equipment}>
+                        {t(`studios.equipment.${equipment}` as MessageKey)}
                       </span>
                     ))}
                   </div>
-                  <div className="card-actions">
+                  <div className="studio-score-grid">
+                    {studioCriteria.map(({ Icon, id, labelKey }) => (
+                      <div key={id} title={t(labelKey)}>
+                        <Icon aria-hidden="true" size={15} />
+                        <span>
+                          {scores[id].toLocaleString(locale, {
+                            maximumFractionDigits: 1,
+                          })}
+                        </span>
+                        <small>{t(labelKey)}</small>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="studio-card-footer">
+                    <span>
+                      {numberFormatter.format(
+                        studio.reviews + localReviewCount,
+                      )}{" "}
+                      {t("studios.reviews")}
+                    </span>
                     <button
-                      className="primary-action compact"
-                      onClick={() => {
-                        openCommerceDialog({
-                          author: expertAuthor,
-                          kind: "review",
-                        });
-                      }}
+                      className="secondary-action compact"
+                      onClick={() => openStudioReview(studio.id)}
                       type="button"
                     >
-                      <ExternalLink aria-hidden="true" size={16} />
-                      {t("experts.request")}
+                      <Star aria-hidden="true" size={15} />
+                      {t("studios.rate")}
                     </button>
                   </div>
+                  {activeStudioReviewId === studio.id ? (
+                    <form
+                      className="studio-rating-form"
+                      onSubmit={submitStudioReview}
+                    >
+                      {studioCriteria.map(({ id, labelKey }) => (
+                        <label key={id}>
+                          <span>{t(labelKey)}</span>
+                          <input
+                            max="10"
+                            min="1"
+                            onChange={(event) =>
+                              setStudioReviewScores((current) => ({
+                                ...current,
+                                [id]: Number(event.target.value),
+                              }))
+                            }
+                            step="1"
+                            type="range"
+                            value={studioReviewScores[id]}
+                          />
+                          <strong>{studioReviewScores[id]}</strong>
+                        </label>
+                      ))}
+                      <div className="card-actions">
+                        <button
+                          className="primary-action compact"
+                          type="submit"
+                        >
+                          {t("studios.submitRating")}
+                        </button>
+                        <button
+                          className="secondary-action compact"
+                          onClick={() => setActiveStudioReviewId(null)}
+                          type="button"
+                        >
+                          {t("common.cancel")}
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
                 </div>
               </article>
             );
           })}
         </div>
+        {visibleStudios.length === 0 ? (
+          <p className="empty-state">{t("studios.empty")}</p>
+        ) : null}
       </section>
     );
   }
@@ -4429,7 +5162,7 @@ export function HomeClient({
             <div className="profile-head">
               <div className={`profile-avatar-frame is-tier-${author.tier}`}>
                 <div className="profile-avatar">
-                  {renderPreviewableImage(author.avatarUrl, t(author.nameKey))}
+                  <img alt={t(author.nameKey)} src={author.avatarUrl} />
                 </div>
                 {renderAccountTierBadge(author.tier)}
               </div>
@@ -4553,8 +5286,12 @@ export function HomeClient({
   }
 
   function renderProfilePage(): ReactNode {
+    const expertProfile = initialAuthorId
+      ? experts.find((expert) => expert.id === initialAuthorId)
+      : null;
     const publicAuthor = initialAuthorId
-      ? publicAuthorProfiles.find((author) => author.id === initialAuthorId)
+      ? (publicAuthorProfiles.find((author) => author.id === initialAuthorId) ??
+        (expertProfile ? getExpertAuthor(expertProfile) : null))
       : null;
 
     if (publicAuthor) {
@@ -4629,10 +5366,10 @@ export function HomeClient({
               <div className={`profile-avatar-frame is-tier-${currentTier}`}>
                 <div className="profile-avatar">
                   {currentProfile.avatarUrl ? (
-                    renderPreviewableImage(
-                      currentProfile.avatarUrl,
-                      t("profile.avatarAlt"),
-                    )
+                    <img
+                      alt={t("profile.avatarAlt")}
+                      src={currentProfile.avatarUrl}
+                    />
                   ) : (
                     <span>{getInitials(currentProfile.name)}</span>
                   )}
@@ -5077,12 +5814,33 @@ export function HomeClient({
                 />
               </label>
 
-              {["experienced", "professional", "star"].includes(currentTier) ? (
+              <fieldset className="master-settings">
+                <legend>{t("profile.masterSettings")}</legend>
+                <p>{t("profile.masterSettingsCopy")}</p>
+                <label className="checkbox-field" htmlFor="profile-hire">
+                  <input
+                    checked={profileForm.availableForHire}
+                    id="profile-hire"
+                    onChange={(event) => {
+                      updateProfileField(
+                        "availableForHire",
+                        event.target.checked,
+                      );
+                    }}
+                    type="checkbox"
+                  />
+                  <span>{t("profile.availableForHire")}</span>
+                </label>
                 <label className="form-field" htmlFor="profile-review-price">
                   <span>{t("review.pricePerPhoto")}</span>
                   <div className="review-price-input">
                     <span aria-hidden="true">$</span>
                     <input
+                      disabled={
+                        !["experienced", "professional", "star"].includes(
+                          currentTier,
+                        )
+                      }
                       id="profile-review-price"
                       min="1"
                       onChange={(event) => {
@@ -5093,9 +5851,15 @@ export function HomeClient({
                       value={profileForm.reviewPrice}
                     />
                   </div>
-                  <small>{t("review.pricePerPhotoHint")}</small>
+                  <small>
+                    {["experienced", "professional", "star"].includes(
+                      currentTier,
+                    )
+                      ? t("review.pricePerPhotoHint")
+                      : t("review.masterOnly")}
+                  </small>
                 </label>
-              ) : null}
+              </fieldset>
 
               <fieldset className="social-editor">
                 <legend>{t("profile.socials")}</legend>
@@ -5169,21 +5933,6 @@ export function HomeClient({
                   })}
                 </div>
               </fieldset>
-
-              <label className="checkbox-field" htmlFor="profile-hire">
-                <input
-                  checked={profileForm.availableForHire}
-                  id="profile-hire"
-                  onChange={(event) => {
-                    updateProfileField(
-                      "availableForHire",
-                      event.target.checked,
-                    );
-                  }}
-                  type="checkbox"
-                />
-                <span>{t("profile.availableForHire")}</span>
-              </label>
 
               <button className="primary-action full-width" type="submit">
                 {t("profile.saveProfile")}

@@ -9,8 +9,9 @@ export const sectionIds = [
   "map",
   "marketplace",
   "experts",
+  "studios",
   "profile",
-  "admin"
+  "admin",
 ] as const;
 
 export const routedSectionIds = [
@@ -21,8 +22,9 @@ export const routedSectionIds = [
   "map",
   "marketplace",
   "experts",
+  "studios",
   "profile",
-  "admin"
+  "admin",
 ] as const;
 
 export type SectionId = (typeof sectionIds)[number];
@@ -36,6 +38,9 @@ export function isRoutedSectionId(value: string): value is RoutedSectionId {
   return routedSectionIds.includes(value as RoutedSectionId);
 }
 
-export function getSectionHref(locale: SupportedLocale, sectionId: SectionId): string {
+export function getSectionHref(
+  locale: SupportedLocale,
+  sectionId: SectionId,
+): string {
   return sectionId === "home" ? `/${locale}` : `/${locale}/${sectionId}`;
 }
