@@ -2569,6 +2569,7 @@ img {
 .auth-empty {
   align-items: center;
   display: grid;
+  gap: 18px;
   justify-items: center;
   margin-inline: auto;
   max-width: 620px;
