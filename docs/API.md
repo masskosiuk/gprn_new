@@ -96,6 +96,7 @@ Wallet, marketplace and service amounts use integer minor units. Marketplace pur
 - `DELETE /social-connections/:provider`
 - `POST /analytics/events`
 - `GET /admin/overview`
+- `GET /admin/users`
 - `GET /admin/moderation`
 - `PATCH /admin/reports/:reportId`
 - `PATCH /admin/disputes/:disputeId`
@@ -110,6 +111,16 @@ Wallet, marketplace and service amounts use integer minor units. Marketplace pur
 - `DELETE /admin/users/:userId`
 
 Admin and moderation routes enforce RBAC and write audit records for state changes.
+
+Create or promote the first administrator after migrations and seed data are ready:
+
+```powershell
+$env:GPRN_ADMIN_EMAIL="admin@example.com"
+$env:GPRN_ADMIN_PASSWORD="replace-with-a-strong-password"
+pnpm admin:create
+```
+
+The command defaults to `SUPER_ADMIN`; set `GPRN_ADMIN_ROLE=ADMIN` for a restricted administrator.
 
 ### Platform state
 

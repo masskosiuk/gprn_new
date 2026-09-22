@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
@@ -28,6 +29,13 @@ export class AdminController {
     const user = await this.authService.requireUserFromRequest(request);
     requirePermission(user, "user:admin");
     return this.adminService.overview();
+  }
+
+  @Get("users")
+  async users(@Req() request: CookieRequest, @Query() query: unknown) {
+    const user = await this.authService.requireUserFromRequest(request);
+    requirePermission(user, "user:admin");
+    return this.adminService.users(query);
   }
 
   @Get("moderation")

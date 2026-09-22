@@ -101,6 +101,121 @@ export class AdminService {
     };
   }
 
+  async users(query: unknown) {
+    const record = asRecord(query);
+    const search = optionalString(record, "search")?.trim().slice(0, 120);
+    const status = optionalString(record, "status");
+    const tier = optionalString(record, "tier");
+
+    if (status && !userStatuses.has(status)) throw invalidStatus();
+    if (tier && !profileTiers.has(tier)) throw invalidStatus();
+
+    const users = await prisma.user.findMany({
+      include: {
+        _count: { select: { photos: true } },
+        profile: true,
+        ratings: {
+          orderBy: { updatedAt: "desc" },
+        },
+        roles: { include: { role: true } },
+        wallet: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      where: {
+        ...(search
+          ? {
+              OR: [
+                { email: { contains: search, mode: "insensitive" as const } },
+                {
+                  profile: {
+                    is: {
+                      displayName: {
+                        contains: search,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                  },
+                },
+                {
+                  profile: {
+                    is: {
+                      username: {
+                        contains: search,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                  },
+                },
+              ],
+            }
+          : {}),
+        ...(status
+          ? {
+              status: status as
+                "ACTIVE" | "SUSPENDED" | "DELETION_REQUESTED" | "DELETED",
+            }
+          : {}),
+        ...(tier
+          ? {
+              profile: {
+                is: {
+                  tier: tier as
+                    | "VIEWER"
+                    | "AMATEUR"
+                    | "BEGINNER"
+                    | "EXPERIENCED"
+                    | "PROFESSIONAL"
+                    | "STAR",
+                },
+              },
+            }
+          : {}),
+      },
+    });
+
+    return {
+      users: users.map((user) => {
+        const rating =
+          user.ratings.find(
+            (item) => item.scope === "GLOBAL" && item.scopeKey === "global",
+          ) ?? user.ratings[0];
+
+        return {
+          createdAt: user.createdAt,
+          email: user.email,
+          id: user.id,
+          photoCount: user._count.photos,
+          profile: user.profile
+            ? {
+                avatarAssetKey: user.profile.avatarAssetKey,
+                displayName: user.profile.displayName,
+                tier: user.profile.tier,
+                username: user.profile.username,
+              }
+            : null,
+          rating: rating
+            ? {
+                battles: rating.battles,
+                id: rating.id,
+                losses: rating.losses,
+                rating: rating.rating,
+                wins: rating.wins,
+              }
+            : null,
+          roles: user.roles.map(({ role }) => role.key),
+          status: user.status,
+          wallet: user.wallet
+            ? {
+                balanceMinor: user.wallet.balanceMinor.toString(),
+                currency: user.wallet.currency,
+              }
+            : null,
+        };
+      }),
+    };
+  }
+
   async moderationQueue() {
     const [photos, reports, disputes] = await Promise.all([
       prisma.photo.findMany({
@@ -343,6 +458,12 @@ export class AdminService {
     const reason = requiredString(record, "reason").slice(0, 1000);
     if (status && !userStatuses.has(status)) throw invalidStatus();
     if (tier && !profileTiers.has(tier)) throw invalidStatus();
+    if (userId === actor.id && status && status !== "ACTIVE") {
+      throw new BadRequestException({
+        code: "ADMIN_SELF_LOCKOUT",
+        message: "Administrators cannot suspend or delete their own account.",
+      });
+    }
     return prisma.$transaction(async (tx) => {
       const previous = await tx.user.findUnique({
         include: { profile: true },
@@ -504,6 +625,12 @@ export class AdminService {
   }
 
   async deleteUser(actor: CurrentUser, userId: string, body: unknown) {
+    if (userId === actor.id) {
+      throw new BadRequestException({
+        code: "ADMIN_SELF_DELETE",
+        message: "Administrators cannot delete their own account.",
+      });
+    }
     const reason = requiredString(asRecord(body), "reason").slice(0, 1000);
     return prisma.$transaction(async (tx) => {
       const previous = await tx.user.findUnique({ where: { id: userId } });

@@ -4782,7 +4782,7 @@ img {
 
 .admin-dashboard {
   display: grid;
-  gap: 20px;
+  gap: 18px;
 }
 
 .admin-metrics {
@@ -4823,6 +4823,253 @@ img {
   display: grid;
   gap: 16px;
   padding: 18px;
+}
+
+.admin-feedback {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  padding: 12px 14px;
+}
+
+.admin-feedback.success {
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  color: var(--accent-strong);
+}
+
+.admin-feedback.error {
+  background: color-mix(in srgb, var(--danger) 8%, var(--panel));
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--border));
+  color: var(--danger);
+}
+
+.admin-accounts-panel {
+  gap: 18px;
+  padding: 20px;
+}
+
+.admin-panel-heading,
+.admin-account-head,
+.admin-account-actions {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.admin-panel-heading {
+  gap: 16px;
+}
+
+.admin-panel-heading h2,
+.admin-results-heading h3 {
+  margin: 0;
+}
+
+.admin-panel-heading p,
+.admin-results-heading span,
+.admin-account-person span,
+.admin-account-person small,
+.admin-account-summary span,
+.admin-empty,
+.admin-loading {
+  color: var(--muted);
+}
+
+.admin-panel-heading p {
+  margin: 4px 0 0;
+}
+
+.admin-toolbar {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(260px, 1fr) repeat(
+      2,
+      minmax(160px, 0.36fr)
+    ) auto;
+}
+
+.admin-search,
+.admin-account-fields input,
+.admin-account-fields select {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--foreground);
+  font: inherit;
+  min-height: 46px;
+  padding: 0 13px;
+  width: 100%;
+}
+
+.admin-search:focus,
+.admin-account-fields input:focus,
+.admin-account-fields select:focus {
+  border-color: var(--accent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  outline-offset: 1px;
+}
+
+.admin-results-heading {
+  align-items: baseline;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  padding-top: 18px;
+}
+
+.admin-account-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-account-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.admin-account-card.status-suspended,
+.admin-account-card.status-deletion-requested {
+  border-left: 3px solid var(--danger);
+}
+
+.admin-account-head {
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.admin-account-person {
+  align-items: center;
+  display: flex;
+  gap: 11px;
+  min-width: 0;
+}
+
+.admin-account-avatar {
+  align-items: center;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: grid;
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 800;
+  height: 42px;
+  justify-items: center;
+  width: 42px;
+}
+
+.admin-account-person > div {
+  display: grid;
+  min-width: 0;
+}
+
+.admin-account-person strong,
+.admin-account-person span,
+.admin-account-person small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-account-flags {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-end;
+}
+
+.admin-account-flags > span:not(.admin-status) {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-status {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 7px;
+  text-transform: uppercase;
+}
+
+.admin-status.status-active {
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  color: var(--accent-strong);
+}
+
+.admin-status.status-suspended,
+.admin-status.status-deletion-requested {
+  background: color-mix(in srgb, var(--danger) 8%, var(--panel));
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--border));
+  color: var(--danger);
+}
+
+.admin-status.status-deleted {
+  background: var(--panel-strong);
+  color: var(--muted);
+}
+
+.admin-account-summary {
+  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  padding: 10px 0;
+}
+
+.admin-account-summary span {
+  font-size: 13px;
+}
+
+.admin-account-summary strong {
+  color: var(--foreground);
+  font-weight: 750;
+}
+
+.admin-account-fields {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(130px, 0.35fr)) minmax(240px, 1fr);
+}
+
+.admin-account-fields .compact-field {
+  min-width: 0;
+}
+
+.admin-account-fields .compact-field span {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.admin-reason-field {
+  grid-column: auto;
+}
+
+.admin-account-actions {
+  gap: 9px;
+  justify-content: flex-end;
+}
+
+.admin-account-actions .danger-action {
+  margin-left: 4px;
+}
+
+.admin-empty,
+.admin-loading {
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 26px 18px;
+  text-align: center;
 }
 
 .admin-action-row,
@@ -4872,6 +5119,22 @@ img {
   .admin-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .admin-toolbar {
+    grid-template-columns: minmax(240px, 1fr) repeat(2, minmax(150px, 0.55fr));
+  }
+
+  .admin-toolbar > button {
+    justify-self: end;
+  }
+
+  .admin-account-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .admin-reason-field {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 680px) {
@@ -4886,6 +5149,41 @@ img {
 
   .admin-log time {
     grid-column: 1 / -1;
+  }
+
+  .admin-accounts-panel {
+    padding: 15px;
+  }
+
+  .admin-panel-heading,
+  .admin-account-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-toolbar,
+  .admin-account-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-toolbar > button,
+  .admin-reason-field {
+    grid-column: auto;
+    justify-self: stretch;
+  }
+
+  .admin-account-flags {
+    justify-content: flex-start;
+  }
+
+  .admin-account-actions {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .admin-account-actions .danger-action {
+    margin-left: 0;
   }
 }
 

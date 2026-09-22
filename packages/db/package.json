@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "admin:create": "tsx prisma/create-admin.ts",
     "db:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
     "db:seed": "tsx prisma/seed.ts",

@@ -44,6 +44,7 @@ import {
   Send,
   Share2,
   ShieldCheck,
+  RefreshCw,
   ShoppingBag,
   Sparkles,
   Star,
@@ -83,6 +84,10 @@ type AuthMode = "login" | "register";
 type ThemeMode = "dark" | "light";
 type AccountTier =
   "viewer" | "amateur" | "beginner" | "experienced" | "professional" | "star";
+type AdminAccountStatus =
+  "ACTIVE" | "SUSPENDED" | "DELETION_REQUESTED" | "DELETED";
+type AdminAccountTier =
+  "VIEWER" | "AMATEUR" | "BEGINNER" | "EXPERIENCED" | "PROFESSIONAL" | "STAR";
 type CategoryId =
   | "street"
   | "landscape"
@@ -214,6 +219,73 @@ interface AccountRecord {
   readonly username: string;
   readonly website: string;
   readonly wins: number;
+}
+
+interface ServerSessionUser {
+  readonly email: string;
+  readonly id: string;
+  readonly profile: {
+    readonly displayName: string;
+    readonly tier: AdminAccountTier;
+    readonly username: string;
+  } | null;
+  readonly ratings: readonly {
+    readonly battles: number;
+    readonly losses: number;
+    readonly rating: number;
+    readonly scope: string;
+    readonly scopeKey: string;
+    readonly wins: number;
+  }[];
+  readonly roles: readonly string[];
+  readonly status: AdminAccountStatus;
+}
+
+interface AdminUserRecord {
+  readonly createdAt: string;
+  readonly email: string;
+  readonly id: string;
+  readonly photoCount: number;
+  readonly profile: {
+    readonly avatarAssetKey: string | null;
+    readonly displayName: string;
+    readonly tier: AdminAccountTier;
+    readonly username: string;
+  } | null;
+  readonly rating: {
+    readonly battles: number;
+    readonly id: string;
+    readonly losses: number;
+    readonly rating: number;
+    readonly wins: number;
+  } | null;
+  readonly roles: readonly string[];
+  readonly status: AdminAccountStatus;
+  readonly wallet: {
+    readonly balanceMinor: string;
+    readonly currency: string;
+  } | null;
+}
+
+interface AdminUserDraft {
+  readonly rating: string;
+  readonly reason: string;
+  readonly status: AdminAccountStatus;
+  readonly tier: AdminAccountTier;
+}
+
+interface AdminOverviewRecord {
+  readonly counts: {
+    readonly battles: number;
+    readonly challenges: number;
+    readonly moderationPending: number;
+    readonly openDisputes: number;
+    readonly openReports: number;
+    readonly photos: number;
+    readonly publishedPhotos: number;
+    readonly seasons: number;
+    readonly users: number;
+  };
 }
 
 interface SocialLinkRecord {
@@ -646,6 +718,15 @@ const navItems: readonly NavItem[] = [
   { Icon: BadgeCheck, id: "challenges", messageKey: "nav.challenges" },
   { Icon: ShoppingBag, id: "marketplace", messageKey: "nav.marketplace" },
   { Icon: Trophy, id: "experts", messageKey: "nav.experts" },
+];
+
+const adminAccountTiers: readonly AdminAccountTier[] = [
+  "VIEWER",
+  "AMATEUR",
+  "BEGINNER",
+  "EXPERIENCED",
+  "PROFESSIONAL",
+  "STAR",
 ];
 
 const languageOptions: readonly {
@@ -2323,6 +2404,26 @@ export function HomeClient({
   const [globalFeedback, setGlobalFeedback] = useState<Feedback | null>(null);
   const [account, setAccount] = useState<AccountRecord | null>(null);
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+  const [serverUser, setServerUser] = useState<ServerSessionUser | null>(null);
+  const [adminOverview, setAdminOverview] =
+    useState<AdminOverviewRecord | null>(null);
+  const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>([]);
+  const [adminUserDrafts, setAdminUserDrafts] = useState<
+    Record<string, AdminUserDraft>
+  >({});
+  const [adminSearch, setAdminSearch] = useState("");
+  const [adminStatusFilter, setAdminStatusFilter] = useState<
+    "ALL" | AdminAccountStatus
+  >("ALL");
+  const [adminTierFilter, setAdminTierFilter] = useState<
+    "ALL" | AdminAccountTier
+  >("ALL");
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminBusyUserId, setAdminBusyUserId] = useState<string | null>(null);
+  const [adminDeleteConfirmId, setAdminDeleteConfirmId] = useState<
+    string | null
+  >(null);
+  const [adminFeedback, setAdminFeedback] = useState<Feedback | null>(null);
   const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfileForm);
   const [socialProviders, setSocialProviders] = useState<
     readonly SocialProviderRecord[]
@@ -2446,6 +2547,11 @@ export function HomeClient({
 
   const currentProfile =
     account && sessionEmail === account.email ? account : null;
+  const isAdministrator = Boolean(
+    serverUser?.roles.some(
+      (role) => role === "ADMIN" || role === "SUPER_ADMIN",
+    ),
+  );
   const numberFormatter = useMemo(
     () => new Intl.NumberFormat(locale),
     [locale],
@@ -2962,6 +3068,16 @@ export function HomeClient({
     if (!isHydrated) return;
     void refreshSocialConnections(Boolean(currentProfile));
   }, [currentProfile?.email, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    void refreshServerSession();
+  }, [isHydrated, sessionEmail]);
+
+  useEffect(() => {
+    if (initialSection !== "admin" || !isAdministrator) return;
+    void loadAdminData();
+  }, [initialSection, isAdministrator]);
 
   useEffect(() => {
     const outcome = new URLSearchParams(window.location.search).get("social");
@@ -3502,39 +3618,214 @@ export function HomeClient({
     }));
   }
 
+  async function refreshServerSession(): Promise<ServerSessionUser | null> {
+    try {
+      const response = await apiRequest<{ user: ServerSessionUser | null }>(
+        "/auth/me",
+      );
+      setServerUser(response.user);
+      setSocialSessionReady(Boolean(response.user));
+      return response.user;
+    } catch {
+      setServerUser(null);
+      setSocialSessionReady(false);
+      return null;
+    }
+  }
+
+  async function loadAdminData(): Promise<void> {
+    setAdminLoading(true);
+    setAdminFeedback(null);
+
+    const query = new URLSearchParams();
+    const normalizedSearch = adminSearch.trim();
+    if (normalizedSearch) query.set("search", normalizedSearch);
+    if (adminStatusFilter !== "ALL") query.set("status", adminStatusFilter);
+    if (adminTierFilter !== "ALL") query.set("tier", adminTierFilter);
+
+    try {
+      const [overview, usersResponse] = await Promise.all([
+        apiRequest<AdminOverviewRecord>("/admin/overview"),
+        apiRequest<{ users: AdminUserRecord[] }>(
+          `/admin/users${query.size > 0 ? `?${query.toString()}` : ""}`,
+        ),
+      ]);
+      setAdminOverview(overview);
+      setAdminUsers(usersResponse.users);
+      setAdminUserDrafts(
+        Object.fromEntries(
+          usersResponse.users.map((user) => [
+            user.id,
+            {
+              rating: String(user.rating?.rating ?? 1500),
+              reason: "",
+              status: user.status,
+              tier: user.profile?.tier ?? "VIEWER",
+            },
+          ]),
+        ),
+      );
+    } catch {
+      setAdminFeedback({ kind: "error", text: t("admin.loadFailed") });
+    } finally {
+      setAdminLoading(false);
+    }
+  }
+
+  function updateAdminUserDraft(
+    userId: string,
+    field: keyof AdminUserDraft,
+    value: string,
+  ): void {
+    setAdminUserDrafts((current) => {
+      const draft = current[userId];
+      if (!draft) return current;
+      return { ...current, [userId]: { ...draft, [field]: value } };
+    });
+    setAdminDeleteConfirmId(null);
+  }
+
+  async function saveAdminUser(user: AdminUserRecord): Promise<void> {
+    const draft = adminUserDrafts[user.id];
+    if (!draft) return;
+    const reason = draft.reason.trim();
+    const rating = Number(draft.rating);
+
+    if (reason.length < 3) {
+      setAdminFeedback({ kind: "error", text: t("admin.reasonRequired") });
+      return;
+    }
+    if (!Number.isInteger(rating) || rating < 0 || rating > 10000) {
+      setAdminFeedback({ kind: "error", text: t("admin.ratingInvalid") });
+      return;
+    }
+
+    setAdminBusyUserId(user.id);
+    setAdminFeedback(null);
+    try {
+      if (
+        draft.tier !== (user.profile?.tier ?? "VIEWER") ||
+        draft.status !== user.status
+      ) {
+        await apiRequest(`/admin/users/${user.id}`, {
+          body: JSON.stringify({
+            reason,
+            status: draft.status,
+            tier: draft.tier,
+          }),
+          method: "PATCH",
+        });
+      }
+      if (user.rating && rating !== user.rating.rating) {
+        await apiRequest(`/admin/ratings/${user.rating.id}`, {
+          body: JSON.stringify({ rating, reason }),
+          method: "PATCH",
+        });
+      }
+      setAdminFeedback({ kind: "success", text: t("admin.accountSaved") });
+      await loadAdminData();
+    } catch {
+      setAdminFeedback({ kind: "error", text: t("admin.actionFailed") });
+    } finally {
+      setAdminBusyUserId(null);
+    }
+  }
+
+  async function toggleAdminUserBlock(user: AdminUserRecord): Promise<void> {
+    const draft = adminUserDrafts[user.id];
+    if (!draft || draft.reason.trim().length < 3) {
+      setAdminFeedback({ kind: "error", text: t("admin.reasonRequired") });
+      return;
+    }
+
+    setAdminBusyUserId(user.id);
+    setAdminFeedback(null);
+    try {
+      await apiRequest(`/admin/users/${user.id}`, {
+        body: JSON.stringify({
+          reason: draft.reason.trim(),
+          status: user.status === "SUSPENDED" ? "ACTIVE" : "SUSPENDED",
+        }),
+        method: "PATCH",
+      });
+      setAdminFeedback({
+        kind: "success",
+        text:
+          user.status === "SUSPENDED"
+            ? t("admin.accountUnblocked")
+            : t("admin.accountBlocked"),
+      });
+      await loadAdminData();
+    } catch {
+      setAdminFeedback({ kind: "error", text: t("admin.actionFailed") });
+    } finally {
+      setAdminBusyUserId(null);
+    }
+  }
+
+  async function deleteAdminUser(user: AdminUserRecord): Promise<void> {
+    const draft = adminUserDrafts[user.id];
+    if (!draft || draft.reason.trim().length < 3) {
+      setAdminFeedback({ kind: "error", text: t("admin.reasonRequired") });
+      return;
+    }
+    if (adminDeleteConfirmId !== user.id) {
+      setAdminDeleteConfirmId(user.id);
+      return;
+    }
+
+    setAdminBusyUserId(user.id);
+    setAdminFeedback(null);
+    try {
+      await apiRequest(`/admin/users/${user.id}`, {
+        body: JSON.stringify({ reason: draft.reason.trim() }),
+        method: "DELETE",
+      });
+      setAdminDeleteConfirmId(null);
+      setAdminFeedback({ kind: "success", text: t("admin.accountDeleted") });
+      await loadAdminData();
+    } catch {
+      setAdminFeedback({ kind: "error", text: t("admin.actionFailed") });
+    } finally {
+      setAdminBusyUserId(null);
+    }
+  }
+
   async function establishServerSession(
     mode: AuthMode,
-    profile: AccountRecord,
+    email: string,
     password: string,
-  ): Promise<boolean> {
+    profile?: AccountRecord,
+  ): Promise<ServerSessionUser | null> {
     const registerBody = {
-      displayName: profile.name,
-      email: profile.email,
+      displayName: profile?.name ?? email.split("@")[0] ?? "User",
+      email,
       password,
-      username: profile.username,
+      username: profile?.username ?? makeUsername(email, email),
     };
-    const loginBody = { email: profile.email, password };
+    const loginBody = { email, password };
     const attempts =
       mode === "register"
         ? ([
             ["/auth/register", registerBody],
             ["/auth/login", loginBody],
           ] as const)
-        : ([
-            ["/auth/login", loginBody],
-            ["/auth/register", registerBody],
-          ] as const);
+        : ([["/auth/login", loginBody]] as const);
 
     for (const [path, body] of attempts) {
       try {
-        await apiRequest(path, { body: JSON.stringify(body), method: "POST" });
-        return true;
+        const response = await apiRequest<{ user: ServerSessionUser }>(path, {
+          body: JSON.stringify(body),
+          method: "POST",
+        });
+        setServerUser(response.user);
+        return response.user;
       } catch {
-        // A second attempt migrates an existing local account or resumes an existing server account.
+        // Registration falls back to login when the server account already exists.
       }
     }
 
-    return false;
+    return null;
   }
 
   async function handleAuthSubmit(
@@ -3574,12 +3865,13 @@ export function HomeClient({
 
       const serverReady = await establishServerSession(
         "register",
-        newAccount,
+        email,
         password,
+        newAccount,
       );
       setAccount(newAccount);
       setSessionEmail(email);
-      setSocialSessionReady(serverReady);
+      setSocialSessionReady(Boolean(serverReady));
       setAuthForm(emptyAuthForm);
       setAuthFeedback({ kind: "success", text: t("auth.success") });
       setGlobalFeedback({ kind: "success", text: t("auth.success") });
@@ -3594,25 +3886,63 @@ export function HomeClient({
       return;
     }
 
-    if (!account || account.email !== email) {
+    const passwordHash = await hashSecret(email, password);
+    const serverReady = await establishServerSession("login", email, password);
+    const localAccount = account?.email === email ? account : null;
+
+    if (!serverReady && !localAccount) {
       setAuthFeedback({ kind: "error", text: t("auth.accountMissing") });
       return;
     }
-
-    const passwordHash = await hashSecret(email, password);
-
-    if (account.passwordHash !== passwordHash) {
+    if (!serverReady && localAccount?.passwordHash !== passwordHash) {
       setAuthFeedback({ kind: "error", text: t("auth.badPassword") });
       return;
     }
 
-    const serverReady = await establishServerSession(
-      "login",
-      account,
-      password,
-    );
+    const resolvedAccount: AccountRecord = serverReady
+      ? {
+          availableForHire: localAccount?.availableForHire ?? true,
+          avatarUrl: localAccount?.avatarUrl,
+          battles: localAccount?.battles ?? 0,
+          bio: localAccount?.bio ?? t("profile.defaultBio"),
+          coverUrl: localAccount?.coverUrl,
+          detailedReviewPrice: localAccount?.detailedReviewPrice,
+          email,
+          followers: localAccount?.followers ?? 0,
+          following: localAccount?.following ?? 0,
+          joinedAt: localAccount?.joinedAt ?? new Date().toISOString(),
+          location: localAccount?.location ?? t("profile.defaultLocation"),
+          name:
+            serverReady.profile?.displayName ??
+            localAccount?.name ??
+            email.split("@")[0] ??
+            "User",
+          passwordHash,
+          presetPrice: localAccount?.presetPrice,
+          presetSalesEnabled: localAccount?.presetSalesEnabled,
+          presetTitle: localAccount?.presetTitle,
+          rating:
+            serverReady.ratings.find(
+              (item) => item.scope === "GLOBAL" && item.scopeKey === "global",
+            )?.rating ??
+            localAccount?.rating ??
+            1500,
+          reviewPrice: localAccount?.reviewPrice,
+          simpleReviewPrice: localAccount?.simpleReviewPrice,
+          socialLinks: localAccount?.socialLinks,
+          tier: normalizeServerTier(serverReady.profile?.tier),
+          username:
+            serverReady.profile?.username ??
+            localAccount?.username ??
+            makeUsername(email, email),
+          website: localAccount?.website ?? "",
+          wins: localAccount?.wins ?? 0,
+        }
+      : localAccount!;
+
+    setAccount(resolvedAccount);
     setSessionEmail(email);
-    setSocialSessionReady(serverReady);
+    setSocialSessionReady(Boolean(serverReady));
     setAuthForm(emptyAuthForm);
     setAuthFeedback({ kind: "success", text: t("auth.loginSuccess") });
     setGlobalFeedback({ kind: "success", text: t("auth.loginSuccess") });
@@ -3623,6 +3953,7 @@ export function HomeClient({
   function logOut(): void {
     void apiRequest("/auth/logout", { method: "POST" }).catch(() => undefined);
     setSessionEmail(null);
+    setServerUser(null);
     setSocialSessionReady(false);
     setGlobalFeedback({ kind: "success", text: t("auth.loggedOut") });
   }
@@ -4514,6 +4845,16 @@ export function HomeClient({
                   </div>
                 ) : null}
               </div>
+              {isAdministrator ? (
+                <Link
+                  aria-current={initialSection === "admin" ? "page" : undefined}
+                  className={`icon-text-button admin-header-link${initialSection === "admin" ? " is-active" : ""}`}
+                  href={getSectionHref(locale, "admin")}
+                >
+                  <ShieldCheck aria-hidden="true" size={17} />
+                  <span>{t("section.admin.title")}</span>
+                </Link>
+              ) : null}
               <Link
                 className="user-pill"
                 href={getSectionHref(locale, "profile")}
@@ -8384,7 +8725,7 @@ export function HomeClient({
   }
 
   function renderAdminPage(): ReactNode {
-    if (!currentProfile) {
+    if (!currentProfile || !serverUser) {
       return (
         <section className="page-section">
           <div className="auth-empty">
@@ -8405,14 +8746,53 @@ export function HomeClient({
       );
     }
 
+    if (!isAdministrator) {
+      return (
+        <section className="page-section">
+          <div className="auth-empty">
+            <LockKeyhole aria-hidden="true" size={52} />
+            <h2>{t("admin.accessDenied")}</h2>
+            <p>{t("admin.accessDeniedCopy")}</p>
+            <Link
+              className="secondary-action"
+              href={getSectionHref(locale, "profile")}
+            >
+              <UserCircle aria-hidden="true" size={17} />
+              {t("section.profile.title")}
+            </Link>
+          </div>
+        </section>
+      );
+    }
+
     return (
       <section className="page-section admin-dashboard">
+        {adminFeedback ? (
+          <div className={`admin-feedback ${adminFeedback.kind}`} role="status">
+            {adminFeedback.text}
+          </div>
+        ) : null}
+
         <div className="admin-metrics">
           {[
-            [numberFormatter.format(uploadedPhotos.length), "admin.photos"],
-            [numberFormatter.format(serviceOrders.length), "admin.orders"],
-            [numberFormatter.format(promotions.length), "admin.promotions"],
-            [formatMoney(walletBalanceMinor, locale), "admin.balance"],
+            [
+              numberFormatter.format(adminOverview?.counts.users ?? 0),
+              "admin.users",
+            ],
+            [
+              numberFormatter.format(adminOverview?.counts.photos ?? 0),
+              "admin.photos",
+            ],
+            [
+              numberFormatter.format(adminOverview?.counts.openReports ?? 0),
+              "admin.openReports",
+            ],
+            [
+              numberFormatter.format(
+                adminOverview?.counts.moderationPending ?? 0,
+              ),
+              "admin.moderationPending",
+            ],
           ].map(([value, label]) => (
             <div key={label}>
               <span>{t(label as MessageKey)}</span>
@@ -8421,204 +8801,304 @@ export function HomeClient({
           ))}
         </div>
 
-        <div className="admin-grid">
-          <section className="admin-panel">
+        <section className="admin-panel admin-accounts-panel">
+          <div className="admin-panel-heading">
             <div className="panel-title">
-              <CircleUserRound aria-hidden="true" size={20} />
+              <CircleUserRound aria-hidden="true" size={22} />
               <div>
                 <h2>{t("admin.accounts")}</h2>
-                <p>{currentProfile.email}</p>
+                <p>{t("admin.accountsCopy")}</p>
               </div>
             </div>
-            <label className="form-field">
-              <span>{t("admin.accountStatus")}</span>
+            <button
+              aria-label={t("admin.refresh")}
+              className="icon-button"
+              disabled={adminLoading}
+              onClick={() => void loadAdminData()}
+              title={t("admin.refresh")}
+              type="button"
+            >
+              <RefreshCw aria-hidden="true" size={17} />
+            </button>
+          </div>
+
+          <form
+            className="admin-toolbar"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void loadAdminData();
+            }}
+          >
+            <label className="search-box admin-search">
+              <Search aria-hidden="true" size={18} />
+              <span className="visually-hidden">{t("admin.search")}</span>
+              <input
+                onChange={(event) => setAdminSearch(event.target.value)}
+                placeholder={t("admin.searchPlaceholder")}
+                type="search"
+                value={adminSearch}
+              />
+            </label>
+            <label className="compact-field">
+              <span>{t("admin.status")}</span>
               <select
-                onChange={(event) => {
-                  setAccount({
-                    ...currentProfile,
-                    tier: event.target.value as AccountTier,
-                  });
-                }}
-                value={currentProfile.tier ?? "viewer"}
+                onChange={(event) =>
+                  setAdminStatusFilter(
+                    event.target.value as "ALL" | AdminAccountStatus,
+                  )
+                }
+                value={adminStatusFilter}
               >
+                <option value="ALL">{t("admin.allStatuses")}</option>
                 {(
                   [
-                    "viewer",
-                    "amateur",
-                    "beginner",
-                    "experienced",
-                    "professional",
-                    "star",
+                    "ACTIVE",
+                    "SUSPENDED",
+                    "DELETION_REQUESTED",
+                    "DELETED",
                   ] as const
-                ).map((tier) => (
-                  <option key={tier} value={tier}>
-                    {t(getAccountTierKey(tier))}
+                ).map((status) => (
+                  <option key={status} value={status}>
+                    {t(getAdminStatusKey(status))}
                   </option>
                 ))}
               </select>
             </label>
-            <div className="admin-action-row">
-              <button
-                className="secondary-action compact"
-                onClick={() => {
-                  setAccount({
-                    ...currentProfile,
-                    rating: currentProfile.rating + 25,
-                  });
-                }}
-                type="button"
+            <label className="compact-field">
+              <span>{t("admin.tier")}</span>
+              <select
+                onChange={(event) =>
+                  setAdminTierFilter(
+                    event.target.value as "ALL" | AdminAccountTier,
+                  )
+                }
+                value={adminTierFilter}
               >
-                +25 {t("common.rating")}
-              </button>
-              <button
-                className="secondary-action compact"
-                onClick={() => {
-                  setAccount({
-                    ...currentProfile,
-                    rating: Math.max(0, currentProfile.rating - 25),
-                  });
-                }}
-                type="button"
-              >
-                -25 {t("common.rating")}
-              </button>
-            </div>
-            <div className="admin-action-row">
-              <button
-                className="secondary-action compact"
-                onClick={() => {
-                  setWalletBalanceMinor((current) => current + 2500);
-                }}
-                type="button"
-              >
-                +{formatMoney(2500, locale)}
-              </button>
-              <button
-                className="secondary-action compact"
-                onClick={() => {
-                  setWalletBalanceMinor((current) =>
-                    Math.max(0, current - 2500),
-                  );
-                }}
-                type="button"
-              >
-                -{formatMoney(2500, locale)}
-              </button>
-            </div>
-            <div className="admin-danger-row">
-              <button
-                className="danger-action"
-                onClick={() => {
-                  setDeletionRequested(true);
-                  setGlobalFeedback({
-                    kind: "success",
-                    text: t("admin.profileBlocked"),
-                  });
-                }}
-                type="button"
-              >
-                <LockKeyhole aria-hidden="true" size={15} />
-                {t("admin.blockProfile")}
-              </button>
-            </div>
-          </section>
+                <option value="ALL">{t("admin.allTiers")}</option>
+                {adminAccountTiers.map((tier) => (
+                  <option key={tier} value={tier}>
+                    {t(getAccountTierKey(normalizeServerTier(tier)))}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="primary-action compact" type="submit">
+              <Search aria-hidden="true" size={16} />
+              {t("common.search")}
+            </button>
+          </form>
 
-          <section className="admin-panel">
-            <div className="panel-title">
-              <Images aria-hidden="true" size={20} />
-              <div>
-                <h2>{t("admin.content")}</h2>
-                <p>{t("admin.contentCopy")}</p>
-              </div>
-            </div>
-            <div className="admin-list">
-              {uploadedPhotos.length > 0 ? (
-                uploadedPhotos.map((photo) => (
-                  <div key={photo.id}>
-                    <span>{getPhotoTitle(photo, locale)}</span>
-                    <button
-                      aria-label={t("admin.deletePhoto")}
-                      className="icon-button"
-                      onClick={() => {
-                        setUploadedPhotos((current) =>
-                          current.filter((item) => item.id !== photo.id),
-                        );
-                      }}
-                      title={t("admin.deletePhoto")}
-                      type="button"
-                    >
-                      <Trash2 aria-hidden="true" size={15} />
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <p>{t("admin.emptyContent")}</p>
+          <div className="admin-results-heading">
+            <span>
+              {t("admin.found").replace(
+                "{count}",
+                numberFormatter.format(adminUsers.length),
               )}
-            </div>
-          </section>
+            </span>
+            <small>{t("admin.reasonHint")}</small>
+          </div>
 
-          <section className="admin-panel">
-            <div className="panel-title">
-              <Megaphone aria-hidden="true" size={20} />
-              <div>
-                <h2>{t("admin.promotions")}</h2>
-                <p>{t("admin.promotionCopy")}</p>
-              </div>
+          {adminLoading && adminUsers.length === 0 ? (
+            <div className="admin-loading">
+              <RefreshCw aria-hidden="true" size={20} />
+              {t("admin.loading")}
             </div>
-            <div className="admin-list">
-              {promotions.length > 0 ? (
-                promotions.map((promotion) => (
-                  <div key={promotion.id}>
+          ) : null}
+
+          <div className="admin-account-list">
+            {adminUsers.map((user) => {
+              const draft = adminUserDrafts[user.id];
+              if (!draft) return null;
+              const isSelf = user.id === serverUser.id;
+              const isBusy = adminBusyUserId === user.id;
+              const isDeleted = user.status === "DELETED";
+
+              return (
+                <article
+                  className={`admin-account-card status-${user.status.toLowerCase()}`}
+                  key={user.id}
+                >
+                  <div className="admin-account-head">
+                    <div className="admin-account-person">
+                      <span className="admin-account-avatar">
+                        {getInitials(
+                          user.profile?.displayName ??
+                            user.email.split("@")[0] ??
+                            "U",
+                        )}
+                      </span>
+                      <div>
+                        <strong>
+                          {user.profile?.displayName ?? user.email}
+                        </strong>
+                        <span>
+                          {user.profile
+                            ? `@${user.profile.username}`
+                            : user.email}
+                        </span>
+                        {user.profile ? <small>{user.email}</small> : null}
+                      </div>
+                    </div>
+                    <div className="admin-account-flags">
+                      {isSelf ? <span>{t("admin.you")}</span> : null}
+                      <span
+                        className={`admin-status status-${user.status.toLowerCase()}`}
+                      >
+                        {t(getAdminStatusKey(user.status))}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="admin-account-summary">
                     <span>
-                      {t(getPromotionPlacementKey(promotion.placement))}
+                      {t("admin.photos")}:{" "}
+                      {numberFormatter.format(user.photoCount)}
                     </span>
+                    <span>
+                      {t("common.rating")}:{" "}
+                      {numberFormatter.format(user.rating?.rating ?? 0)}
+                    </span>
+                    <span>
+                      {t("admin.battles")}:{" "}
+                      {numberFormatter.format(user.rating?.battles ?? 0)}
+                    </span>
+                    <span>{user.roles.join(", ")}</span>
+                    <span>{formatDate(locale, user.createdAt)}</span>
+                  </div>
+
+                  <div className="admin-account-fields">
+                    <label className="compact-field">
+                      <span>{t("admin.tier")}</span>
+                      <select
+                        disabled={isBusy || isDeleted}
+                        onChange={(event) =>
+                          updateAdminUserDraft(
+                            user.id,
+                            "tier",
+                            event.target.value,
+                          )
+                        }
+                        value={draft.tier}
+                      >
+                        {adminAccountTiers.map((tier) => (
+                          <option key={tier} value={tier}>
+                            {t(getAccountTierKey(normalizeServerTier(tier)))}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="compact-field">
+                      <span>{t("admin.status")}</span>
+                      <select
+                        disabled={isBusy || isDeleted || isSelf}
+                        onChange={(event) =>
+                          updateAdminUserDraft(
+                            user.id,
+                            "status",
+                            event.target.value,
+                          )
+                        }
+                        value={draft.status}
+                      >
+                        {(
+                          ["ACTIVE", "SUSPENDED", "DELETION_REQUESTED"] as const
+                        ).map((status) => (
+                          <option key={status} value={status}>
+                            {t(getAdminStatusKey(status))}
+                          </option>
+                        ))}
+                        {isDeleted ? (
+                          <option value="DELETED">
+                            {t("admin.status.deleted")}
+                          </option>
+                        ) : null}
+                      </select>
+                    </label>
+                    <label className="compact-field">
+                      <span>{t("common.rating")}</span>
+                      <input
+                        disabled={isBusy || isDeleted || !user.rating}
+                        max={10000}
+                        min={0}
+                        onChange={(event) =>
+                          updateAdminUserDraft(
+                            user.id,
+                            "rating",
+                            event.target.value,
+                          )
+                        }
+                        type="number"
+                        value={draft.rating}
+                      />
+                    </label>
+                    <label className="compact-field admin-reason-field">
+                      <span>{t("admin.reason")}</span>
+                      <input
+                        disabled={isBusy || isDeleted}
+                        maxLength={1000}
+                        onChange={(event) =>
+                          updateAdminUserDraft(
+                            user.id,
+                            "reason",
+                            event.target.value,
+                          )
+                        }
+                        placeholder={t("admin.reasonPlaceholder")}
+                        type="text"
+                        value={draft.reason}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="admin-account-actions">
                     <button
                       className="secondary-action compact"
-                      onClick={() => {
-                        setPromotions((current) =>
-                          current.filter((item) => item.id !== promotion.id),
-                        );
-                      }}
+                      disabled={isBusy || isDeleted}
+                      onClick={() => void saveAdminUser(user)}
                       type="button"
                     >
-                      {t("admin.remove")}
+                      <Check aria-hidden="true" size={16} />
+                      {t("common.save")}
+                    </button>
+                    <button
+                      className="secondary-action compact"
+                      disabled={isBusy || isDeleted || isSelf}
+                      onClick={() => void toggleAdminUserBlock(user)}
+                      type="button"
+                    >
+                      {user.status === "SUSPENDED" ? (
+                        <CheckCircle2 aria-hidden="true" size={16} />
+                      ) : (
+                        <LockKeyhole aria-hidden="true" size={16} />
+                      )}
+                      {user.status === "SUSPENDED"
+                        ? t("admin.unblock")
+                        : t("admin.block")}
+                    </button>
+                    <button
+                      className="danger-action compact"
+                      disabled={isBusy || isDeleted || isSelf}
+                      onClick={() => void deleteAdminUser(user)}
+                      type="button"
+                    >
+                      <Trash2 aria-hidden="true" size={16} />
+                      {adminDeleteConfirmId === user.id
+                        ? t("admin.confirmDelete")
+                        : t("admin.deleteAccount")}
                     </button>
                   </div>
-                ))
-              ) : (
-                <p>{t("admin.emptyPromotions")}</p>
-              )}
-            </div>
-          </section>
+                </article>
+              );
+            })}
+          </div>
 
-          <section className="admin-panel admin-log-panel">
-            <div className="panel-title">
-              <BookOpen aria-hidden="true" size={20} />
-              <div>
-                <h2>{t("admin.logs")}</h2>
-                <p>{t("admin.logsCopy")}</p>
-              </div>
+          {!adminLoading && adminUsers.length === 0 ? (
+            <div className="admin-empty">
+              <Users aria-hidden="true" size={30} />
+              <p>{t("admin.emptyUsers")}</p>
             </div>
-            <div className="admin-log">
-              {[...walletTransactions]
-                .sort((left, right) =>
-                  right.createdAt.localeCompare(left.createdAt),
-                )
-                .map((transaction) => (
-                  <div key={transaction.id}>
-                    <time>{formatDate(locale, transaction.createdAt)}</time>
-                    <span>{transaction.label}</span>
-                    <strong>
-                      {formatMoney(transaction.amountMinor, locale)}
-                    </strong>
-                  </div>
-                ))}
-              {walletTransactions.length === 0 ? (
-                <p>{t("admin.emptyLogs")}</p>
-              ) : null}
-            </div>
-          </section>
-        </div>
+          ) : null}
+        </section>
       </section>
     );
   }
@@ -9388,6 +9868,14 @@ function getPromotionPlacementKey(placement: PromotionPlacement): MessageKey {
 
 function getAccountTierKey(tier: AccountTier): MessageKey {
   return `author.tier.${tier}` as MessageKey;
+}
+
+function normalizeServerTier(tier: AdminAccountTier | undefined): AccountTier {
+  return (tier?.toLowerCase() as AccountTier | undefined) ?? "viewer";
+}
+
+function getAdminStatusKey(status: AdminAccountStatus): MessageKey {
+  return `admin.status.${status.toLowerCase()}` as MessageKey;
 }
 
 function getBattleVoteWeight(tier: AccountTier): number {
