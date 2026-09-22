@@ -20,18 +20,18 @@
   color-scheme: dark;
   --accent: #54b7aa;
   --accent-strong: #78d1c5;
-  --accent-soft: #173a3a;
+  --accent-soft: #14312f;
   --amber: #e3a84a;
-  --background: #090d13;
-  --border: #293545;
+  --background: #070707;
+  --border: #303030;
   --danger: #ff8d86;
-  --foreground: #eef4fb;
+  --foreground: #f2f2f2;
   --gold: #ddb45b;
-  --muted: #9aa9ba;
-  --panel: #111823;
-  --panel-strong: #182230;
+  --muted: #a3a3a3;
+  --panel: #111111;
+  --panel-strong: #1b1b1b;
   --rose: #dc77ac;
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.56);
   --success: #6fcf8a;
 }
 
@@ -128,7 +128,7 @@ img {
 }
 
 :root[data-theme="dark"] .topbar {
-  background: rgba(9, 13, 19, 0.92);
+  background: rgba(7, 7, 7, 0.92);
 }
 
 .topbar > *,
@@ -2520,7 +2520,7 @@ img {
 }
 
 :root[data-theme="dark"] .map-board .leaflet-control-attribution {
-  background: rgba(17, 24, 35, 0.9);
+  background: rgba(17, 17, 17, 0.9);
 }
 
 .product-card {
@@ -4884,10 +4884,9 @@ img {
   align-items: end;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(260px, 1fr) repeat(
-      2,
-      minmax(160px, 0.36fr)
-    ) auto;
+  grid-template-columns:
+    minmax(260px, 1fr) repeat(2, minmax(160px, 0.36fr))
+    auto;
 }
 
 .admin-search,
