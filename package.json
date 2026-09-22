@@ -8,6 +8,7 @@
   },
   "scripts": {
     "admin:create": "pnpm --filter @gprn/db admin:create",
+    "admin:promote": "pnpm --filter @gprn/db admin:promote",
     "build": "turbo build",
     "db:generate": "pnpm --filter @gprn/db db:generate",
     "db:migrate": "pnpm --filter @gprn/db db:migrate",

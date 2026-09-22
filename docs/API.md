@@ -122,6 +122,13 @@ pnpm admin:create
 
 The command defaults to `SUPER_ADMIN`; set `GPRN_ADMIN_ROLE=ADMIN` for a restricted administrator.
 
+To promote an existing account without changing its password:
+
+```powershell
+$env:GPRN_ADMIN_EMAIL="admin@example.com"
+pnpm admin:promote
+```
+
 ### Platform state
 
 - `GET /health`
