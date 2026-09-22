@@ -134,7 +134,7 @@ const baseMessages = {
     "Explore creator videos by category, shoot location and publication date.",
   "section.models.title": "Models",
   "section.models.intro":
-    "Find models by location, genre and rating, explore portfolios and book a shoot.",
+    "Find models by location, genre and rating, explore portfolios and send a shoot proposal.",
   "section.map.title": "Photo map",
   "section.map.intro":
     "Explore photographs by the location where they were shot, not by the photographer's profile location.",
@@ -471,7 +471,7 @@ const baseMessages = {
   "models.dashboard": "Model dashboard",
   "models.dashboardCopy":
     "Manage availability, rates, portfolio and incoming shoot requests.",
-  "models.book": "Book model",
+  "models.book": "Propose a shoot",
   "models.rate": "Rate",
   "models.price": "Rate from",
   "models.genre.all": "All genres",
@@ -1003,7 +1003,7 @@ const ruMessages: Partial<MessageMap> = {
     "Ищите видео авторов по категории, месту съёмки и дате публикации.",
   "section.models.title": "Модели",
   "section.models.intro":
-    "Ищите моделей по локации, жанру и рейтингу, смотрите портфолио и оформляйте заказ.",
+    "Ищите моделей по локации, жанру и рейтингу, смотрите портфолио и предлагайте съёмку.",
   "section.marketplace.title": "Маркетплейс",
   "section.marketplace.intro":
     "Покупайте и продавайте фотографии, лицензии, принты и товары авторов через кошелёк GPRN.",
@@ -1322,7 +1322,7 @@ const ruMessages: Partial<MessageMap> = {
   "models.dashboard": "Личный кабинет модели",
   "models.dashboardCopy":
     "Управление доступностью, ставкой, портфолио и запросами на съёмку.",
-  "models.book": "Заказать модель",
+  "models.book": "Предложить съёмку",
   "models.rate": "Оценить",
   "models.price": "Ставка от",
   "models.genre.all": "Все жанры",
