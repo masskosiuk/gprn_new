@@ -957,7 +957,7 @@ img {
 }
 
 .discover-map-section .map-board {
-  height: clamp(340px, 42vw, 520px);
+  height: clamp(289px, 35.7vw, 442px);
 }
 
 .discover-workspace .photo-gallery {
@@ -1581,11 +1581,18 @@ img {
 }
 
 .photo-counter-action:hover,
-.photo-counter-action:focus-visible,
-.photo-counter-action.is-active {
+.photo-counter-action:focus-visible {
   background: rgba(15, 118, 110, 0.08);
   border-color: rgba(15, 118, 110, 0.3);
   color: var(--accent-strong);
+}
+
+.photo-counter-action.is-active,
+.photo-counter-action.is-active:hover,
+.photo-counter-action.is-active:focus-visible {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 42%, transparent);
+  color: var(--danger);
 }
 
 .photo-status-row {
@@ -2335,7 +2342,7 @@ img {
   background: #dce5e8;
   border: 1px solid var(--border);
   border-radius: 8px;
-  height: clamp(440px, 58vh, 680px);
+  height: clamp(374px, 49.3vh, 578px);
   overflow: hidden;
   position: relative;
   width: 100%;
@@ -3808,7 +3815,7 @@ img {
   }
 
   .map-board {
-    height: clamp(320px, 58svh, 440px);
+    height: clamp(272px, 49.3svh, 374px);
   }
 
   .segmented.vertical {
@@ -4180,7 +4187,7 @@ img {
 
 .studio-directory > .map-board,
 .entity-directory > .map-board {
-  height: clamp(380px, 50vh, 580px);
+  height: clamp(323px, 42.5vh, 493px);
 }
 
 .entity-directory {
@@ -4720,11 +4727,11 @@ img {
   }
 
   .studio-directory > .map-board {
-    height: 360px;
+    height: 306px;
   }
 
   .entity-directory > .map-board {
-    height: 360px;
+    height: 306px;
   }
 
   .entity-profile-layout {
