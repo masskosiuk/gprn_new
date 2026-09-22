@@ -202,3 +202,18 @@ sudo docker compose --env-file .env.production -f docker-compose.production.yml 
 Ctrl+C при просмотре логов останавливает только их просмотр.
 Не используйте `docker compose down -v`: это удалит тома с базой и фото.
 Не выполняйте глобальную очистку Docker на сервере с другими приложениями.
+
+Если в логах `web`, `api` и `worker` одновременно появилась ошибка
+`ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`, был запущен локальный
+`docker-compose.yml`, а не production-конфигурация. Данные и тома не удаляйте.
+Из `/opt/gprn` выполните production-команды с явным именем файла:
+
+```bash
+sudo docker compose --env-file .env.production -f docker-compose.production.yml build web
+sudo docker compose --env-file .env.production -f docker-compose.production.yml up -d --no-build --remove-orphans
+sudo docker compose --env-file .env.production -f docker-compose.production.yml ps -a
+sudo docker compose --env-file .env.production -f docker-compose.production.yml logs --tail=100 migrate api worker web
+```
+
+Ключ `--remove-orphans` здесь удаляет только контейнеры прежней dev-конфигурации;
+именованные тома PostgreSQL и MinIO он не удаляет.

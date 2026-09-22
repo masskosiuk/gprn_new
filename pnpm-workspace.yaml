@@ -2,7 +2,6 @@ packages:
   - "apps/*"
   - "packages/*"
 
-
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
@@ -11,3 +10,8 @@ allowBuilds:
   msgpackr-extract: false
   prisma: true
   sharp: true
+
+# Dependencies are installed explicitly during image builds (and by the
+# install-deps Compose service in development).  Do not let `pnpm run` start an
+# implicit, interactive install when a container has no TTY.
+verifyDepsBeforeRun: false

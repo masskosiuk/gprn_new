@@ -66,12 +66,26 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  install-deps:
+    build:
+      context: .
+      dockerfile: infra/docker/node.Dockerfile
+    restart: "no"
+    command: ["pnpm", "install", "--frozen-lockfile"]
+    environment:
+      CI: "true"
+    volumes:
+      - .:/app
+      - node-modules:/app/node_modules
+
   api:
     build:
       context: .
       dockerfile: infra/docker/node.Dockerfile
     command: ["pnpm", "--filter", "@gprn/api", "dev"]
     depends_on:
+      install-deps:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -92,6 +106,8 @@ services:
       dockerfile: infra/docker/node.Dockerfile
     command: ["pnpm", "--filter", "@gprn/worker", "dev"]
     depends_on:
+      install-deps:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -110,7 +126,10 @@ services:
       dockerfile: infra/docker/node.Dockerfile
     command: ["pnpm", "--filter", "@gprn/web", "dev"]
     depends_on:
-      - api
+      install-deps:
+        condition: service_completed_successfully
+      api:
+        condition: service_started
     env_file:
       - .env
     ports:

@@ -15,6 +15,18 @@
 docker compose up postgres redis minio create-buckets mailpit
 ```
 
+Для запуска всего приложения в Docker используйте:
+
+```bash
+docker compose up -d --build
+docker compose ps -a
+docker compose logs --tail=100 install-deps api worker web
+```
+
+Сервис `install-deps` один раз синхронизирует общий том `node_modules` до
+старта `api`, `worker` и `web`. Статус `Exited (0)` для него является нормой.
+Удалять том вручную при обновлении lock-файла не требуется.
+
 3. Install dependencies:
 
 ```bash
