@@ -593,6 +593,100 @@ export class PhotosService {
     };
   }
 
+  async remove(
+    user: CurrentUser,
+    photoId: string,
+  ): Promise<{
+    photo: {
+      readonly deletedAt: string;
+      readonly id: string;
+      readonly status: "DELETED";
+    };
+  }> {
+    const photo = await prisma.$transaction(async (tx) => {
+      const existing = await tx.photo.findUnique({
+        select: {
+          deletedAt: true,
+          id: true,
+          ownerId: true,
+          status: true,
+        },
+        where: { id: photoId },
+      });
+
+      if (!existing || existing.deletedAt) {
+        throw new NotFoundException({
+          code: "PHOTO_NOT_FOUND",
+          message: "Photo does not exist.",
+        });
+      }
+
+      if (existing.ownerId !== user.id) {
+        throw new ForbiddenException({
+          code: "PHOTO_FORBIDDEN",
+          message: "You can delete only your own photos.",
+        });
+      }
+
+      const battleEntries = await tx.battleEntry.findMany({
+        select: { battleId: true },
+        where: { photoId },
+      });
+      const deletedAt = new Date();
+      const deletedPhoto = await tx.photo.update({
+        data: {
+          deletedAt,
+          publishedAt: null,
+          status: "DELETED",
+          visibility: "PRIVATE",
+        },
+        select: {
+          deletedAt: true,
+          id: true,
+          status: true,
+        },
+        where: { id: photoId },
+      });
+
+      await tx.challengeEntry.deleteMany({ where: { photoId } });
+      await tx.promotion.updateMany({
+        data: { status: "CANCELLED" },
+        where: { photoId },
+      });
+      await tx.marketplaceProduct.updateMany({
+        data: { status: "ARCHIVED" },
+        where: { photoId },
+      });
+
+      if (battleEntries.length > 0) {
+        await tx.battle.updateMany({
+          data: { status: "CANCELLED" },
+          where: {
+            id: { in: battleEntries.map((entry) => entry.battleId) },
+          },
+        });
+      }
+
+      await tx.analyticsEvent.create({
+        data: {
+          eventName: "photo_deleted",
+          payload: { photoId, previousStatus: existing.status },
+          userId: user.id,
+        },
+      });
+
+      return deletedPhoto;
+    });
+
+    return {
+      photo: {
+        deletedAt: photo.deletedAt!.toISOString(),
+        id: photo.id,
+        status: "DELETED",
+      },
+    };
+  }
+
   private async ensurePhotographerFoundation(
     tx: PrismaTx,
     userId: string,

@@ -1602,6 +1602,25 @@ img {
   color: var(--danger);
 }
 
+.photo-delete-action {
+  color: var(--danger);
+  margin-left: auto;
+}
+
+.photo-delete-action:hover,
+.photo-delete-action:focus-visible {
+  background: color-mix(in srgb, var(--danger) 10%, var(--panel));
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
+  color: var(--danger);
+}
+
+.delete-photo-summary img {
+  aspect-ratio: 16 / 9;
+  max-height: 220px;
+  object-fit: cover;
+  width: 100%;
+}
+
 .photo-status-row {
   display: flex;
 }

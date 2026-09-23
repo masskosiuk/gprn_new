@@ -2533,6 +2533,9 @@ export function HomeClient({
     useState(false);
   const [selectedPhotoId, setSelectedPhotoId] = useState<string>("");
   const [photoFeedback, setPhotoFeedback] = useState<Feedback | null>(null);
+  const [photoPendingDeletion, setPhotoPendingDeletion] =
+    useState<PhotoRecord | null>(null);
+  const [photoDeleteBusy, setPhotoDeleteBusy] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [discoverLocationFilter, setDiscoverLocationFilter] =
@@ -3241,7 +3244,8 @@ export function HomeClient({
       !isMobileMenuOpen &&
       !isLanguageMenuOpen &&
       !isNotificationMenuOpen &&
-      !commerceDialog
+      !commerceDialog &&
+      !photoPendingDeletion
     ) {
       return;
     }
@@ -3256,6 +3260,7 @@ export function HomeClient({
         setLanguageMenuOpen(false);
         setNotificationMenuOpen(false);
         setCommerceDialog(null);
+        setPhotoPendingDeletion(null);
       }
     }
 
@@ -3273,6 +3278,7 @@ export function HomeClient({
     isMobileMenuOpen,
     isNotificationMenuOpen,
     commerceDialog,
+    photoPendingDeletion,
   ]);
 
   useEffect(() => {
@@ -3292,7 +3298,7 @@ export function HomeClient({
   }, [isLanguageMenuOpen]);
 
   useEffect(() => {
-    if (!imagePreview && !commerceDialog) return;
+    if (!imagePreview && !commerceDialog && !photoPendingDeletion) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -3300,7 +3306,7 @@ export function HomeClient({
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [commerceDialog, imagePreview]);
+  }, [commerceDialog, imagePreview, photoPendingDeletion]);
 
   function t(key: MessageKey): string {
     return getMessage(locale, key);
@@ -4407,6 +4413,53 @@ export function HomeClient({
     pushNotification("notifications.photoPublished");
   }
 
+  async function deleteOwnPhoto(photo: PhotoRecord): Promise<void> {
+    if (photoDeleteBusy) return;
+
+    setPhotoDeleteBusy(true);
+
+    try {
+      if (photo.serverBacked) {
+        await apiRequest(`/photos/${encodeURIComponent(photo.id)}`, {
+          method: "DELETE",
+        });
+      }
+
+      const withoutPhoto = (photos: PhotoRecord[]): PhotoRecord[] =>
+        photos.filter((candidate) => candidate.id !== photo.id);
+      const withoutPhotoId = (photoIds: string[]): string[] =>
+        photoIds.filter((photoId) => photoId !== photo.id);
+
+      setUploadedPhotos(withoutPhoto);
+      setServerPhotos(withoutPhoto);
+      setSavedPhotoIds(withoutPhotoId);
+      setLikedPhotoIds(withoutPhotoId);
+      setMoodboardPhotoIds(withoutPhotoId);
+      setListedPhotoIds(withoutPhotoId);
+      setChallengeEntries((current) =>
+        Object.fromEntries(
+          Object.entries(current).filter(
+            ([, submittedPhotoId]) => submittedPhotoId !== photo.id,
+          ),
+        ),
+      );
+      setSelectedPhotoId((current) => (current === photo.id ? "" : current));
+      setImagePreview((current) =>
+        current?.photoId === photo.id ? null : current,
+      );
+      setPhotoPendingDeletion(null);
+      setGlobalFeedback({ kind: "success", text: t("photo.deleted") });
+
+      if (photo.serverBacked) {
+        await refreshDiscoverPhotos();
+      }
+    } catch {
+      setGlobalFeedback({ kind: "error", text: t("photo.deleteFailed") });
+    } finally {
+      setPhotoDeleteBusy(false);
+    }
+  }
+
   function toggleSavePhoto(photoId: string): void {
     const photo = allPhotos.find((candidate) => candidate.id === photoId);
     if (photo?.serverBacked) {
@@ -5387,6 +5440,7 @@ export function HomeClient({
       {isAuthOpen ? renderAuthDialog() : null}
       {isAddPhotoOpen ? renderAddPhotoDialog() : null}
       {commerceDialog ? renderCommerceDialog() : null}
+      {photoPendingDeletion ? renderDeletePhotoDialog() : null}
       {imagePreview ? renderImagePreviewDialog() : null}
     </main>
   );
@@ -6547,6 +6601,17 @@ export function HomeClient({
                     </button>
                   </>
                 )}
+                <button
+                  aria-label={t("photo.delete")}
+                  className="icon-button photo-delete-action"
+                  onClick={() => {
+                    setPhotoPendingDeletion(photo);
+                  }}
+                  title={t("photo.delete")}
+                  type="button"
+                >
+                  <Trash2 aria-hidden="true" size={17} />
+                </button>
               </>
             ) : null}
           </div>
@@ -9974,6 +10039,81 @@ export function HomeClient({
               </button>
             </div>
           </form>
+        </section>
+      </div>
+    );
+  }
+
+  function renderDeletePhotoDialog(): ReactNode {
+    if (!photoPendingDeletion) return null;
+
+    return (
+      <div
+        className="modal-backdrop"
+        onMouseDown={() => {
+          if (!photoDeleteBusy) setPhotoPendingDeletion(null);
+        }}
+        role="presentation"
+      >
+        <section
+          aria-labelledby="delete-photo-title"
+          aria-modal="true"
+          className="auth-dialog delete-photo-dialog"
+          onMouseDown={(event) => {
+            event.stopPropagation();
+          }}
+          role="dialog"
+        >
+          <div className="dialog-header">
+            <div>
+              <span className="eyebrow">{t("photo.delete")}</span>
+              <h2 id="delete-photo-title">{t("photo.deleteTitle")}</h2>
+              <p>{t("photo.deleteCopy")}</p>
+            </div>
+            <button
+              aria-label={t("auth.close")}
+              className="icon-button"
+              disabled={photoDeleteBusy}
+              onClick={() => {
+                setPhotoPendingDeletion(null);
+              }}
+              type="button"
+            >
+              <X aria-hidden="true" size={19} />
+            </button>
+          </div>
+
+          <div className="commerce-photo-summary delete-photo-summary">
+            <img
+              alt={getPhotoTitle(photoPendingDeletion, locale)}
+              src={photoPendingDeletion.src}
+            />
+            <strong>{getPhotoTitle(photoPendingDeletion, locale)}</strong>
+          </div>
+
+          <div className="dialog-actions">
+            <button
+              className="secondary-action"
+              disabled={photoDeleteBusy}
+              onClick={() => {
+                setPhotoPendingDeletion(null);
+              }}
+              type="button"
+            >
+              {t("common.cancel")}
+            </button>
+            <button
+              className="danger-action"
+              disabled={photoDeleteBusy}
+              onClick={() => {
+                void deleteOwnPhoto(photoPendingDeletion);
+              }}
+              type="button"
+            >
+              <Trash2 aria-hidden="true" size={17} />
+              {t("photo.delete")}
+            </button>
+          </div>
         </section>
       </div>
     );

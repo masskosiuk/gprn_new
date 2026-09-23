@@ -179,6 +179,12 @@ const baseMessages = {
   "photo.publish": "Publish",
   "photo.published": "Photo published to your profile and discovery surfaces.",
   "photo.publishRequiresLogin": "Log in before publishing a photo.",
+  "photo.delete": "Delete photo",
+  "photo.deleteTitle": "Delete this photo?",
+  "photo.deleteCopy":
+    "It will disappear from your profile, discovery, challenges, battles and marketplace listings.",
+  "photo.deleted": "Photo deleted.",
+  "photo.deleteFailed": "The photo could not be deleted. Please try again.",
   "photo.providersSoon":
     "External providers are prepared as disabled import options.",
   "photo.provenanceTitle": "Provenance",
@@ -1044,6 +1050,12 @@ const ruMessages: Partial<MessageMap> = {
   "photo.publish": "Опубликовать",
   "photo.published": "Фото опубликовано в профиле и разделе обзора.",
   "photo.publishRequiresLogin": "Войдите перед публикацией фото.",
+  "photo.delete": "Удалить фото",
+  "photo.deleteTitle": "Удалить это фото?",
+  "photo.deleteCopy":
+    "Оно исчезнет из профиля, поиска, челленджей, батлов и объявлений в маркетплейсе.",
+  "photo.deleted": "Фото удалено.",
+  "photo.deleteFailed": "Не удалось удалить фото. Попробуйте ещё раз.",
   "photo.providersSoon":
     "Внешние источники подготовлены как отключённые варианты импорта.",
   "photo.provenanceTitle": "Происхождение",
