@@ -241,6 +241,89 @@ interface ServerSessionUser {
   readonly status: AdminAccountStatus;
 }
 
+interface ServerPhotoPayload {
+  readonly assets?: {
+    readonly displayUrl: string | null;
+    readonly thumbnailUrl?: string | null;
+  };
+  readonly category?: {
+    readonly nameKey: string;
+    readonly slug: string;
+  } | null;
+  readonly categorySlug?: string | null;
+  readonly counts?: {
+    readonly bookmarks: number;
+    readonly likes: number;
+    readonly moodboards: number;
+    readonly reviews: number;
+  };
+  readonly createdAt?: string | null;
+  readonly displayUrl?: string | null;
+  readonly id: string;
+  readonly location?: {
+    readonly publicLabel: string | null;
+    readonly visibility: string;
+  } | null;
+  readonly locationLabel?: string | null;
+  readonly owner?: {
+    readonly displayName: string;
+    readonly id: string;
+    readonly username: string;
+  };
+  readonly ownerName?: string;
+  readonly ownerTier?: AdminAccountTier;
+  readonly ownerUsername?: string;
+  readonly provenance?: {
+    readonly status: string;
+  } | null;
+  readonly provenanceStatus?: string | null;
+  readonly publishedAt?: string | null;
+  readonly reviewScores?: BattleScores | null;
+  readonly status?: string;
+  readonly title: string;
+  readonly visibility?: string;
+}
+
+interface ServerProfilePayload {
+  readonly avatarUrl: string | null;
+  readonly availableForHire: boolean;
+  readonly bio: string | null;
+  readonly coverUrl: string | null;
+  readonly displayName: string;
+  readonly followers: number;
+  readonly following: number;
+  readonly location: {
+    readonly city: { readonly nameKey: string; readonly slug: string } | null;
+    readonly country: {
+      readonly iso2: string;
+      readonly nameKey: string;
+    } | null;
+  };
+  readonly photos: readonly ServerPhotoPayload[];
+  readonly ratings: readonly {
+    readonly battles: number;
+    readonly rating: number;
+    readonly scope: string;
+    readonly scopeKey: string;
+    readonly wins: number;
+  }[];
+  readonly reviewService: {
+    readonly priceMinor: string;
+  } | null;
+  readonly serviceReputation: {
+    readonly completedAsProvider: number;
+    readonly ratingAverage: string | null;
+  } | null;
+  readonly socialLinks?: SocialLinks;
+  readonly tier: AdminAccountTier;
+  readonly username: string;
+  readonly websiteUrl: string | null;
+}
+
+interface DiscoverResponse {
+  readonly photos: readonly ServerPhotoPayload[];
+}
+
 interface AdminUserRecord {
   readonly createdAt: string;
   readonly email: string;
@@ -325,26 +408,36 @@ interface ProfileForm {
 }
 
 interface PhotoRecord {
+  readonly authorId?: string;
   readonly authorKey?: MessageKey;
   readonly authorName?: string;
+  readonly authorTier?: AccountTier;
+  readonly authorUsername?: string;
+  readonly bookmarkCount?: number;
   readonly categoryId: CategoryId;
   readonly checksum?: string;
   readonly contentType?: string;
+  readonly criterionScores?: BattleScores;
   readonly fileName?: string;
   readonly id: string;
   readonly isMine: boolean;
   readonly locationId: LocationId;
+  readonly locationHidden?: boolean;
   readonly locationLabel?: string;
   readonly originKey: MessageKey;
   readonly provenanceKey: MessageKey;
+  readonly profileAsset?: boolean;
   readonly published: boolean;
+  readonly reviewCount?: number;
   readonly score: number;
+  readonly serverBacked?: boolean;
   readonly sizeLabel?: string;
   readonly src: string;
   readonly title?: string;
   readonly titleKey?: MessageKey;
   readonly uploadedAt?: string;
   readonly votes: number;
+  readonly moodboardCount?: number;
 }
 
 interface VideoRecord {
@@ -490,12 +583,15 @@ interface PresetOffer {
 
 interface PublicAuthorProfile {
   readonly avatarUrl: string;
-  readonly bioKey: MessageKey;
+  readonly bio?: string;
+  readonly bioKey?: MessageKey;
   readonly coverUrl: string;
   readonly followers: number;
   readonly id: string;
-  readonly locationId: LocationId;
-  readonly nameKey: MessageKey;
+  readonly locationId?: LocationId;
+  readonly locationLabel?: string;
+  readonly name?: string;
+  readonly nameKey?: MessageKey;
   readonly rating: number;
   readonly tier: AccountTier;
   readonly username: string;
@@ -2430,6 +2526,11 @@ export function HomeClient({
   >(defaultSocialProviders);
   const [socialSessionReady, setSocialSessionReady] = useState(false);
   const [uploadedPhotos, setUploadedPhotos] = useState<PhotoRecord[]>([]);
+  const [serverPhotos, setServerPhotos] = useState<PhotoRecord[]>([]);
+  const [serverPublicProfile, setServerPublicProfile] =
+    useState<PublicAuthorProfile | null>(null);
+  const [serverPublicProfileLoaded, setServerPublicProfileLoaded] =
+    useState(false);
   const [selectedPhotoId, setSelectedPhotoId] = useState<string>("");
   const [photoFeedback, setPhotoFeedback] = useState<Feedback | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -2556,17 +2657,29 @@ export function HomeClient({
     () => new Intl.NumberFormat(locale),
     [locale],
   );
-  const allPhotos = useMemo<readonly PhotoRecord[]>(
-    () => [...uploadedPhotos, ...curatedPhotos],
-    [uploadedPhotos],
-  );
+  const allPhotos = useMemo<readonly PhotoRecord[]>(() => {
+    const seen = new Set<string>();
+
+    return [...uploadedPhotos, ...serverPhotos, ...curatedPhotos].filter(
+      (photo) => {
+        if (seen.has(photo.id)) return false;
+        seen.add(photo.id);
+        return true;
+      },
+    );
+  }, [serverPhotos, uploadedPhotos]);
   const publicPhotos = useMemo(
-    () => allPhotos.filter((photo) => photo.published || photo.isMine),
+    () =>
+      allPhotos.filter(
+        (photo) => !photo.profileAsset && (photo.published || photo.isMine),
+      ),
     [allPhotos],
   );
   const selectedUploadedPhoto =
-    uploadedPhotos.find((photo) => photo.id === selectedPhotoId) ??
-    uploadedPhotos[0] ??
+    uploadedPhotos.find(
+      (photo) => photo.id === selectedPhotoId && !photo.profileAsset,
+    ) ??
+    uploadedPhotos.find((photo) => !photo.profileAsset) ??
     null;
   const visiblePhotos = publicPhotos.filter((photo) => {
     const query = searchTerm.trim().toLocaleLowerCase(locale);
@@ -2636,7 +2749,9 @@ export function HomeClient({
         location.includes(query))
     );
   });
-  const profilePhotos = uploadedPhotos.filter((photo) => photo.isMine);
+  const profilePhotos = uploadedPhotos.filter(
+    (photo) => photo.isMine && !photo.profileAsset,
+  );
   const mapLocations = useMemo(
     () =>
       locationPins.map((location) => ({
@@ -2648,28 +2763,30 @@ export function HomeClient({
   const mapPhotoMarkers = useMemo<readonly PhotoMapMarker[]>(() => {
     const locationPhotoCounts = new Map<LocationId, number>();
 
-    return publicPhotos.map((photo) => {
-      const location =
-        locationPins.find((candidate) => candidate.id === photo.locationId) ??
-        locationPins[0]!;
-      const locationPhotoIndex = locationPhotoCounts.get(location.id) ?? 0;
-      locationPhotoCounts.set(location.id, locationPhotoIndex + 1);
-      const angle = (locationPhotoIndex * 137.5 * Math.PI) / 180;
-      const radius =
-        locationPhotoIndex === 0
-          ? 0
-          : 0.045 * Math.ceil(locationPhotoIndex / 5);
+    return publicPhotos
+      .filter((photo) => !photo.locationHidden)
+      .map((photo) => {
+        const location =
+          locationPins.find((candidate) => candidate.id === photo.locationId) ??
+          locationPins[0]!;
+        const locationPhotoIndex = locationPhotoCounts.get(location.id) ?? 0;
+        locationPhotoCounts.set(location.id, locationPhotoIndex + 1);
+        const angle = (locationPhotoIndex * 137.5 * Math.PI) / 180;
+        const radius =
+          locationPhotoIndex === 0
+            ? 0
+            : 0.045 * Math.ceil(locationPhotoIndex / 5);
 
-      return {
-        id: location.id,
-        imageUrl: photo.src,
-        label: getLocationLabel(location.id, locale, photo.locationLabel),
-        latitude: location.latitude + Math.cos(angle) * radius,
-        longitude: location.longitude + Math.sin(angle) * radius,
-        photoId: photo.id,
-        title: getPhotoTitle(photo, locale),
-      };
-    });
+        return {
+          id: location.id,
+          imageUrl: photo.src,
+          label: getLocationLabel(location.id, locale, photo.locationLabel),
+          latitude: location.latitude + Math.cos(angle) * radius,
+          longitude: location.longitude + Math.sin(angle) * radius,
+          photoId: photo.id,
+          title: getPhotoTitle(photo, locale),
+        };
+      });
   }, [locale, publicPhotos]);
   const mapVideoMarkers = useMemo<readonly PhotoMapMarker[]>(() => {
     const locationVideoCounts = new Map<LocationId, number>();
@@ -3075,6 +3192,28 @@ export function HomeClient({
   }, [isHydrated, sessionEmail]);
 
   useEffect(() => {
+    if (!isHydrated) return;
+    void refreshDiscoverPhotos();
+  }, [isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || initialSection !== "profile" || !initialAuthorId) {
+      setServerPublicProfile(null);
+      setServerPublicProfileLoaded(false);
+      return;
+    }
+
+    const isDemoAuthor =
+      publicAuthorProfiles.some((author) => author.id === initialAuthorId) ||
+      experts.some((expert) => expert.id === initialAuthorId);
+
+    if (!isDemoAuthor) {
+      setServerPublicProfileLoaded(false);
+      void loadServerPublicProfile(initialAuthorId);
+    }
+  }, [initialAuthorId, initialSection, isHydrated]);
+
+  useEffect(() => {
     if (initialSection !== "admin" || !isAdministrator) return;
     void loadAdminData();
   }, [initialSection, isAdministrator]);
@@ -3242,6 +3381,12 @@ export function HomeClient({
       setPhotoReviewComment("");
       setPhotoReviewScores({ ...defaultBattleScores });
       setImagePreview({ alt, photoId, src: getLargeImageSource(src) });
+      if (
+        photoId &&
+        allPhotos.some((photo) => photo.id === photoId && photo.serverBacked)
+      ) {
+        void loadPhotoReviews(photoId);
+      }
     };
 
     return (
@@ -3336,6 +3481,8 @@ export function HomeClient({
         ]),
       ) as BattleScores;
     }
+
+    if (photo.criterionScores) return photo.criterionScores;
 
     if (photo.score <= 0) return null;
 
@@ -3524,41 +3671,53 @@ export function HomeClient({
       return;
     }
 
+    if (!currentProfile || !serverUser) {
+      openAuth("login");
+      setPhotoFeedback({
+        kind: "error",
+        text: t("photo.publishRequiresLogin"),
+      });
+      return;
+    }
+
     if (!file.type.startsWith("image/")) {
       setPhotoFeedback({ kind: "error", text: t("photo.invalid") });
       return;
     }
 
-    const src = await readFileAsDataUrl(file);
-    const checksum = await createLocalChecksum(file, src);
-    const title = makePhotoTitle(file.name);
-    const uploadedPhoto: PhotoRecord = {
-      authorName: currentProfile?.name,
-      categoryId: "documentary",
-      checksum,
-      contentType: file.type || "image",
-      fileName: file.name,
-      id: `local-photo-${Date.now()}`,
-      isMine: true,
-      locationId: "kyiv",
-      locationLabel: currentProfile?.location,
-      originKey: "status.directUpload",
-      provenanceKey: "status.originalSupported",
-      published: false,
-      score: 0,
-      sizeLabel: formatFileSize(file.size),
-      src,
-      title,
-      uploadedAt: new Date().toISOString(),
-      votes: 0,
-    };
+    setPhotoFeedback(null);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      const response = await apiRequest<{ photo: ServerPhotoPayload }>(
+        "/photos/add-from-device",
+        {
+          body: JSON.stringify({
+            categorySlug: "documentary",
+            dataUrl,
+            fileName: file.name,
+            locationLabel: currentProfile.location,
+            locationVisibility: currentProfile.location ? "CITY" : "HIDDEN",
+            mimeType: file.type,
+            title: makePhotoTitle(file.name),
+            visibility: "PUBLIC",
+          }),
+          method: "POST",
+        },
+      );
+      const uploadedPhoto = mapServerPhoto(response.photo, serverUser.id);
+      if (!uploadedPhoto)
+        throw new Error("Uploaded photo has no display asset.");
 
-    setUploadedPhotos((current) => [uploadedPhoto, ...current]);
-    if (currentProfile?.tier === "viewer") {
-      setAccount({ ...currentProfile, tier: "beginner" });
+      setUploadedPhotos((current) => [
+        uploadedPhoto,
+        ...current.filter((photo) => photo.id !== uploadedPhoto.id),
+      ]);
+      setSelectedPhotoId(uploadedPhoto.id);
+      setPhotoFeedback({ kind: "success", text: t("photo.saved") });
+      await refreshServerSession();
+    } catch {
+      setPhotoFeedback({ kind: "error", text: t("photo.invalid") });
     }
-    setSelectedPhotoId(uploadedPhoto.id);
-    setPhotoFeedback({ kind: "success", text: t("photo.saved") });
   }
 
   async function handleAvatarChange(
@@ -3577,13 +3736,7 @@ export function HomeClient({
       return;
     }
 
-    try {
-      const avatarUrl = await readFileAsDataUrl(file);
-      setAccount({ ...currentProfile, avatarUrl });
-      setGlobalFeedback({ kind: "success", text: t("photo.avatarSaved") });
-    } catch {
-      setGlobalFeedback({ kind: "error", text: t("photo.invalid") });
-    }
+    await uploadProfileImage(file, "avatar");
   }
 
   async function handleCoverChange(
@@ -3602,10 +3755,56 @@ export function HomeClient({
       return;
     }
 
+    await uploadProfileImage(file, "cover");
+  }
+
+  async function uploadProfileImage(
+    file: File,
+    kind: "avatar" | "cover",
+  ): Promise<void> {
+    if (!currentProfile || !serverUser) return;
+
     try {
-      const coverUrl = await readFileAsDataUrl(file);
-      setAccount({ ...currentProfile, coverUrl });
-      setGlobalFeedback({ kind: "success", text: t("profile.coverSaved") });
+      const dataUrl = await readFileAsDataUrl(file);
+      const response = await apiRequest<{ photo: ServerPhotoPayload }>(
+        "/photos/add-from-device",
+        {
+          body: JSON.stringify({
+            dataUrl,
+            fileName: file.name,
+            locationVisibility: "HIDDEN",
+            mimeType: file.type,
+            title: `__profile_${kind}__`,
+            visibility: "PRIVATE",
+          }),
+          method: "POST",
+        },
+      );
+      const uploaded = mapServerPhoto(response.photo, serverUser.id);
+      if (!uploaded) throw new Error("Profile image has no processed asset.");
+
+      await apiRequest("/profiles/me", {
+        body: JSON.stringify(
+          kind === "avatar"
+            ? { avatarPhotoId: response.photo.id }
+            : { coverPhotoId: response.photo.id },
+        ),
+        method: "PATCH",
+      });
+      setAccount({
+        ...currentProfile,
+        ...(kind === "avatar"
+          ? { avatarUrl: uploaded.src }
+          : { coverUrl: uploaded.src }),
+      });
+      setUploadedPhotos((current) => [
+        { ...uploaded, profileAsset: true },
+        ...current.filter((photo) => photo.id !== uploaded.id),
+      ]);
+      setGlobalFeedback({
+        kind: "success",
+        text: t(kind === "avatar" ? "photo.avatarSaved" : "profile.coverSaved"),
+      });
     } catch {
       setGlobalFeedback({ kind: "error", text: t("photo.invalid") });
     }
@@ -3618,6 +3817,88 @@ export function HomeClient({
     }));
   }
 
+  async function refreshDiscoverPhotos(): Promise<void> {
+    try {
+      const response = await apiRequest<DiscoverResponse>("/discover");
+      setServerPhotos(
+        response.photos
+          .map((photo) => mapServerPhoto(photo, serverUser?.id))
+          .filter((photo): photo is PhotoRecord => Boolean(photo)),
+      );
+    } catch {
+      // The curated feed remains available while the API is unavailable.
+    }
+  }
+
+  async function refreshCurrentServerData(
+    user: ServerSessionUser,
+  ): Promise<void> {
+    try {
+      const [profileResponse, photosResponse, dashboardResponse] =
+        await Promise.all([
+          apiRequest<{ profile: ServerProfilePayload }>("/profiles/me"),
+          apiRequest<{ photos: ServerPhotoPayload[] }>("/photos/mine"),
+          apiRequest<{
+            bookmarks: string[];
+            moodboards: readonly {
+              readonly items: readonly { photoId: string }[];
+            }[];
+          }>("/platform/dashboard"),
+        ]);
+      const profile = profileResponse.profile;
+      const previousAccount =
+        account?.email === user.email ? account : undefined;
+
+      setAccount(
+        mapServerProfileToAccount(user, profile, locale, previousAccount),
+      );
+      setSessionEmail(user.email);
+      setUploadedPhotos(
+        photosResponse.photos
+          .map((photo) => mapServerPhoto(photo, user.id))
+          .filter((photo): photo is PhotoRecord => Boolean(photo)),
+      );
+      setSavedPhotoIds(dashboardResponse.bookmarks);
+      setMoodboardPhotoIds(
+        dashboardResponse.moodboards.flatMap((board) =>
+          board.items.map((item) => item.photoId),
+        ),
+      );
+    } catch {
+      // Authentication still works if an optional profile view is unavailable.
+    }
+  }
+
+  async function loadServerPublicProfile(username: string): Promise<void> {
+    try {
+      const response = await apiRequest<{ profile: ServerProfilePayload }>(
+        `/profiles/${encodeURIComponent(username)}`,
+      );
+      const profile = response.profile;
+      setServerPublicProfile(mapServerPublicProfile(profile, locale));
+      setServerPhotos((current) => {
+        const additions = profile.photos
+          .map((photo) =>
+            mapServerPhoto(photo, serverUser?.id, {
+              displayName: profile.displayName,
+              tier: profile.tier,
+              username: profile.username,
+            }),
+          )
+          .filter((photo): photo is PhotoRecord => Boolean(photo));
+        const additionIds = new Set(additions.map((photo) => photo.id));
+        return [
+          ...additions,
+          ...current.filter((photo) => !additionIds.has(photo.id)),
+        ];
+      });
+    } catch {
+      setServerPublicProfile(null);
+    } finally {
+      setServerPublicProfileLoaded(true);
+    }
+  }
+
   async function refreshServerSession(): Promise<ServerSessionUser | null> {
     try {
       const response = await apiRequest<{ user: ServerSessionUser | null }>(
@@ -3625,10 +3906,14 @@ export function HomeClient({
       );
       setServerUser(response.user);
       setSocialSessionReady(Boolean(response.user));
+      if (response.user) {
+        await refreshCurrentServerData(response.user);
+      }
       return response.user;
     } catch {
       setServerUser(null);
       setSocialSessionReady(false);
+      setSessionEmail(null);
       return null;
     }
   }
@@ -3869,6 +4154,10 @@ export function HomeClient({
         password,
         newAccount,
       );
+      if (!serverReady) {
+        setAuthFeedback({ kind: "error", text: t("auth.accountMissing") });
+        return;
+      }
       setAccount(newAccount);
       setSessionEmail(email);
       setSocialSessionReady(Boolean(serverReady));
@@ -3890,55 +4179,49 @@ export function HomeClient({
     const serverReady = await establishServerSession("login", email, password);
     const localAccount = account?.email === email ? account : null;
 
-    if (!serverReady && !localAccount) {
+    if (!serverReady) {
       setAuthFeedback({ kind: "error", text: t("auth.accountMissing") });
       return;
     }
-    if (!serverReady && localAccount?.passwordHash !== passwordHash) {
-      setAuthFeedback({ kind: "error", text: t("auth.badPassword") });
-      return;
-    }
 
-    const resolvedAccount: AccountRecord = serverReady
-      ? {
-          availableForHire: localAccount?.availableForHire ?? true,
-          avatarUrl: localAccount?.avatarUrl,
-          battles: localAccount?.battles ?? 0,
-          bio: localAccount?.bio ?? t("profile.defaultBio"),
-          coverUrl: localAccount?.coverUrl,
-          detailedReviewPrice: localAccount?.detailedReviewPrice,
-          email,
-          followers: localAccount?.followers ?? 0,
-          following: localAccount?.following ?? 0,
-          joinedAt: localAccount?.joinedAt ?? new Date().toISOString(),
-          location: localAccount?.location ?? t("profile.defaultLocation"),
-          name:
-            serverReady.profile?.displayName ??
-            localAccount?.name ??
-            email.split("@")[0] ??
-            "User",
-          passwordHash,
-          presetPrice: localAccount?.presetPrice,
-          presetSalesEnabled: localAccount?.presetSalesEnabled,
-          presetTitle: localAccount?.presetTitle,
-          rating:
-            serverReady.ratings.find(
-              (item) => item.scope === "GLOBAL" && item.scopeKey === "global",
-            )?.rating ??
-            localAccount?.rating ??
-            1500,
-          reviewPrice: localAccount?.reviewPrice,
-          simpleReviewPrice: localAccount?.simpleReviewPrice,
-          socialLinks: localAccount?.socialLinks,
-          tier: normalizeServerTier(serverReady.profile?.tier),
-          username:
-            serverReady.profile?.username ??
-            localAccount?.username ??
-            makeUsername(email, email),
-          website: localAccount?.website ?? "",
-          wins: localAccount?.wins ?? 0,
-        }
-      : localAccount!;
+    const resolvedAccount: AccountRecord = {
+      availableForHire: localAccount?.availableForHire ?? true,
+      avatarUrl: localAccount?.avatarUrl,
+      battles: localAccount?.battles ?? 0,
+      bio: localAccount?.bio ?? t("profile.defaultBio"),
+      coverUrl: localAccount?.coverUrl,
+      detailedReviewPrice: localAccount?.detailedReviewPrice,
+      email,
+      followers: localAccount?.followers ?? 0,
+      following: localAccount?.following ?? 0,
+      joinedAt: localAccount?.joinedAt ?? new Date().toISOString(),
+      location: localAccount?.location ?? t("profile.defaultLocation"),
+      name:
+        serverReady.profile?.displayName ??
+        localAccount?.name ??
+        email.split("@")[0] ??
+        "User",
+      passwordHash,
+      presetPrice: localAccount?.presetPrice,
+      presetSalesEnabled: localAccount?.presetSalesEnabled,
+      presetTitle: localAccount?.presetTitle,
+      rating:
+        serverReady.ratings.find(
+          (item) => item.scope === "GLOBAL" && item.scopeKey === "global",
+        )?.rating ??
+        localAccount?.rating ??
+        1500,
+      reviewPrice: localAccount?.reviewPrice,
+      simpleReviewPrice: localAccount?.simpleReviewPrice,
+      socialLinks: localAccount?.socialLinks,
+      tier: normalizeServerTier(serverReady.profile?.tier),
+      username:
+        serverReady.profile?.username ??
+        localAccount?.username ??
+        makeUsername(email, email),
+      website: localAccount?.website ?? "",
+      wins: localAccount?.wins ?? 0,
+    };
 
     setAccount(resolvedAccount);
     setSessionEmail(email);
@@ -3968,7 +4251,7 @@ export function HomeClient({
     }));
   }
 
-  function saveProfile(event: FormEvent<HTMLFormElement>): void {
+  async function saveProfile(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
 
     if (!currentProfile) {
@@ -4008,7 +4291,7 @@ export function HomeClient({
       return;
     }
 
-    setAccount({
+    const nextAccount: AccountRecord = {
       ...currentProfile,
       availableForHire: profileForm.availableForHire,
       bio: profileForm.bio.trim() || t("profile.defaultBio"),
@@ -4031,9 +4314,29 @@ export function HomeClient({
       username:
         normalizeUsername(profileForm.username) || currentProfile.username,
       website: profileForm.website.trim(),
-    });
+    };
+
+    try {
+      await apiRequest("/profiles/me", {
+        body: JSON.stringify({
+          availableForHire: profileForm.availableForHire,
+          bio: nextAccount.bio,
+          citySlug: inferLocationId(profileForm.location, locale),
+          displayName: nextAccount.name,
+          username: nextAccount.username,
+          visibility: "PUBLIC",
+          websiteUrl: nextAccount.website,
+        }),
+        method: "PATCH",
+      });
+    } catch {
+      setGlobalFeedback({ kind: "error", text: t("admin.actionFailed") });
+      return;
+    }
+
+    setAccount(nextAccount);
     if (canOfferReviews) {
-      void apiRequest("/platform/paid-review-settings", {
+      await apiRequest("/platform/paid-review-settings", {
         body: JSON.stringify({
           detailedPriceMinor: detailedReviewPrice,
           enabled: true,
@@ -4043,16 +4346,47 @@ export function HomeClient({
         method: "PATCH",
       }).catch(() => undefined);
     }
+    await refreshDiscoverPhotos();
     setGlobalFeedback({ kind: "success", text: t("profile.saved") });
   }
 
-  function publishPhoto(photoId: string): void {
+  async function publishPhoto(photoId: string): Promise<void> {
     if (!currentProfile) {
       openAuth("login");
       setGlobalFeedback({
         kind: "error",
         text: t("photo.publishRequiresLogin"),
       });
+      return;
+    }
+
+    const target = uploadedPhotos.find((photo) => photo.id === photoId);
+
+    if (target?.serverBacked) {
+      try {
+        const response = await apiRequest<{ photo: ServerPhotoPayload }>(
+          `/photos/${encodeURIComponent(photoId)}/publish`,
+          {
+            body: JSON.stringify({
+              locationVisibility: target.locationLabel ? "CITY" : "HIDDEN",
+              visibility: "PUBLIC",
+            }),
+            method: "POST",
+          },
+        );
+        const publishedPhoto = mapServerPhoto(response.photo, serverUser?.id);
+        if (!publishedPhoto) throw new Error("Published photo has no asset.");
+        setUploadedPhotos((currentPhotos) =>
+          currentPhotos.map((photo) =>
+            photo.id === photoId ? publishedPhoto : photo,
+          ),
+        );
+        await refreshDiscoverPhotos();
+        setGlobalFeedback({ kind: "success", text: t("photo.published") });
+        pushNotification("notifications.photoPublished");
+      } catch {
+        setGlobalFeedback({ kind: "error", text: t("photo.invalid") });
+      }
       return;
     }
 
@@ -4074,6 +4408,14 @@ export function HomeClient({
   }
 
   function toggleSavePhoto(photoId: string): void {
+    const photo = allPhotos.find((candidate) => candidate.id === photoId);
+    if (photo?.serverBacked) {
+      if (!currentProfile) {
+        openAuth("login");
+        return;
+      }
+      void toggleServerPhotoAction(photoId, "bookmark");
+    }
     setSavedPhotoIds((current) =>
       current.includes(photoId)
         ? current.filter((savedPhotoId) => savedPhotoId !== photoId)
@@ -4082,6 +4424,14 @@ export function HomeClient({
   }
 
   function toggleLikePhoto(photoId: string): void {
+    const photo = allPhotos.find((candidate) => candidate.id === photoId);
+    if (photo?.serverBacked) {
+      if (!currentProfile) {
+        openAuth("login");
+        return;
+      }
+      void toggleServerPhotoAction(photoId, "like");
+    }
     setLikedPhotoIds((current) =>
       current.includes(photoId)
         ? current.filter((likedPhotoId) => likedPhotoId !== photoId)
@@ -4098,11 +4448,49 @@ export function HomeClient({
   }
 
   function toggleMoodboardPhoto(photoId: string): void {
+    const photo = allPhotos.find((candidate) => candidate.id === photoId);
+    if (photo?.serverBacked) {
+      if (!currentProfile) {
+        openAuth("login");
+        return;
+      }
+      void toggleServerPhotoAction(photoId, "moodboard");
+    }
     setMoodboardPhotoIds((current) =>
       current.includes(photoId)
         ? current.filter((moodboardPhotoId) => moodboardPhotoId !== photoId)
         : [...current, photoId],
     );
+  }
+
+  async function toggleServerPhotoAction(
+    photoId: string,
+    action: "bookmark" | "like" | "moodboard",
+  ): Promise<void> {
+    try {
+      const response = await apiRequest<{
+        counts: {
+          bookmarks: number;
+          likes: number;
+          moodboards: number;
+        };
+      }>(`/platform/photos/${encodeURIComponent(photoId)}/${action}`, {
+        method: "POST",
+      });
+      const updateCounts = (photo: PhotoRecord): PhotoRecord =>
+        photo.id === photoId
+          ? {
+              ...photo,
+              bookmarkCount: response.counts.bookmarks,
+              moodboardCount: response.counts.moodboards,
+              votes: response.counts.likes,
+            }
+          : photo;
+      setServerPhotos((current) => current.map(updateCounts));
+      setUploadedPhotos((current) => current.map(updateCounts));
+    } catch {
+      setGlobalFeedback({ kind: "error", text: t("common.signInRequired") });
+    }
   }
 
   function toggleMarketplaceListing(photoId: string): void {
@@ -4251,7 +4639,7 @@ export function HomeClient({
           amountMinor: -amountMinor,
           createdAt: now,
           id: `wallet-${Date.now()}`,
-          label: `${t("donation.title")}: ${t(commerceDialog.author.nameKey)}`,
+          label: `${t("donation.title")}: ${getPublicAuthorName(commerceDialog.author, locale)}`,
         },
         ...current,
       ]);
@@ -4275,7 +4663,7 @@ export function HomeClient({
         : amountMinor;
     const order: LocalOrder = {
       authorId: commerceDialog.author.id,
-      authorName: t(commerceDialog.author.nameKey),
+      authorName: getPublicAuthorName(commerceDialog.author, locale),
       createdAt: now,
       customerName: currentProfile.name,
       id: `order-${Date.now()}`,
@@ -4506,7 +4894,37 @@ export function HomeClient({
     setPhotoReviewOpen(true);
   }
 
-  function submitPhotoReview(event: FormEvent<HTMLFormElement>): void {
+  async function loadPhotoReviews(photoId: string): Promise<void> {
+    try {
+      const response = await apiRequest<{
+        reviews: readonly {
+          readonly comment?: string | null;
+          readonly createdAt: string;
+          readonly reviewer: {
+            readonly displayName: string;
+            readonly tier: AdminAccountTier;
+          };
+          readonly scores: BattleScores;
+        }[];
+      }>(`/platform/photos/${encodeURIComponent(photoId)}/reviews`);
+      setPhotoReviews((current) => ({
+        ...current,
+        [photoId]: response.reviews.map((review) => ({
+          comment: review.comment ?? undefined,
+          createdAt: review.createdAt,
+          reviewerName: review.reviewer.displayName,
+          reviewerTier: normalizeServerTier(review.reviewer.tier),
+          scores: review.scores,
+        })),
+      }));
+    } catch {
+      // Aggregate scores from discovery remain visible if details cannot load.
+    }
+  }
+
+  async function submitPhotoReview(
+    event: FormEvent<HTMLFormElement>,
+  ): Promise<void> {
     event.preventDefault();
 
     if (!currentProfile || !imagePreview?.photoId) return;
@@ -4515,25 +4933,45 @@ export function HomeClient({
 
     if (tier !== "professional" && tier !== "star") return;
 
-    const review: PhotoReviewRecord = {
-      comment: photoReviewComment.trim() || undefined,
-      createdAt: new Date().toISOString(),
-      reviewerName: currentProfile.name,
-      reviewerTier: tier,
-      scores: { ...photoReviewScores },
-    };
+    const photoId = imagePreview.photoId;
+    const target = allPhotos.find((photo) => photo.id === photoId);
 
-    setPhotoReviews((current) => ({
-      ...current,
-      [imagePreview.photoId!]: [
-        ...(current[imagePreview.photoId!] ?? []),
-        review,
-      ],
-    }));
-    setPhotoReviewOpen(false);
-    setPhotoReviewComment("");
-    setPhotoReviewScores({ ...defaultBattleScores });
-    setGlobalFeedback({ kind: "success", text: t("photo.reviewSaved") });
+    try {
+      if (target?.serverBacked) {
+        await apiRequest(
+          `/platform/photos/${encodeURIComponent(photoId)}/review`,
+          {
+            body: JSON.stringify({
+              ...photoReviewScores,
+              comment: photoReviewComment.trim() || undefined,
+            }),
+            method: "POST",
+          },
+        );
+        await Promise.all([loadPhotoReviews(photoId), refreshDiscoverPhotos()]);
+      } else {
+        const review: PhotoReviewRecord = {
+          comment: photoReviewComment.trim() || undefined,
+          createdAt: new Date().toISOString(),
+          reviewerName: currentProfile.name,
+          reviewerTier: tier,
+          scores: { ...photoReviewScores },
+        };
+        setPhotoReviews((current) => ({
+          ...current,
+          [photoId]: [...(current[photoId] ?? []), review],
+        }));
+      }
+      setPhotoReviewOpen(false);
+      setPhotoReviewComment("");
+      setPhotoReviewScores({ ...defaultBattleScores });
+      setGlobalFeedback({ kind: "success", text: t("photo.reviewSaved") });
+    } catch {
+      setGlobalFeedback({
+        kind: "error",
+        text: t("photo.reviewProfessionalOnly"),
+      });
+    }
   }
 
   function joinBattle(): void {
@@ -5936,7 +6374,11 @@ export function HomeClient({
                 }
               >
                 <span>{getPhotoAuthor(photo, locale)}</span>
-                {authorProfile?.verified ? renderVerifiedBadge() : null}
+                {authorProfile?.verified ||
+                photo.authorTier === "professional" ||
+                photo.authorTier === "star"
+                  ? renderVerifiedBadge()
+                  : null}
               </Link>
             </div>
             <div className="photo-card-heading-tags">
@@ -5995,7 +6437,9 @@ export function HomeClient({
                 size={17}
               />
               <span>
-                {numberFormatter.format(photo.votes + (isLiked ? 1 : 0))}
+                {numberFormatter.format(
+                  photo.votes + (isLiked && !photo.serverBacked ? 1 : 0),
+                )}
               </span>
             </button>
             <button
@@ -6015,8 +6459,9 @@ export function HomeClient({
               />
               <span>
                 {numberFormatter.format(
-                  Math.max(3, Math.round(photo.votes * 0.18)) +
-                    (isSaved ? 1 : 0),
+                  (photo.bookmarkCount ??
+                    Math.max(3, Math.round(photo.votes * 0.18))) +
+                    (isSaved && !photo.serverBacked ? 1 : 0),
                 )}
               </span>
             </button>
@@ -6041,8 +6486,9 @@ export function HomeClient({
               <Images aria-hidden="true" size={17} />
               <span>
                 {numberFormatter.format(
-                  Math.max(1, Math.round(photo.votes * 0.07)) +
-                    (isInMoodboard ? 1 : 0),
+                  (photo.moodboardCount ??
+                    Math.max(1, Math.round(photo.votes * 0.07))) +
+                    (isInMoodboard && !photo.serverBacked ? 1 : 0),
                 )}
               </span>
             </button>
@@ -6066,7 +6512,7 @@ export function HomeClient({
                   <button
                     className="primary-action compact"
                     onClick={() => {
-                      publishPhoto(photo.id);
+                      void publishPhoto(photo.id);
                     }}
                     type="button"
                   >
@@ -7612,7 +8058,7 @@ export function HomeClient({
                 >
                   <img alt="" src={author.avatarUrl} />
                   <span>
-                    <strong>{t(author.nameKey)}</strong>
+                    <strong>{getPublicAuthorName(author, locale)}</strong>
                     <small>{t("profile.role")}</small>
                   </span>
                 </Link>
@@ -7707,7 +8153,10 @@ export function HomeClient({
     return (
       <section className="profile-page">
         <div className="profile-cover has-image">
-          {renderPreviewableImage(author.coverUrl, t(author.nameKey))}
+          {renderPreviewableImage(
+            author.coverUrl,
+            getPublicAuthorName(author, locale),
+          )}
         </div>
 
         <div className="profile-shell public-profile-shell">
@@ -7715,21 +8164,24 @@ export function HomeClient({
             <div className="profile-head">
               <div className={`profile-avatar-frame is-tier-${author.tier}`}>
                 <div className="profile-avatar">
-                  <img alt={t(author.nameKey)} src={author.avatarUrl} />
+                  <img
+                    alt={getPublicAuthorName(author, locale)}
+                    src={author.avatarUrl}
+                  />
                 </div>
                 {renderAccountTierBadge(author.tier)}
               </div>
               <div>
                 <span className="eyebrow">{t("profile.publicProfile")}</span>
                 <h2 className="author-name-line">
-                  {t(author.nameKey)}
+                  {getPublicAuthorName(author, locale)}
                   {author.verified ? renderVerifiedBadge() : null}
                 </h2>
-                <p>{t(author.bioKey)}</p>
+                <p>{getPublicAuthorBio(author, locale)}</p>
                 <div className="meta-row">
                   <span>
                     <MapPin aria-hidden="true" size={14} />
-                    {getLocationLabel(author.locationId, locale)}
+                    {getPublicAuthorLocation(author, locale)}
                   </span>
                   <span>@{author.username}</span>
                 </div>
@@ -7836,7 +8288,7 @@ export function HomeClient({
                             className="primary-action compact"
                             onClick={() => {
                               buyMarketplaceItem(
-                                `${t(author.nameKey)} · ${t(preset.titleKey)}`,
+                                `${getPublicAuthorName(author, locale)} · ${t(preset.titleKey)}`,
                                 preset.priceMinor,
                               );
                             }}
@@ -7889,11 +8341,27 @@ export function HomeClient({
       : null;
     const publicAuthor = initialAuthorId
       ? (publicAuthorProfiles.find((author) => author.id === initialAuthorId) ??
-        (expertProfile ? getExpertAuthor(expertProfile) : null))
+        (expertProfile
+          ? getExpertAuthor(expertProfile)
+          : serverPublicProfile?.username === initialAuthorId
+            ? serverPublicProfile
+            : null))
       : null;
 
     if (publicAuthor) {
       return renderPublicAuthorProfile(publicAuthor);
+    }
+
+    if (initialAuthorId) {
+      return (
+        <section className="page-section">
+          <p className="empty-state">
+            {serverPublicProfileLoaded
+              ? t("auth.accountMissing")
+              : t("admin.loading")}
+          </p>
+        </section>
+      );
     }
 
     if (!currentProfile) {
@@ -9277,7 +9745,7 @@ export function HomeClient({
               <span className="eyebrow">{t("commerce.secure")}</span>
               <h2 id="commerce-dialog-title">{t(titleKey)}</h2>
               {"author" in commerceDialog ? (
-                <p>{t(commerceDialog.author.nameKey)}</p>
+                <p>{getPublicAuthorName(commerceDialog.author, locale)}</p>
               ) : null}
             </div>
             <button
@@ -9765,6 +10233,215 @@ function getPhotoTitle(
   );
 }
 
+function mapServerPhoto(
+  photo: ServerPhotoPayload,
+  currentUserId?: string,
+  ownerOverride?: {
+    readonly displayName: string;
+    readonly tier: AdminAccountTier;
+    readonly username: string;
+  },
+): PhotoRecord | null {
+  const src = photo.assets?.displayUrl ?? photo.displayUrl;
+  if (!src) return null;
+
+  const ownerName =
+    photo.owner?.displayName ?? ownerOverride?.displayName ?? photo.ownerName;
+  const ownerUsername =
+    photo.owner?.username ?? ownerOverride?.username ?? photo.ownerUsername;
+  const ownerTier = normalizeServerTier(ownerOverride?.tier ?? photo.ownerTier);
+  const criterionScores = photo.reviewScores ?? undefined;
+  const score = criterionScores
+    ? (Object.values(criterionScores).reduce(
+        (total, value) => total + value,
+        0,
+      ) /
+        Object.values(criterionScores).length) *
+      10
+    : 0;
+  const locationLabel =
+    photo.location?.visibility === "HIDDEN"
+      ? undefined
+      : (photo.location?.publicLabel ?? photo.locationLabel ?? undefined);
+
+  return {
+    authorId: photo.owner?.id,
+    authorName: ownerName,
+    authorTier: ownerTier,
+    authorUsername: ownerUsername,
+    bookmarkCount: photo.counts?.bookmarks ?? 0,
+    categoryId: normalizeServerCategory(
+      photo.category?.slug ?? photo.categorySlug,
+    ),
+    criterionScores,
+    id: photo.id,
+    isMine: Boolean(currentUserId && photo.owner?.id === currentUserId),
+    locationHidden:
+      photo.location?.visibility === "HIDDEN" ||
+      (!photo.location && photo.locationLabel === null),
+    locationId: inferLocationId(locationLabel),
+    locationLabel: locationLabel ?? "—",
+    moodboardCount: photo.counts?.moodboards ?? 0,
+    originKey: "status.directUpload",
+    provenanceKey:
+      (photo.provenance?.status ?? photo.provenanceStatus) === "UNVERIFIED"
+        ? "status.metadataPending"
+        : "status.originalSupported",
+    profileAsset: photo.title.startsWith("__profile_"),
+    published: photo.status
+      ? photo.status === "PUBLISHED"
+      : Boolean(photo.publishedAt),
+    reviewCount: photo.counts?.reviews ?? 0,
+    score,
+    serverBacked: true,
+    src,
+    title: photo.title,
+    uploadedAt: photo.publishedAt ?? photo.createdAt ?? undefined,
+    votes: photo.counts?.likes ?? 0,
+  };
+}
+
+function mapServerProfileToAccount(
+  user: ServerSessionUser,
+  profile: ServerProfilePayload,
+  locale: SupportedLocale,
+  previous?: AccountRecord,
+): AccountRecord {
+  const globalRating = profile.ratings.find(
+    (rating) => rating.scope === "GLOBAL" && rating.scopeKey === "global",
+  );
+
+  return {
+    availableForHire: profile.availableForHire,
+    avatarUrl: profile.avatarUrl ?? previous?.avatarUrl,
+    battles: globalRating?.battles ?? 0,
+    bio: profile.bio ?? getMessage(locale, "profile.defaultBio"),
+    coverUrl: profile.coverUrl ?? previous?.coverUrl,
+    detailedReviewPrice: profile.reviewService
+      ? Number(profile.reviewService.priceMinor)
+      : previous?.detailedReviewPrice,
+    email: user.email,
+    followers: profile.followers,
+    following: profile.following,
+    joinedAt: previous?.joinedAt ?? new Date().toISOString(),
+    location: getServerProfileLocation(profile, locale),
+    name: profile.displayName,
+    passwordHash: previous?.passwordHash ?? "",
+    presetPrice: previous?.presetPrice,
+    presetSalesEnabled: previous?.presetSalesEnabled,
+    presetTitle: previous?.presetTitle,
+    rating: globalRating?.rating ?? 1500,
+    reviewPrice: profile.reviewService
+      ? Number(profile.reviewService.priceMinor)
+      : previous?.reviewPrice,
+    simpleReviewPrice: previous?.simpleReviewPrice,
+    socialLinks: profile.socialLinks ?? previous?.socialLinks,
+    tier: normalizeServerTier(profile.tier),
+    username: profile.username,
+    website: profile.websiteUrl ?? "",
+    wins: globalRating?.wins ?? 0,
+  };
+}
+
+function mapServerPublicProfile(
+  profile: ServerProfilePayload,
+  locale: SupportedLocale,
+): PublicAuthorProfile {
+  const globalRating = profile.ratings.find(
+    (rating) => rating.scope === "GLOBAL" && rating.scopeKey === "global",
+  );
+
+  return {
+    avatarUrl: profile.avatarUrl ?? sampleImages.accountDefault,
+    availableForHire: profile.availableForHire,
+    bio: profile.bio ?? getMessage(locale, "profile.defaultBio"),
+    completedOrders: profile.serviceReputation?.completedAsProvider ?? 0,
+    coverUrl: profile.coverUrl ?? sampleImages.street,
+    followers: profile.followers,
+    id: profile.username,
+    locationId: inferLocationId(getServerProfileLocation(profile, locale)),
+    locationLabel: getServerProfileLocation(profile, locale),
+    name: profile.displayName,
+    rating: globalRating?.rating ?? 1500,
+    reviewPrice: profile.reviewService
+      ? Number(profile.reviewService.priceMinor)
+      : undefined,
+    serviceRating: profile.serviceReputation?.ratingAverage
+      ? Number(profile.serviceReputation.ratingAverage)
+      : undefined,
+    tier: normalizeServerTier(profile.tier),
+    username: profile.username,
+    verified: ["PROFESSIONAL", "STAR"].includes(profile.tier),
+    wins: globalRating?.wins ?? 0,
+  };
+}
+
+function getServerProfileLocation(
+  profile: ServerProfilePayload,
+  locale: SupportedLocale,
+): string {
+  const citySlug = profile.location.city?.slug;
+  if (citySlug && locationPins.some((location) => location.id === citySlug)) {
+    return getMessage(locale, `map.location.${citySlug}` as MessageKey);
+  }
+
+  return citySlug ?? profile.location.country?.iso2 ?? "";
+}
+
+function normalizeServerCategory(slug?: string | null): CategoryId {
+  const direct = categoryFilters.find((category) => category.id === slug);
+  if (direct && direct.id !== "all") return direct.id;
+
+  const aliases: Record<string, CategoryId> = {
+    automotive: "commercial",
+    fashion: "portrait",
+    night: "street",
+    travel: "documentary",
+    wildlife: "nature",
+  };
+  return slug ? (aliases[slug] ?? "documentary") : "documentary";
+}
+
+function inferLocationId(label?: string, locale?: SupportedLocale): LocationId {
+  const normalized = label?.toLocaleLowerCase() ?? "";
+  return (
+    locationPins.find(
+      (location) =>
+        normalized.includes(location.id) ||
+        (locale
+          ? normalized === getMessage(locale, location.key).toLocaleLowerCase()
+          : false),
+    )?.id ?? "kyiv"
+  );
+}
+
+function getPublicAuthorName(
+  author: PublicAuthorProfile,
+  locale: SupportedLocale,
+): string {
+  return (
+    author.name ??
+    (author.nameKey ? getMessage(locale, author.nameKey) : author.username)
+  );
+}
+
+function getPublicAuthorBio(
+  author: PublicAuthorProfile,
+  locale: SupportedLocale,
+): string {
+  return author.bio ?? (author.bioKey ? getMessage(locale, author.bioKey) : "");
+}
+
+function getPublicAuthorLocation(
+  author: PublicAuthorProfile,
+  locale: SupportedLocale,
+): string {
+  return (
+    author.locationLabel ??
+    getLocationLabel(author.locationId ?? "kyiv", locale)
+  );
+}
+
 function getPhotoAuthor(photo: PhotoRecord, locale: SupportedLocale): string {
   return (
     photo.authorName ??
@@ -9778,6 +10455,8 @@ function getPhotoAuthorId(photo: PhotoRecord): string {
   if (photo.isMine) {
     return "me";
   }
+
+  if (photo.authorUsername) return photo.authorUsername;
 
   if (photo.authorKey?.startsWith("data.author.")) {
     return photo.authorKey.slice("data.author.".length);
@@ -9894,11 +10573,14 @@ function makePhotoTitle(fileName: string): string {
 }
 
 function normalizeUsername(value: string): string {
-  return value
+  const normalized = value
     .trim()
     .toLocaleLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "")
-    .slice(0, 24);
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
+
+  return normalized.length >= 3 ? normalized : "photographer";
 }
 
 function makeUsername(name: string, email: string): string {

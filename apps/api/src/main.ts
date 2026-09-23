@@ -7,7 +7,10 @@ import helmet from "@fastify/helmet";
 import { loadRuntimeEnv } from "@gprn/config";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
+import {
+  FastifyAdapter,
+  type NestFastifyApplication,
+} from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 
 import { AppModule } from "./modules/app.module.js";
@@ -16,16 +19,19 @@ async function bootstrap(): Promise<void> {
   const env = loadRuntimeEnv();
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: true })
+    new FastifyAdapter({
+      bodyLimit: 25 * 1024 * 1024,
+      logger: true,
+    }),
   );
 
   await app.register(helmet);
   await app.register(cookie, {
-    secret: env.SESSION_SECRET
+    secret: env.SESSION_SECRET,
   });
   await app.register(cors, {
     credentials: true,
-    origin: [env.APP_URL]
+    origin: [env.APP_URL],
   });
 
   app.setGlobalPrefix("api/v1");
@@ -33,8 +39,8 @@ async function bootstrap(): Promise<void> {
     new ValidationPipe({
       forbidNonWhitelisted: true,
       transform: true,
-      whitelist: true
-    })
+      whitelist: true,
+    }),
   );
 
   const document = SwaggerModule.createDocument(
@@ -43,7 +49,7 @@ async function bootstrap(): Promise<void> {
       .setTitle("GPRN API")
       .setDescription("API-first backend for web and future mobile clients.")
       .setVersion("0.1.0")
-      .build()
+      .build(),
   );
   SwaggerModule.setup("api/docs", app, document);
 
@@ -51,4 +57,3 @@ async function bootstrap(): Promise<void> {
 }
 
 void bootstrap();
-

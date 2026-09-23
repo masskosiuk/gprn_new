@@ -158,6 +158,7 @@ export class ProfilesService {
     const visibility = optionalEnum(record, "visibility", visibilities);
     const avatarPhotoId = optionalString(record, "avatarPhotoId");
     const coverPhotoId = optionalString(record, "coverPhotoId");
+    const citySlug = optionalString(record, "citySlug")?.toLowerCase();
     const availableForHire = record.availableForHire;
 
     if (
@@ -215,6 +216,19 @@ export class ProfilesService {
       coverAssetKey = coverAsset.storageKey;
     }
 
+    const city = citySlug
+      ? await prisma.city.findFirst({
+          include: { country: true },
+          where: { slug: citySlug },
+        })
+      : null;
+    if (citySlug && !city) {
+      throw new BadRequestException({
+        code: "PROFILE_CITY_INVALID",
+        message: "Choose a supported city.",
+      });
+    }
+
     try {
       const profile = await prisma.$transaction(async (tx) => {
         const previous = await tx.profile.findUniqueOrThrow({
@@ -229,7 +243,10 @@ export class ProfilesService {
             avatarAssetKey,
             bio,
             coverAssetKey,
+            cityId: city?.id,
+            countryId: city?.countryId,
             displayName,
+            regionId: city?.regionId,
             username,
             visibility,
             websiteUrl,

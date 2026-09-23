@@ -4,51 +4,63 @@ import { Injectable } from "@nestjs/common";
 
 import { dateToIso, publicAssetUrl } from "./serialization.js";
 
+const reviewCriteria = [
+  "composition",
+  "lighting",
+  "technicalQuality",
+  "storytelling",
+  "originality",
+  "color",
+  "emotionalImpact",
+] as const;
+
 @Injectable()
 export class DiscoverService {
   private readonly env = loadRuntimeEnv();
 
-  async getOverview(): Promise<{
-    photographers: readonly {
-      readonly displayName: string;
-      readonly photoCount: number;
-      readonly rating: number;
-      readonly username: string;
-    }[];
-    photos: readonly {
-      readonly categorySlug: string | null;
-      readonly displayUrl: string | null;
-      readonly id: string;
-      readonly locationLabel: string | null;
-      readonly ownerName: string;
-      readonly provenanceStatus: string | null;
-      readonly publishedAt: string | null;
-      readonly title: string;
-    }[];
-  }> {
+  async getOverview() {
     const [photos, photographers] = await Promise.all([
       prisma.photo.findMany({
         include: {
+          _count: {
+            select: {
+              likes: true,
+              moodboardItems: true,
+              reviews: true,
+              savedBy: true,
+            },
+          },
           assets: true,
           category: true,
           location: true,
           owner: {
             include: {
-              profile: true
-            }
+              profile: true,
+            },
           },
-          provenance: true
+          provenance: true,
+          reviews: {
+            select: {
+              color: true,
+              composition: true,
+              emotionalImpact: true,
+              lighting: true,
+              originality: true,
+              storytelling: true,
+              technicalQuality: true,
+            },
+          },
         },
         orderBy: {
-          publishedAt: "desc"
+          publishedAt: "desc",
         },
-        take: 24,
+        take: 48,
         where: {
           deletedAt: null,
           moderationStatus: "APPROVED",
           status: "PUBLISHED",
-          visibility: "PUBLIC"
-        }
+          visibility: "PUBLIC",
+        },
       }),
       prisma.profile.findMany({
         include: {
@@ -59,36 +71,42 @@ export class DiscoverService {
                   photos: {
                     where: {
                       status: "PUBLISHED",
-                      visibility: "PUBLIC"
-                    }
-                  }
-                }
+                      visibility: "PUBLIC",
+                    },
+                  },
+                },
               },
               ratings: {
                 where: {
                   scope: "GLOBAL",
-                  scopeKey: "global"
-                }
-              }
-            }
-          }
+                  scopeKey: "global",
+                },
+              },
+            },
+          },
         },
         orderBy: {
-          createdAt: "desc"
+          createdAt: "desc",
         },
-        take: 12,
+        take: 24,
         where: {
-          visibility: "PUBLIC"
-        }
-      })
+          deletedAt: null,
+          user: { status: "ACTIVE" },
+          visibility: "PUBLIC",
+        },
+      }),
     ]);
 
     return {
       photographers: photographers.map((profile) => ({
+        avatarUrl: profile.avatarAssetKey
+          ? publicAssetUrl(this.env, profile.avatarAssetKey)
+          : null,
         displayName: profile.displayName,
         photoCount: profile.user._count.photos,
         rating: profile.user.ratings[0]?.rating ?? 1500,
-        username: profile.username
+        tier: profile.tier,
+        username: profile.username,
       })),
       photos: photos.map((photo) => {
         const displayAsset =
@@ -97,16 +115,40 @@ export class DiscoverService {
 
         return {
           categorySlug: photo.category?.slug ?? null,
-          displayUrl: displayAsset ? publicAssetUrl(this.env, displayAsset.storageKey) : null,
+          counts: {
+            bookmarks: photo._count.savedBy,
+            likes: photo._count.likes,
+            moodboards: photo._count.moodboardItems,
+            reviews: photo._count.reviews,
+          },
+          displayUrl: displayAsset
+            ? publicAssetUrl(this.env, displayAsset.storageKey)
+            : null,
           id: photo.id,
           locationLabel:
-            photo.location?.visibility === "HIDDEN" ? null : photo.location?.publicLabel ?? null,
+            photo.location?.visibility === "HIDDEN"
+              ? null
+              : (photo.location?.publicLabel ?? null),
           ownerName: photo.owner.profile?.displayName ?? "Photographer",
+          ownerTier: photo.owner.profile?.tier ?? "VIEWER",
+          ownerUsername: photo.owner.profile?.username ?? "photographer",
           provenanceStatus: photo.provenance?.status ?? null,
           publishedAt: dateToIso(photo.publishedAt),
-          title: photo.title
+          reviewScores:
+            photo.reviews.length > 0
+              ? (Object.fromEntries(
+                  reviewCriteria.map((criterion) => [
+                    criterion,
+                    photo.reviews.reduce(
+                      (total, review) => total + review[criterion],
+                      0,
+                    ) / photo.reviews.length,
+                  ]),
+                ) as Record<(typeof reviewCriteria)[number], number>)
+              : null,
+          title: photo.title,
         };
-      })
+      }),
     };
   }
 }
