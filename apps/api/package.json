@@ -15,6 +15,7 @@
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.1.0",
     "@fastify/helmet": "^13.0.1",
+    "@fastify/static": "10.1.2",
     "@gprn/config": "workspace:*",
     "@gprn/db": "workspace:*",
     "@gprn/domain": "workspace:*",
