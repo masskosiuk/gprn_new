@@ -324,6 +324,59 @@ interface DiscoverResponse {
   readonly photos: readonly ServerPhotoPayload[];
 }
 
+interface ServerBattlePayload {
+  readonly category: {
+    readonly nameKey: string;
+    readonly slug: string;
+  } | null;
+  readonly endsAt: string | null;
+  readonly entries: readonly {
+    readonly id: string;
+    readonly locationLabel: string | null;
+    readonly owner: {
+      readonly displayName: string;
+      readonly id: string;
+      readonly rating: number;
+      readonly username: string;
+    };
+    readonly photo: {
+      readonly displayUrl: string | null;
+      readonly id: string;
+      readonly provenanceStatus: string | null;
+      readonly title: string;
+    };
+    readonly slot: string;
+    readonly votes: number;
+  }[];
+  readonly id: string;
+  readonly season: {
+    readonly nameKey: string;
+    readonly slug: string;
+  } | null;
+  readonly startsAt: string | null;
+  readonly status: string;
+  readonly viewerVote: {
+    readonly selectedEntryId: string;
+    readonly submittedAt: string;
+  } | null;
+  readonly votesCount: number;
+}
+
+interface ServerChallengePayload {
+  readonly category: {
+    readonly nameKey: string;
+    readonly slug: string;
+  } | null;
+  readonly descriptionKey: string | null;
+  readonly endsAt: string | null;
+  readonly entriesCount: number;
+  readonly id: string;
+  readonly slug: string;
+  readonly startsAt: string | null;
+  readonly status: string;
+  readonly titleKey: string;
+}
+
 interface AdminUserRecord {
   readonly createdAt: string;
   readonly email: string;
@@ -478,9 +531,10 @@ interface BattleEvaluationRecord {
 interface BattleRecord {
   readonly categoryId: CategoryId;
   readonly endsAt: string;
-  readonly entries: readonly [BattleEntry, BattleEntry];
+  readonly entries: readonly BattleEntry[];
   readonly id: string;
   readonly scope: BattleScope;
+  readonly serverBacked?: boolean;
   readonly statusKey: MessageKey;
   readonly title?: string;
   readonly titleKey?: MessageKey;
@@ -2024,7 +2078,7 @@ const initialBattles: readonly BattleRecord[] = [
   },
 ];
 
-const challenges: readonly ChallengeRecord[] = [
+const demoChallenges: readonly ChallengeRecord[] = [
   {
     categoryId: "street",
     copyKey: "data.challenge.cityNight.copy",
@@ -2552,6 +2606,9 @@ export function HomeClient({
   const [battleFilter, setBattleFilter] = useState<BattleFilter>("all");
   const [battles, setBattles] = useState<BattleRecord[]>(() => [
     ...initialBattles,
+  ]);
+  const [challenges, setChallenges] = useState<ChallengeRecord[]>(() => [
+    ...demoChallenges,
   ]);
   const [battleVotes, setBattleVotes] = useState<
     Record<string, BattleEvaluationRecord>
@@ -3196,7 +3253,11 @@ export function HomeClient({
 
   useEffect(() => {
     if (!isHydrated) return;
-    void refreshDiscoverPhotos();
+    void Promise.all([
+      refreshDiscoverPhotos(),
+      refreshServerBattles(),
+      refreshServerChallenges(),
+    ]);
   }, [isHydrated]);
 
   useEffect(() => {
@@ -3836,6 +3897,88 @@ export function HomeClient({
     }
   }
 
+  async function refreshServerBattles(
+    currentUserId = serverUser?.id,
+  ): Promise<void> {
+    try {
+      const response = await apiRequest<{
+        battles: readonly ServerBattlePayload[];
+      }>("/battles/open");
+      const mappedBattles = response.battles
+        .map((battle) => mapServerBattle(battle, currentUserId))
+        .filter((battle): battle is BattleRecord => Boolean(battle));
+
+      setBattles(mappedBattles);
+      setBattleVotes(
+        Object.fromEntries(
+          response.battles.flatMap((battle) =>
+            battle.viewerVote
+              ? [
+                  [
+                    battle.id,
+                    {
+                      submittedAt: battle.viewerVote.submittedAt,
+                      winnerEntryId: battle.viewerVote.selectedEntryId,
+                    } satisfies BattleEvaluationRecord,
+                  ],
+                ]
+              : [],
+          ),
+        ),
+      );
+    } catch {
+      // Demo battles remain visible only while the public API is unavailable.
+    }
+  }
+
+  async function refreshServerChallenges(): Promise<void> {
+    try {
+      const response = await apiRequest<{
+        challenges: readonly ServerChallengePayload[];
+      }>("/challenges");
+      setChallenges(
+        response.challenges.map((challenge, index) =>
+          mapServerChallenge(challenge, index),
+        ),
+      );
+    } catch {
+      // Demo challenges remain visible only while the public API is unavailable.
+    }
+  }
+
+  async function refreshChallengeParticipation(
+    authenticated = Boolean(serverUser),
+  ): Promise<void> {
+    if (!authenticated) {
+      setChallengeEntries({});
+      setSeasonJoined(false);
+      return;
+    }
+
+    try {
+      const response = await apiRequest<{
+        entries: readonly {
+          readonly challengeId: string;
+          readonly challengeSlug: string;
+          readonly photoId: string;
+        }[];
+        seasonJoined: boolean;
+      }>("/challenges/mine");
+      setChallengeEntries(
+        Object.fromEntries(
+          response.entries.flatMap((entry) => [
+            [entry.challengeId, entry.photoId],
+            [entry.challengeSlug, entry.photoId],
+          ]),
+        ),
+      );
+      setSeasonJoined(response.seasonJoined);
+    } catch {
+      setChallengeEntries({});
+      setSeasonJoined(false);
+    }
+  }
+
   async function refreshCurrentServerData(
     user: ServerSessionUser,
   ): Promise<void> {
@@ -3914,6 +4057,13 @@ export function HomeClient({
       setSocialSessionReady(Boolean(response.user));
       if (response.user) {
         await refreshCurrentServerData(response.user);
+        await Promise.all([
+          refreshServerBattles(response.user.id),
+          refreshChallengeParticipation(true),
+        ]);
+      } else {
+        setChallengeEntries({});
+        setSeasonJoined(false);
       }
       return response.user;
     } catch {
@@ -4387,7 +4537,10 @@ export function HomeClient({
             photo.id === photoId ? publishedPhoto : photo,
           ),
         );
-        await refreshDiscoverPhotos();
+        await Promise.all([
+          refreshDiscoverPhotos(),
+          refreshServerBattles(serverUser?.id),
+        ]);
         setGlobalFeedback({ kind: "success", text: t("photo.published") });
         pushNotification("notifications.photoPublished");
       } catch {
@@ -4451,7 +4604,11 @@ export function HomeClient({
       setGlobalFeedback({ kind: "success", text: t("photo.deleted") });
 
       if (photo.serverBacked) {
-        await refreshDiscoverPhotos();
+        await Promise.all([
+          refreshDiscoverPhotos(),
+          refreshServerBattles(serverUser?.id),
+          refreshServerChallenges(),
+        ]);
       }
     } catch {
       setGlobalFeedback({ kind: "error", text: t("photo.deleteFailed") });
@@ -4867,7 +5024,10 @@ export function HomeClient({
     setGlobalFeedback({ kind: "success", text: t("privacy.deleteRequested") });
   }
 
-  function voteForBattleEntry(battle: BattleRecord, entryId: string): void {
+  async function voteForBattleEntry(
+    battle: BattleRecord,
+    entryId: string,
+  ): Promise<void> {
     if (!currentProfile) {
       openAuth("login");
       setGlobalFeedback({ kind: "error", text: t("battles.signIn") });
@@ -4879,10 +5039,50 @@ export function HomeClient({
       return;
     }
 
+    if (battle.entries.length !== 2) {
+      setGlobalFeedback({ kind: "error", text: t("battles.waiting") });
+      return;
+    }
+
     const winningEntry = battle.entries.find((entry) => entry.id === entryId);
     const losingEntry = battle.entries.find((entry) => entry.id !== entryId);
 
     if (!winningEntry || !losingEntry) return;
+
+    if (battle.serverBacked) {
+      try {
+        const response = await apiRequest<{ battle: ServerBattlePayload }>(
+          `/battles/${encodeURIComponent(battle.id)}/vote`,
+          {
+            body: JSON.stringify({ selectedEntryId: entryId }),
+            method: "POST",
+          },
+        );
+        const updatedBattle = mapServerBattle(response.battle, serverUser?.id);
+        if (!updatedBattle) throw new Error("Battle response is incomplete.");
+
+        setBattles((current) =>
+          current.map((candidate) =>
+            candidate.id === updatedBattle.id ? updatedBattle : candidate,
+          ),
+        );
+        setBattleVotes((current) => ({
+          ...current,
+          [battle.id]: {
+            submittedAt:
+              response.battle.viewerVote?.submittedAt ??
+              new Date().toISOString(),
+            winnerEntryId:
+              response.battle.viewerVote?.selectedEntryId ?? entryId,
+          },
+        }));
+        setGlobalFeedback({ kind: "success", text: t("battles.voted") });
+        await refreshServerSession();
+      } catch {
+        setGlobalFeedback({ kind: "error", text: t("battles.voteFailed") });
+      }
+      return;
+    }
 
     const voteWeight = getBattleVoteWeight(currentProfile.tier ?? "viewer");
 
@@ -5027,7 +5227,7 @@ export function HomeClient({
     }
   }
 
-  function joinBattle(): void {
+  async function joinBattle(): Promise<void> {
     if (!currentProfile) {
       openAuth("login");
       setGlobalFeedback({ kind: "error", text: t("battles.needLogin") });
@@ -5036,6 +5236,57 @@ export function HomeClient({
 
     if (!selectedUploadedPhoto) {
       setGlobalFeedback({ kind: "error", text: t("battles.needPhoto") });
+      return;
+    }
+
+    if (selectedUploadedPhoto.serverBacked) {
+      try {
+        if (!selectedUploadedPhoto.published) {
+          const published = await apiRequest<{ photo: ServerPhotoPayload }>(
+            `/photos/${encodeURIComponent(selectedUploadedPhoto.id)}/publish`,
+            {
+              body: JSON.stringify({
+                locationVisibility: selectedUploadedPhoto.locationLabel
+                  ? "CITY"
+                  : "HIDDEN",
+                visibility: "PUBLIC",
+              }),
+              method: "POST",
+            },
+          );
+          const publishedPhoto = mapServerPhoto(
+            published.photo,
+            serverUser?.id,
+          );
+          if (publishedPhoto) {
+            setUploadedPhotos((current) =>
+              current.map((photo) =>
+                photo.id === publishedPhoto.id ? publishedPhoto : photo,
+              ),
+            );
+          }
+        }
+
+        const response = await apiRequest<{ battle: ServerBattlePayload }>(
+          "/battles/join",
+          {
+            body: JSON.stringify({ photoId: selectedUploadedPhoto.id }),
+            method: "POST",
+          },
+        );
+        const battle = mapServerBattle(response.battle, serverUser?.id);
+        if (!battle) throw new Error("Battle response is incomplete.");
+
+        setBattles((current) => [
+          battle,
+          ...current.filter((candidate) => candidate.id !== battle.id),
+        ]);
+        setBattleFilter("all");
+        setGlobalFeedback({ kind: "success", text: t("battles.joined") });
+        await refreshServerBattles(serverUser?.id);
+      } catch {
+        setGlobalFeedback({ kind: "error", text: t("battles.joinFailed") });
+      }
       return;
     }
 
@@ -5101,19 +5352,24 @@ export function HomeClient({
     pushNotification("notifications.battleJoined");
   }
 
-  function joinSeason(): void {
+  async function joinSeason(): Promise<void> {
     if (!currentProfile) {
       openAuth("login");
       setGlobalFeedback({ kind: "error", text: t("season.needLogin") });
       return;
     }
 
-    setSeasonJoined(true);
-    setGlobalFeedback({ kind: "success", text: t("season.joined") });
-    pushNotification("notifications.seasonJoined");
+    try {
+      await apiRequest("/seasons/current/join", { method: "POST" });
+      setSeasonJoined(true);
+      setGlobalFeedback({ kind: "success", text: t("season.joined") });
+      await refreshChallengeParticipation(true);
+    } catch {
+      setGlobalFeedback({ kind: "error", text: t("season.joinFailed") });
+    }
   }
 
-  function submitChallenge(challengeId: string): void {
+  async function submitChallenge(challengeId: string): Promise<void> {
     if (!currentProfile) {
       openAuth("login");
       setGlobalFeedback({ kind: "error", text: t("challenges.needLogin") });
@@ -5125,12 +5381,34 @@ export function HomeClient({
       return;
     }
 
-    setChallengeEntries((currentEntries) => ({
-      ...currentEntries,
-      [challengeId]: selectedUploadedPhoto.id,
-    }));
-    setGlobalFeedback({ kind: "success", text: t("challenges.submitted") });
-    pushNotification("notifications.challengeSubmitted");
+    if (!selectedUploadedPhoto.published) {
+      setGlobalFeedback({ kind: "error", text: t("battles.needPublished") });
+      return;
+    }
+
+    try {
+      await apiRequest(
+        `/challenges/${encodeURIComponent(challengeId)}/submit`,
+        {
+          body: JSON.stringify({ photoId: selectedUploadedPhoto.id }),
+          method: "POST",
+        },
+      );
+      setChallengeEntries((currentEntries) => ({
+        ...currentEntries,
+        [challengeId]: selectedUploadedPhoto.id,
+      }));
+      setGlobalFeedback({ kind: "success", text: t("challenges.submitted") });
+      await Promise.all([
+        refreshChallengeParticipation(true),
+        refreshServerChallenges(),
+      ]);
+    } catch {
+      setGlobalFeedback({
+        kind: "error",
+        text: t("challenges.submitFailed"),
+      });
+    }
   }
 
   function toggleWishlist(productId: string): void {
@@ -6841,6 +7119,15 @@ export function HomeClient({
               </div>
             );
           })}
+          {battle.entries.length === 1 ? (
+            <div className="battle-entry battle-entry-waiting">
+              <div className="empty-state">
+                <Users aria-hidden="true" size={28} />
+                <strong>{t("battles.waiting")}</strong>
+                <span>{t("battles.waitingCopy")}</span>
+              </div>
+            </div>
+          ) : null}
         </div>
       </article>
     );
@@ -10438,6 +10725,70 @@ function mapServerPhoto(
     title: photo.title,
     uploadedAt: photo.publishedAt ?? photo.createdAt ?? undefined,
     votes: photo.counts?.likes ?? 0,
+  };
+}
+
+function mapServerBattle(
+  battle: ServerBattlePayload,
+  currentUserId?: string,
+): BattleRecord | null {
+  if (battle.entries.length < 1 || battle.entries.length > 2) return null;
+
+  const mappedEntries = battle.entries.map((entry): BattleEntry | null => {
+    if (!entry.photo.displayUrl) return null;
+
+    return {
+      id: entry.id,
+      imageUrl: entry.photo.displayUrl,
+      isMine: Boolean(currentUserId && entry.owner.id === currentUserId),
+      locationId: inferLocationId(entry.locationLabel ?? undefined),
+      photographerName: entry.owner.displayName,
+      photoId: entry.photo.id,
+      rating: entry.owner.rating,
+      title: entry.photo.title,
+      votes: entry.votes,
+    } satisfies BattleEntry;
+  });
+
+  if (!mappedEntries[0] || mappedEntries.some((entry) => !entry)) return null;
+
+  const entries = mappedEntries.filter((entry): entry is BattleEntry =>
+    Boolean(entry),
+  );
+
+  return {
+    categoryId: normalizeServerCategory(battle.category?.slug),
+    endsAt:
+      battle.endsAt ??
+      new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+    entries,
+    id: battle.id,
+    scope: battle.season ? "season" : "global",
+    serverBacked: true,
+    statusKey: battle.status === "DRAFT" ? "battles.waiting" : "battles.open",
+    title:
+      entries.length === 2
+        ? `${entries[0]!.title} / ${entries[1]!.title}`
+        : entries[0]!.title,
+  };
+}
+
+function mapServerChallenge(
+  challenge: ServerChallengePayload,
+  index: number,
+): ChallengeRecord {
+  const fallback = demoChallenges[index % demoChallenges.length]!;
+
+  return {
+    ...fallback,
+    categoryId: normalizeServerCategory(challenge.category?.slug),
+    deadline: challenge.endsAt ?? fallback.deadline,
+    id: challenge.slug || challenge.id,
+    participants: challenge.entriesCount,
+    statusKey:
+      challenge.status === "ACTIVE"
+        ? "challenges.statusOpen"
+        : "challenges.statusUpcoming",
   };
 }
 

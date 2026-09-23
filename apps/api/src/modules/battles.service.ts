@@ -101,7 +101,9 @@ interface BattleRecord {
     };
   }[];
   readonly votes: readonly {
+    readonly createdAt: Date;
     readonly selectedEntryId: string;
+    readonly voterId: string;
     readonly weightMinor: number;
   }[];
 }
@@ -111,7 +113,7 @@ export class BattlesService {
   private readonly env = loadRuntimeEnv();
   private readonly ratingEngine = new EloRatingEngine();
 
-  async listOpen(): Promise<{
+  async listOpen(viewerId?: string): Promise<{
     battles: ReturnType<BattlesService["toBattleResponse"]>[];
   }> {
     const battles = await prisma.battle.findMany({
@@ -121,12 +123,12 @@ export class BattlesService {
       },
       take: 20,
       where: {
-        status: "OPEN",
+        status: { in: ["DRAFT", "OPEN"] },
       },
     });
 
     return {
-      battles: battles.map((battle) => this.toBattleResponse(battle)),
+      battles: battles.map((battle) => this.toBattleResponse(battle, viewerId)),
     };
   }
 
@@ -155,41 +157,43 @@ export class BattlesService {
         });
       }
 
-      const entrantRating = await getOrCreateGlobalRating(tx, user.id);
-      const candidates = await tx.photo.findMany({
-        include: {
-          owner: {
-            include: {
-              ratings: { where: { scope: "GLOBAL", scopeKey: "global" } },
-            },
-          },
-        },
-        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-        take: 100,
+      const existingEntry = await tx.battleEntry.findFirst({
+        select: { battleId: true },
         where: {
-          categoryId: photo.categoryId,
-          id: { not: photo.id },
-          moderationStatus: "APPROVED",
-          ownerId: { not: user.id },
-          status: "PUBLISHED",
-          visibility: "PUBLIC",
+          battle: { status: { in: ["DRAFT", "OPEN"] } },
+          photoId: photo.id,
         },
       });
-      const opponent = candidates.sort(
-        (left, right) =>
-          Math.abs(
-            (left.owner.ratings[0]?.rating ?? 1500) - entrantRating.rating,
-          ) -
-          Math.abs(
-            (right.owner.ratings[0]?.rating ?? 1500) - entrantRating.rating,
-          ),
-      )[0];
+      if (existingEntry) return existingEntry.battleId;
 
-      if (!opponent) {
-        throw new ConflictException({
-          code: "BATTLE_OPPONENT_UNAVAILABLE",
-          message: "No eligible opponent is available in this category yet.",
+      const waitingBattle = await tx.battle.findFirst({
+        include: { entries: true },
+        orderBy: { createdAt: "asc" },
+        where: {
+          categoryId: photo.categoryId,
+          entries: { none: { userId: user.id } },
+          status: "DRAFT",
+        },
+      });
+
+      if (waitingBattle && waitingBattle.entries.length === 1) {
+        await tx.battleEntry.create({
+          data: {
+            battleId: waitingBattle.id,
+            photoId: photo.id,
+            slot: "B",
+            userId: user.id,
+          },
         });
+        await tx.battle.update({
+          data: {
+            endsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+            startsAt: new Date(),
+            status: "OPEN",
+          },
+          where: { id: waitingBattle.id },
+        });
+        return waitingBattle.id;
       }
 
       const season = await tx.season.findFirst({
@@ -199,16 +203,11 @@ export class BattlesService {
       const battle = await tx.battle.create({
         data: {
           categoryId: photo.categoryId,
-          endsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
           entries: {
-            create: [
-              { photoId: photo.id, slot: "A", userId: user.id },
-              { photoId: opponent.id, slot: "B", userId: opponent.ownerId },
-            ],
+            create: { photoId: photo.id, slot: "A", userId: user.id },
           },
           seasonId: season?.id,
-          startsAt: new Date(),
-          status: "OPEN",
+          status: "DRAFT",
         },
       });
 
@@ -234,7 +233,7 @@ export class BattlesService {
       include: battleInclude,
       where: { id: battleId },
     });
-    return { battle: this.toBattleResponse(battle) };
+    return { battle: this.toBattleResponse(battle, user.id) };
   }
 
   async vote(
@@ -343,7 +342,9 @@ export class BattlesService {
         const votes = [
           ...battle.votes,
           {
+            createdAt: new Date(),
             selectedEntryId: selectedEntry.id,
+            voterId: user.id,
             weightMinor,
           },
         ];
@@ -417,7 +418,7 @@ export class BattlesService {
       });
 
       return {
-        battle: this.toBattleResponse(battle),
+        battle: this.toBattleResponse(battle, user.id),
         ratingEvents: result.ratingEvents,
       };
     } catch (error) {
@@ -625,7 +626,11 @@ export class BattlesService {
     ]);
   }
 
-  private toBattleResponse(battle: BattleRecord) {
+  private toBattleResponse(battle: BattleRecord, viewerId?: string) {
+    const viewerVote = viewerId
+      ? battle.votes.find((vote) => vote.voterId === viewerId)
+      : undefined;
+
     return {
       category: battle.category
         ? {
@@ -647,6 +652,7 @@ export class BattlesService {
           owner: {
             displayName:
               entry.photo.owner.profile?.displayName ?? "Photographer",
+            id: entry.photo.owner.id,
             rating: entry.photo.owner.ratings[0]?.rating ?? 1500,
             username: entry.photo.owner.profile?.username ?? "photographer",
           },
@@ -659,6 +665,7 @@ export class BattlesService {
             title: entry.photo.title,
           },
           slot: entry.slot,
+          votes: calculateEntryScore(battle.votes, entry.id) / 100,
         };
       }),
       id: battle.id,
@@ -670,6 +677,12 @@ export class BattlesService {
         : null,
       startsAt: dateToIso(battle.startsAt),
       status: battle.status,
+      viewerVote: viewerVote
+        ? {
+            selectedEntryId: viewerVote.selectedEntryId,
+            submittedAt: viewerVote.createdAt.toISOString(),
+          }
+        : null,
       votesCount: battle.votes.length,
     };
   }

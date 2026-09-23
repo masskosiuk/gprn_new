@@ -11,12 +11,13 @@ import type { CookieRequest } from "./http.types.js";
 export class BattlesController {
   constructor(
     private readonly authService: AuthService,
-    private readonly battlesService: BattlesService
+    private readonly battlesService: BattlesService,
   ) {}
 
   @Get("open")
-  open() {
-    return this.battlesService.listOpen();
+  async open(@Req() request: CookieRequest) {
+    const { user } = await this.authService.me(request);
+    return this.battlesService.listOpen(user?.id);
   }
 
   @Post("join")
@@ -28,7 +29,11 @@ export class BattlesController {
   }
 
   @Post(":battleId/vote")
-  async vote(@Req() request: CookieRequest, @Param("battleId") battleId: string, @Body() body: unknown) {
+  async vote(
+    @Req() request: CookieRequest,
+    @Param("battleId") battleId: string,
+    @Body() body: unknown,
+  ) {
     const user = await this.authService.requireUserFromRequest(request);
     requirePermission(user, "battle:vote");
 

@@ -10,7 +10,7 @@ import type { CookieRequest } from "./http.types.js";
 export class ChallengesController {
   constructor(
     private readonly authService: AuthService,
-    private readonly challengesService: ChallengesService
+    private readonly challengesService: ChallengesService,
   ) {}
 
   @Get()
@@ -18,8 +18,19 @@ export class ChallengesController {
     return this.challengesService.list();
   }
 
+  @Get("mine")
+  async mine(@Req() request: CookieRequest) {
+    const user = await this.authService.requireUserFromRequest(request);
+
+    return this.challengesService.mine(user);
+  }
+
   @Post(":challengeId/submit")
-  async submit(@Req() request: CookieRequest, @Param("challengeId") challengeId: string, @Body() body: unknown) {
+  async submit(
+    @Req() request: CookieRequest,
+    @Param("challengeId") challengeId: string,
+    @Body() body: unknown,
+  ) {
     const user = await this.authService.requireUserFromRequest(request);
 
     return this.challengesService.submit(user, challengeId, body);

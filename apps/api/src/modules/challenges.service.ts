@@ -1,5 +1,9 @@
 import { prisma } from "@gprn/db";
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 
 import type { CurrentUser } from "./auth.service.js";
 import { dateToIso } from "./serialization.js";
@@ -8,11 +12,11 @@ import { asRecord, requiredString } from "./validation.js";
 const challengeInclude = {
   _count: {
     select: {
-      entries: true
-    }
+      entries: true,
+    },
   },
   category: true,
-  season: true
+  season: true,
 } as const;
 
 interface ChallengeRecord {
@@ -38,27 +42,31 @@ interface ChallengeRecord {
 
 @Injectable()
 export class ChallengesService {
-  async list(): Promise<{ challenges: ReturnType<ChallengesService["toChallengeResponse"]>[] }> {
+  async list(): Promise<{
+    challenges: ReturnType<ChallengesService["toChallengeResponse"]>[];
+  }> {
     const challenges = await prisma.challenge.findMany({
       include: challengeInclude,
       orderBy: [
         {
-          startsAt: "asc"
+          startsAt: "asc",
         },
         {
-          createdAt: "desc"
-        }
+          createdAt: "desc",
+        },
       ],
       take: 50,
       where: {
         status: {
-          in: ["ACTIVE", "UPCOMING"]
-        }
-      }
+          in: ["ACTIVE", "UPCOMING"],
+        },
+      },
     });
 
     return {
-      challenges: challenges.map((challenge) => this.toChallengeResponse(challenge))
+      challenges: challenges.map((challenge) =>
+        this.toChallengeResponse(challenge),
+      ),
     };
   }
 
@@ -72,17 +80,17 @@ export class ChallengesService {
   }> {
     const season = await prisma.season.findFirst({
       orderBy: {
-        startsAt: "asc"
+        startsAt: "asc",
       },
       where: {
-        status: "ACTIVE"
-      }
+        status: "ACTIVE",
+      },
     });
 
     if (!season) {
       throw new NotFoundException({
         code: "SEASON_NOT_ACTIVE",
-        message: "No active season is available."
+        message: "No active season is available.",
       });
     }
 
@@ -90,15 +98,15 @@ export class ChallengesService {
       const savedParticipant = await tx.seasonParticipant.upsert({
         create: {
           seasonId: season.id,
-          userId: user.id
+          userId: user.id,
         },
         update: {},
         where: {
           seasonId_userId: {
             seasonId: season.id,
-            userId: user.id
-          }
-        }
+            userId: user.id,
+          },
+        },
       });
 
       await tx.analyticsEvent.create({
@@ -106,35 +114,40 @@ export class ChallengesService {
           eventName: "season_joined",
           payload: {
             seasonId: season.id,
-            seasonSlug: season.slug
+            seasonSlug: season.slug,
           },
-          userId: user.id
-        }
+          userId: user.id,
+        },
       });
 
       await tx.notification.create({
         data: {
           payload: {
-            seasonSlug: season.slug
+            seasonSlug: season.slug,
           },
           type: "season_joined",
-          userId: user.id
-        }
+          userId: user.id,
+        },
       });
 
       const seasonAchievement = await tx.achievement.upsert({
         create: {
           descriptionKey: "achievement.season_entrant.description",
           key: "season_entrant",
-          nameKey: "achievement.season_entrant.name"
+          nameKey: "achievement.season_entrant.name",
         },
         update: {},
-        where: { key: "season_entrant" }
+        where: { key: "season_entrant" },
       });
       await tx.userAchievement.upsert({
         create: { achievementId: seasonAchievement.id, userId: user.id },
         update: {},
-        where: { userId_achievementId: { achievementId: seasonAchievement.id, userId: user.id } }
+        where: {
+          userId_achievementId: {
+            achievementId: seasonAchievement.id,
+            userId: user.id,
+          },
+        },
       });
 
       return savedParticipant;
@@ -144,13 +157,51 @@ export class ChallengesService {
       participant: {
         joinedAt: participant.joinedAt.toISOString(),
         seasonSlug: season.slug,
-        userId: participant.userId
+        userId: participant.userId,
       },
-      season: this.toSeasonResponse(season)
+      season: this.toSeasonResponse(season),
     };
   }
 
-  async submit(user: CurrentUser, challengeIdOrSlug: string, body: unknown): Promise<{
+  async mine(user: CurrentUser): Promise<{
+    entries: readonly {
+      readonly challengeId: string;
+      readonly challengeSlug: string;
+      readonly photoId: string;
+      readonly submittedAt: string;
+    }[];
+    seasonJoined: boolean;
+  }> {
+    const [entries, membership] = await Promise.all([
+      prisma.challengeEntry.findMany({
+        include: { challenge: true },
+        orderBy: { submittedAt: "desc" },
+        where: { userId: user.id },
+      }),
+      prisma.seasonParticipant.findFirst({
+        where: {
+          season: { status: "ACTIVE" },
+          userId: user.id,
+        },
+      }),
+    ]);
+
+    return {
+      entries: entries.map((entry) => ({
+        challengeId: entry.challengeId,
+        challengeSlug: entry.challenge.slug,
+        photoId: entry.photoId,
+        submittedAt: entry.submittedAt.toISOString(),
+      })),
+      seasonJoined: Boolean(membership),
+    };
+  }
+
+  async submit(
+    user: CurrentUser,
+    challengeIdOrSlug: string,
+    body: unknown,
+  ): Promise<{
     entry: {
       readonly challengeSlug: string;
       readonly photoId: string;
@@ -167,70 +218,76 @@ export class ChallengesService {
           ? {
               OR: [
                 {
-                  id: challengeIdOrSlug
+                  id: challengeIdOrSlug,
                 },
                 {
-                  slug: challengeIdOrSlug
-                }
-              ]
+                  slug: challengeIdOrSlug,
+                },
+              ],
             }
           : {
-              slug: challengeIdOrSlug
-            }
+              slug: challengeIdOrSlug,
+            },
       });
 
       if (!challenge) {
         throw new NotFoundException({
           code: "CHALLENGE_NOT_FOUND",
-          message: "Challenge does not exist."
+          message: "Challenge does not exist.",
         });
       }
 
       if (challenge.status !== "ACTIVE") {
         throw new ConflictException({
           code: "CHALLENGE_NOT_ACTIVE",
-          message: "This challenge is not accepting submissions."
+          message: "This challenge is not accepting submissions.",
         });
       }
 
       const photo = await tx.photo.findUnique({
         select: {
+          deletedAt: true,
           id: true,
           moderationStatus: true,
           ownerId: true,
           status: true,
-          visibility: true
+          visibility: true,
         },
         where: {
-          id: photoId
-        }
+          id: photoId,
+        },
       });
 
-      if (!photo || photo.ownerId !== user.id) {
+      if (!photo || photo.deletedAt || photo.ownerId !== user.id) {
         throw new NotFoundException({
           code: "PHOTO_NOT_FOUND",
-          message: "Use one of your own photos for this challenge."
+          message: "Use one of your own photos for this challenge.",
         });
       }
 
-      if (photo.status !== "PUBLISHED" || photo.visibility !== "PUBLIC" || photo.moderationStatus !== "APPROVED") {
+      if (
+        photo.status !== "PUBLISHED" ||
+        photo.visibility !== "PUBLIC" ||
+        photo.moderationStatus !== "APPROVED"
+      ) {
         throw new ConflictException({
           code: "CHALLENGE_PHOTO_NOT_PUBLIC",
-          message: "Publish an approved public photo before submitting it to a challenge."
+          message:
+            "Publish an approved public photo before submitting it to a challenge.",
         });
       }
 
       const existingUserEntry = await tx.challengeEntry.findFirst({
         where: {
           challengeId: challenge.id,
-          userId: user.id
-        }
+          userId: user.id,
+        },
       });
 
       if (existingUserEntry) {
         throw new ConflictException({
           code: "CHALLENGE_ALREADY_SUBMITTED",
-          message: "You already submitted a photo to this challenge."
+          message: "You already submitted a photo to this challenge.",
         });
       }
 
@@ -238,8 +295,8 @@ export class ChallengesService {
         data: {
           challengeId: challenge.id,
           photoId: photo.id,
-          userId: user.id
-        }
+          userId: user.id,
+        },
       });
 
       await tx.analyticsEvent.createMany({
@@ -248,50 +305,55 @@ export class ChallengesService {
             eventName: "challenge_joined",
             payload: {
               challengeId: challenge.id,
-              challengeSlug: challenge.slug
+              challengeSlug: challenge.slug,
             },
-            userId: user.id
+            userId: user.id,
           },
           {
             eventName: "challenge_photo_submitted",
             payload: {
               challengeId: challenge.id,
-              photoId: photo.id
+              photoId: photo.id,
             },
-            userId: user.id
-          }
-        ]
+            userId: user.id,
+          },
+        ],
       });
 
       await tx.notification.create({
         data: {
           payload: {
             challengeSlug: challenge.slug,
-            photoId: photo.id
+            photoId: photo.id,
           },
           type: "challenge_submitted",
-          userId: user.id
-        }
+          userId: user.id,
+        },
       });
 
       const challengeAchievement = await tx.achievement.upsert({
         create: {
           descriptionKey: "achievement.first_challenge.description",
           key: "first_challenge",
-          nameKey: "achievement.first_challenge.name"
+          nameKey: "achievement.first_challenge.name",
         },
         update: {},
-        where: { key: "first_challenge" }
+        where: { key: "first_challenge" },
       });
       await tx.userAchievement.upsert({
         create: { achievementId: challengeAchievement.id, userId: user.id },
         update: {},
-        where: { userId_achievementId: { achievementId: challengeAchievement.id, userId: user.id } }
+        where: {
+          userId_achievementId: {
+            achievementId: challengeAchievement.id,
+            userId: user.id,
+          },
+        },
       });
 
       return {
         challenge,
-        entry
+        entry,
       };
     });
 
@@ -300,8 +362,8 @@ export class ChallengesService {
         challengeSlug: result.challenge.slug,
         photoId: result.entry.photoId,
         submittedAt: result.entry.submittedAt.toISOString(),
-        userId: result.entry.userId
-      }
+        userId: result.entry.userId,
+      },
     };
   }
 
@@ -310,7 +372,7 @@ export class ChallengesService {
       category: challenge.category
         ? {
             nameKey: challenge.category.nameKey,
-            slug: challenge.category.slug
+            slug: challenge.category.slug,
           }
         : null,
       descriptionKey: challenge.descriptionKey,
@@ -320,13 +382,13 @@ export class ChallengesService {
       season: challenge.season
         ? {
             nameKey: challenge.season.nameKey,
-            slug: challenge.season.slug
+            slug: challenge.season.slug,
           }
         : null,
       slug: challenge.slug,
       startsAt: dateToIso(challenge.startsAt),
       status: challenge.status,
-      titleKey: challenge.titleKey
+      titleKey: challenge.titleKey,
     };
   }
 
@@ -344,11 +406,13 @@ export class ChallengesService {
       nameKey: season.nameKey,
       slug: season.slug,
       startsAt: season.startsAt.toISOString(),
-      status: season.status
+      status: season.status,
     };
   }
 }
 
 function isUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }

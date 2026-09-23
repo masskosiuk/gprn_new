@@ -308,7 +308,10 @@ const baseMessages = {
   "battles.joinCopy":
     "Choose a published photo; the opponent is matched by category and rating.",
   "battles.join": "Join battle",
-  "battles.joined": "A local battle was created.",
+  "battles.joined": "Photo added to the shared battle queue.",
+  "battles.joinFailed": "The photo could not be added to the battle queue.",
+  "battles.voteFailed":
+    "The vote could not be submitted. You may have already voted or be participating in this battle.",
   "battles.needPublished":
     "Publish the selected photo before joining a battle.",
   "battles.needPhoto": "Upload and select a photo before joining a battle.",
@@ -316,6 +319,9 @@ const baseMessages = {
   "battles.ends": "Ends",
   "battles.local": "Local battle",
   "battles.open": "Open for voting",
+  "battles.waiting": "Waiting for an opponent",
+  "battles.waitingCopy":
+    "Your photo is saved online. The battle will open when another photographer joins this category.",
   "battles.noResults": "No battles match this filter.",
   "battles.seasonEyebrow": "Season 1",
   "battles.seasonTitle": "The first battle season is underway",
@@ -325,6 +331,8 @@ const baseMessages = {
 
   "challenges.submit": "Submit selected photo",
   "challenges.submitted": "Photo submitted to this challenge.",
+  "challenges.submitFailed":
+    "The photo could not be submitted to this challenge.",
   "challenges.already": "Already submitted",
   "challenges.needPhoto": "Upload and select a photo before submitting.",
   "challenges.needLogin": "Log in before submitting.",
@@ -338,6 +346,7 @@ const baseMessages = {
     "Join the first season, submit challenge work and compete for the season's final nominations.",
   "season.join": "Join Season 1",
   "season.joined": "Joined Season 1",
+  "season.joinFailed": "Could not join the current season.",
   "season.needLogin": "Log in before joining the season.",
   "season.status": "Season status",
 
@@ -1174,13 +1183,19 @@ const ruMessages: Partial<MessageMap> = {
   "battles.joinCopy":
     "Выберите опубликованное фото — соперник подбирается по категории и близкому рейтингу.",
   "battles.join": "Участвовать в батле",
-  "battles.joined": "Локальный батл создан.",
+  "battles.joined": "Фото добавлено в общую очередь батлов.",
+  "battles.joinFailed": "Не удалось добавить фото в очередь батлов.",
+  "battles.voteFailed":
+    "Не удалось отправить голос. Возможно, вы уже голосовали или участвуете в этом батле.",
   "battles.needPublished": "Опубликуйте выбранное фото перед участием в батле.",
   "battles.needPhoto": "Загрузите и выберите фото перед участием.",
   "battles.needLogin": "Войдите перед участием в батле.",
   "battles.ends": "Завершение",
   "battles.local": "Локальный батл",
   "battles.open": "Открыт для голосования",
+  "battles.waiting": "Ожидает соперника",
+  "battles.waitingCopy":
+    "Фото сохранено на сервере. Батл откроется, когда другой фотограф добавит работу в эту категорию.",
   "battles.noResults": "Под этот фильтр батлов нет.",
   "battles.seasonEyebrow": "Сезон 1",
   "battles.seasonTitle": "Первый сезон фотобатлов уже начался",
@@ -1189,6 +1204,7 @@ const ruMessages: Partial<MessageMap> = {
   "battles.seasonFinale": "Финал сезона и номинации победителей",
   "challenges.submit": "Отправить выбранное фото",
   "challenges.submitted": "Фото отправлено в челлендж.",
+  "challenges.submitFailed": "Не удалось отправить фото в этот челлендж.",
   "challenges.already": "Уже отправлено",
   "challenges.needPhoto": "Загрузите и выберите фото перед отправкой.",
   "challenges.needLogin": "Войдите перед отправкой.",
@@ -1201,6 +1217,7 @@ const ruMessages: Partial<MessageMap> = {
     "Вступайте в первый сезон, отправляйте работы в челленджи и боритесь за итоговые номинации сезона.",
   "season.join": "Вступить в Сезон 1",
   "season.joined": "Вы в Сезоне 1",
+  "season.joinFailed": "Не удалось присоединиться к текущему сезону.",
   "season.needLogin": "Войдите перед участием в сезоне.",
   "season.status": "Статус сезона",
   "leaderboard.scope.global": "Глобальный",
