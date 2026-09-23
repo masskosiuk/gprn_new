@@ -119,8 +119,9 @@ img {
   backdrop-filter: blur(18px);
   border-bottom: 1px solid var(--border);
   display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(220px, auto) minmax(0, 1fr) auto;
+  column-gap: 16px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 8px;
   padding: 14px clamp(18px, 4vw, 56px);
   position: sticky;
   top: 0;
@@ -142,6 +143,8 @@ img {
   align-items: center;
   display: inline-flex;
   gap: 10px;
+  grid-column: 1;
+  grid-row: 1;
   font-size: 14px;
   font-weight: 760;
   letter-spacing: 0;
@@ -163,6 +166,8 @@ img {
   display: flex;
   gap: 6px;
   justify-content: center;
+  grid-column: 1 / -1;
+  grid-row: 2;
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -236,6 +241,8 @@ img {
   align-items: center;
   display: flex;
   gap: 8px;
+  grid-column: 2;
+  grid-row: 1;
   justify-content: flex-end;
 }
 
@@ -3483,18 +3490,6 @@ img {
   }
 }
 
-@media (max-width: 1380px) {
-  .topbar {
-    grid-template-columns: 1fr auto;
-  }
-
-  .nav {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-content: flex-start;
-  }
-}
-
 @media (max-width: 1280px) {
   .discover-workspace .discover-filter-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3582,6 +3577,7 @@ img {
     display: grid;
     gap: 8px;
     grid-column: 1 / -1;
+    grid-row: auto;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
