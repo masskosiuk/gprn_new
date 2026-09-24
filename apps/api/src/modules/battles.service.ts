@@ -67,11 +67,13 @@ interface BattleRecord {
     readonly nameKey: string;
   } | null;
   readonly season: {
+    readonly name: string | null;
     readonly slug: string;
     readonly nameKey: string;
   } | null;
   readonly entries: readonly {
     readonly id: string;
+    readonly moderationStatus: string;
     readonly slot: string;
     readonly userId: string;
     readonly photo: {
@@ -134,7 +136,9 @@ export class BattlesService {
           (battle) =>
             battle.status === "OPEN" ||
             battle.entries.every(
-              (entry) => entry.photo.moderationStatus === "APPROVED",
+              (entry) =>
+                entry.moderationStatus === "APPROVED" &&
+                entry.photo.moderationStatus === "APPROVED",
             ) ||
             battle.entries.some((entry) => entry.userId === viewerId),
         )
@@ -179,6 +183,7 @@ export class BattlesService {
         select: { battleId: true },
         where: {
           battle: { status: { in: ["DRAFT", "OPEN"] } },
+          moderationStatus: { in: ["PENDING", "UNDER_REVIEW", "APPROVED"] },
           photoId: photo.id,
         },
       });
@@ -213,7 +218,11 @@ export class BattlesService {
         orderBy: { createdAt: "asc" },
         where: {
           categoryId: photo.categoryId,
-          entries: { none: { userId: user.id } },
+          entries: {
+            none: {
+              OR: [{ userId: user.id }, { moderationStatus: "REJECTED" }],
+            },
+          },
           status: "DRAFT",
         },
       });
@@ -227,16 +236,11 @@ export class BattlesService {
             userId: user.id,
           },
         });
-        const readyToOpen =
-          photo.moderationStatus === "APPROVED" &&
-          waitingBattle.entries[0]?.photo.moderationStatus === "APPROVED";
         await tx.battle.update({
           data: {
-            endsAt: readyToOpen
-              ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
-              : null,
-            startsAt: readyToOpen ? new Date() : null,
-            status: readyToOpen ? "OPEN" : "DRAFT",
+            endsAt: null,
+            startsAt: null,
+            status: "DRAFT",
           },
           where: { id: waitingBattle.id },
         });
@@ -733,39 +737,46 @@ export class BattlesService {
           }
         : null,
       endsAt: dateToIso(battle.endsAt),
-      entries: battle.entries.map((entry) => {
-        const displayAsset =
-          entry.photo.assets.find((asset) => asset.type === "DISPLAY") ??
-          entry.photo.assets.find((asset) => asset.type === "THUMBNAIL");
-        return {
-          id: entry.id,
-          locationLabel:
-            entry.photo.location?.visibility === "HIDDEN"
-              ? null
-              : (entry.photo.location?.publicLabel ?? null),
-          owner: {
-            displayName:
-              entry.photo.owner.profile?.displayName ?? "Photographer",
-            id: entry.photo.owner.id,
-            rating: entry.photo.owner.ratings[0]?.rating ?? 1500,
-            username: entry.photo.owner.profile?.username ?? "photographer",
-          },
-          photo: {
-            displayUrl: displayAsset
-              ? publicAssetUrl(this.env, displayAsset.storageKey)
-              : null,
-            id: entry.photo.id,
-            moderationStatus: entry.photo.moderationStatus,
-            provenanceStatus: entry.photo.provenance?.status ?? null,
-            title: entry.photo.title,
-          },
-          slot: entry.slot,
-          votes: calculateEntryScore(battle.votes, entry.id) / 100,
-        };
-      }),
+      entries: battle.entries
+        .filter(
+          (entry) =>
+            entry.moderationStatus === "APPROVED" || entry.userId === viewerId,
+        )
+        .map((entry) => {
+          const displayAsset =
+            entry.photo.assets.find((asset) => asset.type === "DISPLAY") ??
+            entry.photo.assets.find((asset) => asset.type === "THUMBNAIL");
+          return {
+            id: entry.id,
+            moderationStatus: entry.moderationStatus,
+            locationLabel:
+              entry.photo.location?.visibility === "HIDDEN"
+                ? null
+                : (entry.photo.location?.publicLabel ?? null),
+            owner: {
+              displayName:
+                entry.photo.owner.profile?.displayName ?? "Photographer",
+              id: entry.photo.owner.id,
+              rating: entry.photo.owner.ratings[0]?.rating ?? 1500,
+              username: entry.photo.owner.profile?.username ?? "photographer",
+            },
+            photo: {
+              displayUrl: displayAsset
+                ? publicAssetUrl(this.env, displayAsset.storageKey)
+                : null,
+              id: entry.photo.id,
+              moderationStatus: entry.photo.moderationStatus,
+              provenanceStatus: entry.photo.provenance?.status ?? null,
+              title: entry.photo.title,
+            },
+            slot: entry.slot,
+            votes: calculateEntryScore(battle.votes, entry.id) / 100,
+          };
+        }),
       id: battle.id,
       season: battle.season
         ? {
+            name: battle.season.name,
             nameKey: battle.season.nameKey,
             slug: battle.season.slug,
           }

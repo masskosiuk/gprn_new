@@ -15,23 +15,23 @@ export class CatalogService {
     const categories = await prisma.category.findMany({
       orderBy: [
         {
-          sortOrder: "asc"
+          sortOrder: "asc",
         },
         {
-          slug: "asc"
-        }
+          slug: "asc",
+        },
       ],
       where: {
-        isActive: true
-      }
+        isActive: true,
+      },
     });
 
     return {
       categories: categories.map((category) => ({
         descriptionKey: category.descriptionKey,
         nameKey: category.nameKey,
-        slug: category.slug
-      }))
+        slug: category.slug,
+      })),
     };
   }
 
@@ -40,6 +40,7 @@ export class CatalogService {
       readonly coverUrl: string | null;
       readonly descriptionKey: string | null;
       readonly endsAt: string | null;
+      readonly name: string | null;
       readonly nameKey: string;
       readonly slug: string;
       readonly startsAt: string | null;
@@ -48,11 +49,11 @@ export class CatalogService {
   }> {
     const season = await prisma.season.findFirst({
       orderBy: {
-        startsAt: "asc"
+        startsAt: "asc",
       },
       where: {
-        status: "ACTIVE"
-      }
+        status: "ACTIVE",
+      },
     });
 
     return {
@@ -61,12 +62,13 @@ export class CatalogService {
             coverUrl: season.coverUrl,
             descriptionKey: season.descriptionKey,
             endsAt: dateToIso(season.endsAt),
+            name: season.name,
             nameKey: season.nameKey,
             slug: season.slug,
             startsAt: dateToIso(season.startsAt),
-            status: season.status
+            status: season.status,
           }
-        : null
+        : null,
     };
   }
 }

@@ -52,6 +52,46 @@ export class AdminController {
     return this.adminService.competitionCovers();
   }
 
+  @Get("battles")
+  async battles(@Req() request: CookieRequest) {
+    const user = await this.authService.requireUserFromRequest(request);
+    requirePermission(user, "user:admin");
+    return this.adminService.battles();
+  }
+
+  @Patch("challenges/:challengeId")
+  async updateChallenge(
+    @Req() request: CookieRequest,
+    @Param("challengeId") challengeId: string,
+    @Body() body: unknown,
+  ) {
+    const user = await this.authService.requireUserFromRequest(request);
+    requirePermission(user, "user:admin");
+    return this.adminService.updateChallenge(user, challengeId, body);
+  }
+
+  @Patch("seasons/:seasonId")
+  async updateSeason(
+    @Req() request: CookieRequest,
+    @Param("seasonId") seasonId: string,
+    @Body() body: unknown,
+  ) {
+    const user = await this.authService.requireUserFromRequest(request);
+    requirePermission(user, "user:admin");
+    return this.adminService.updateSeason(user, seasonId, body);
+  }
+
+  @Patch("battles/:battleId")
+  async updateBattle(
+    @Req() request: CookieRequest,
+    @Param("battleId") battleId: string,
+    @Body() body: unknown,
+  ) {
+    const user = await this.authService.requireUserFromRequest(request);
+    requirePermission(user, "user:admin");
+    return this.adminService.updateBattle(user, battleId, body);
+  }
+
   @Patch("challenges/:challengeId/cover")
   async updateChallengeCover(
     @Req() request: CookieRequest,
@@ -105,6 +145,38 @@ export class AdminController {
     const user = await this.authService.requireUserFromRequest(request);
     requirePermission(user, "photo:manage_any");
     return this.adminService.moderatePhoto(user, photoId, body);
+  }
+
+  @Patch("battle-entries/:entryId/moderation")
+  async moderateBattleEntry(
+    @Req() request: CookieRequest,
+    @Param("entryId") entryId: string,
+    @Body() body: unknown,
+  ) {
+    const user = await this.authService.requireUserFromRequest(request);
+    requirePermission(user, "photo:manage_any");
+    return this.adminService.moderateCompetitionEntry(
+      user,
+      "battle",
+      entryId,
+      body,
+    );
+  }
+
+  @Patch("challenge-entries/:entryId/moderation")
+  async moderateChallengeEntry(
+    @Req() request: CookieRequest,
+    @Param("entryId") entryId: string,
+    @Body() body: unknown,
+  ) {
+    const user = await this.authService.requireUserFromRequest(request);
+    requirePermission(user, "photo:manage_any");
+    return this.adminService.moderateCompetitionEntry(
+      user,
+      "challenge",
+      entryId,
+      body,
+    );
   }
 
   @Get("audit-logs")

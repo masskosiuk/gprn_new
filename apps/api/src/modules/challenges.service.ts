@@ -13,7 +13,7 @@ import { asRecord, requiredString } from "./validation.js";
 const challengeInclude = {
   _count: {
     select: {
-      entries: true,
+      entries: { where: { moderationStatus: "APPROVED" as const } },
     },
   },
   category: true,
@@ -29,6 +29,7 @@ const challengeInclude = {
     orderBy: { submittedAt: "desc" as const },
     take: 12,
     where: {
+      moderationStatus: "APPROVED" as const,
       photo: {
         is: {
           deletedAt: null,
@@ -72,12 +73,14 @@ interface ChallengeRecord {
   }[];
   readonly id: string;
   readonly season: {
+    readonly name: string | null;
     readonly nameKey: string;
     readonly slug: string;
   } | null;
   readonly slug: string;
   readonly startsAt: Date | null;
   readonly status: string;
+  readonly title: string | null;
   readonly titleKey: string;
 }
 
@@ -238,7 +241,7 @@ export class ChallengesService {
       entries: entries.map((entry) => ({
         challengeId: entry.challengeId,
         challengeSlug: entry.challenge.slug,
-        moderationStatus: entry.photo.moderationStatus,
+        moderationStatus: entry.moderationStatus,
         photoId: entry.photoId,
         submittedAt: entry.submittedAt.toISOString(),
       })),
@@ -507,6 +510,7 @@ export class ChallengesService {
       id: challenge.id,
       season: challenge.season
         ? {
+            name: challenge.season.name,
             nameKey: challenge.season.nameKey,
             slug: challenge.season.slug,
           }
@@ -514,6 +518,7 @@ export class ChallengesService {
       slug: challenge.slug,
       startsAt: dateToIso(challenge.startsAt),
       status: challenge.status,
+      title: challenge.title,
       titleKey: challenge.titleKey,
     };
   }
@@ -522,6 +527,7 @@ export class ChallengesService {
     readonly coverUrl: string | null;
     readonly descriptionKey: string | null;
     readonly endsAt: Date;
+    readonly name: string | null;
     readonly nameKey: string;
     readonly slug: string;
     readonly startsAt: Date;
@@ -531,6 +537,7 @@ export class ChallengesService {
       coverUrl: season.coverUrl,
       descriptionKey: season.descriptionKey,
       endsAt: season.endsAt.toISOString(),
+      name: season.name,
       nameKey: season.nameKey,
       slug: season.slug,
       startsAt: season.startsAt.toISOString(),

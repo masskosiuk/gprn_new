@@ -337,6 +337,7 @@ interface ServerBattlePayload {
   readonly endsAt: string | null;
   readonly entries: readonly {
     readonly id: string;
+    readonly moderationStatus: string;
     readonly locationLabel: string | null;
     readonly owner: {
       readonly displayName: string;
@@ -356,6 +357,7 @@ interface ServerBattlePayload {
   }[];
   readonly id: string;
   readonly season: {
+    readonly name: string | null;
     readonly nameKey: string;
     readonly slug: string;
   } | null;
@@ -395,6 +397,7 @@ interface ServerChallengePayload {
   readonly slug: string;
   readonly startsAt: string | null;
   readonly status: string;
+  readonly title: string | null;
   readonly titleKey: string;
 }
 
@@ -483,7 +486,61 @@ interface AdminCompetitionCover {
   readonly id: string;
   readonly kind: "challenge" | "season";
   readonly labelKey: string;
+  readonly name: string | null;
   readonly slug: string;
+  readonly status: string;
+}
+
+interface AdminCompetitionDraft {
+  readonly coverUrl: string;
+  readonly name: string;
+  readonly status: string;
+}
+
+interface AdminCompetitionSubmission {
+  readonly category: { readonly nameKey: string; readonly slug: string } | null;
+  readonly competition: {
+    readonly id: string;
+    readonly label: string;
+    readonly status: string;
+  };
+  readonly createdAt: string;
+  readonly displayUrl: string | null;
+  readonly entryId: string;
+  readonly kind: "battle" | "challenge";
+  readonly moderationStatus: string;
+  readonly owner: AdminModerationPhoto["owner"];
+  readonly photoId: string;
+  readonly title: string;
+}
+
+interface AdminBattleRecord {
+  readonly category: { readonly nameKey: string; readonly slug: string } | null;
+  readonly createdAt: string;
+  readonly endsAt: string | null;
+  readonly entries: readonly {
+    readonly displayUrl: string | null;
+    readonly id: string;
+    readonly moderationStatus: string;
+    readonly ownerName: string;
+    readonly photoId: string;
+    readonly slot: string;
+    readonly title: string;
+  }[];
+  readonly id: string;
+  readonly season: {
+    readonly id: string;
+    readonly name: string | null;
+    readonly nameKey: string;
+    readonly slug: string;
+  } | null;
+  readonly startsAt: string | null;
+  readonly status: string;
+}
+
+interface AdminBattleDraft {
+  readonly categorySlug: string;
+  readonly seasonId: string;
   readonly status: string;
 }
 
@@ -630,6 +687,7 @@ interface ChallengeRecord {
     readonly title: string;
   }[];
   readonly statusKey: MessageKey;
+  readonly title?: string;
   readonly titleKey: MessageKey;
 }
 
@@ -2653,11 +2711,17 @@ export function HomeClient({
   const [adminModerationDrafts, setAdminModerationDrafts] = useState<
     Record<string, AdminModerationDraft>
   >({});
+  const [adminCompetitionSubmissions, setAdminCompetitionSubmissions] =
+    useState<AdminCompetitionSubmission[]>([]);
   const [adminCompetitionCovers, setAdminCompetitionCovers] = useState<
     AdminCompetitionCover[]
   >([]);
-  const [adminCoverDrafts, setAdminCoverDrafts] = useState<
-    Record<string, string>
+  const [adminCompetitionDrafts, setAdminCompetitionDrafts] = useState<
+    Record<string, AdminCompetitionDraft>
+  >({});
+  const [adminBattles, setAdminBattles] = useState<AdminBattleRecord[]>([]);
+  const [adminBattleDrafts, setAdminBattleDrafts] = useState<
+    Record<string, AdminBattleDraft>
   >({});
   const [adminUserDrafts, setAdminUserDrafts] = useState<
     Record<string, AdminUserDraft>
@@ -2673,6 +2737,12 @@ export function HomeClient({
   const [adminBusyUserId, setAdminBusyUserId] = useState<string | null>(null);
   const [adminBusyPhotoId, setAdminBusyPhotoId] = useState<string | null>(null);
   const [adminBusyCoverId, setAdminBusyCoverId] = useState<string | null>(null);
+  const [adminBusyBattleId, setAdminBusyBattleId] = useState<string | null>(
+    null,
+  );
+  const [adminBusySubmissionId, setAdminBusySubmissionId] = useState<
+    string | null
+  >(null);
   const [adminDeleteConfirmId, setAdminDeleteConfirmId] = useState<
     string | null
   >(null);
@@ -2723,6 +2793,7 @@ export function HomeClient({
   const [seasonCoverUrl, setSeasonCoverUrl] = useState(
     "/images/challenges/city-night.png",
   );
+  const [seasonName, setSeasonName] = useState<string | null>(null);
   const [leaderboardScope, setLeaderboardScope] =
     useState<LeaderboardScope>("global");
   const [savedPhotoIds, setSavedPhotoIds] = useState<string[]>([]);
@@ -4105,7 +4176,10 @@ export function HomeClient({
           challenges: readonly ServerChallengePayload[];
         }>("/challenges"),
         apiRequest<{
-          season: { readonly coverUrl: string | null } | null;
+          season: {
+            readonly coverUrl: string | null;
+            readonly name: string | null;
+          } | null;
         }>("/seasons/current"),
       ]);
       setChallenges(
@@ -4114,6 +4188,7 @@ export function HomeClient({
       if (seasonResponse.season?.coverUrl) {
         setSeasonCoverUrl(seasonResponse.season.coverUrl);
       }
+      setSeasonName(seasonResponse.season?.name ?? null);
     } catch {
       // Demo challenges remain visible only while the public API is unavailable.
     }
@@ -4270,41 +4345,59 @@ export function HomeClient({
     if (adminTierFilter !== "ALL") query.set("tier", adminTierFilter);
 
     try {
-      const [overview, usersResponse, moderationResponse, coversResponse] =
-        await Promise.all([
-          apiRequest<AdminOverviewRecord>("/admin/overview"),
-          apiRequest<{ users: AdminUserRecord[] }>(
-            `/admin/users${query.size > 0 ? `?${query.toString()}` : ""}`,
-          ),
-          apiRequest<{ photos: AdminModerationPhoto[] }>("/admin/moderation"),
-          apiRequest<{
-            challenges: readonly {
-              readonly coverUrl: string | null;
-              readonly id: string;
-              readonly slug: string;
-              readonly status: string;
-              readonly titleKey: string;
-            }[];
-            seasons: readonly {
-              readonly coverUrl: string | null;
-              readonly id: string;
-              readonly nameKey: string;
-              readonly slug: string;
-              readonly status: string;
-            }[];
-          }>("/admin/competition-covers"),
-        ]);
+      const [
+        overview,
+        usersResponse,
+        moderationResponse,
+        coversResponse,
+        battlesResponse,
+      ] = await Promise.all([
+        apiRequest<AdminOverviewRecord>("/admin/overview"),
+        apiRequest<{ users: AdminUserRecord[] }>(
+          `/admin/users${query.size > 0 ? `?${query.toString()}` : ""}`,
+        ),
+        apiRequest<{
+          photos: AdminModerationPhoto[];
+          submissions: AdminCompetitionSubmission[];
+        }>("/admin/moderation"),
+        apiRequest<{
+          challenges: readonly {
+            readonly coverUrl: string | null;
+            readonly id: string;
+            readonly slug: string;
+            readonly status: string;
+            readonly title: string | null;
+            readonly titleKey: string;
+          }[];
+          seasons: readonly {
+            readonly coverUrl: string | null;
+            readonly id: string;
+            readonly name: string | null;
+            readonly nameKey: string;
+            readonly slug: string;
+            readonly status: string;
+          }[];
+        }>("/admin/competition-covers"),
+        apiRequest<{ battles: AdminBattleRecord[] }>("/admin/battles"),
+      ]);
       setAdminOverview(overview);
       setAdminUsers(usersResponse.users);
       setAdminModerationPhotos(moderationResponse.photos);
+      setAdminCompetitionSubmissions(moderationResponse.submissions);
       setAdminModerationDrafts(
         Object.fromEntries(
-          moderationResponse.photos.map((photo) => [
-            photo.id,
-            {
+          [
+            ...moderationResponse.photos.map((photo) => ({
               categorySlug: photo.category?.slug ?? "documentary",
-              reason: "",
-            },
+              id: photo.id,
+            })),
+            ...moderationResponse.submissions.map((submission) => ({
+              categorySlug: submission.category?.slug ?? "documentary",
+              id: submission.entryId,
+            })),
+          ].map((item) => [
+            item.id,
+            { categorySlug: item.categorySlug, reason: "" },
           ]),
         ),
       );
@@ -4313,17 +4406,42 @@ export function HomeClient({
           ...season,
           kind: "season" as const,
           labelKey: season.nameKey,
+          name: season.name,
         })),
         ...coversResponse.challenges.map((challenge) => ({
           ...challenge,
           kind: "challenge" as const,
           labelKey: challenge.titleKey,
+          name: challenge.title,
         })),
       ];
       setAdminCompetitionCovers(competitionCovers);
-      setAdminCoverDrafts(
+      setAdminCompetitionDrafts(
         Object.fromEntries(
-          competitionCovers.map((cover) => [cover.id, cover.coverUrl ?? ""]),
+          competitionCovers.map((cover) => [
+            cover.id,
+            {
+              coverUrl: cover.coverUrl ?? "",
+              name:
+                cover.name ??
+                t(cover.labelKey as MessageKey) ??
+                humanizeSlug(cover.slug),
+              status: cover.status,
+            },
+          ]),
+        ),
+      );
+      setAdminBattles(battlesResponse.battles);
+      setAdminBattleDrafts(
+        Object.fromEntries(
+          battlesResponse.battles.map((battle) => [
+            battle.id,
+            {
+              categorySlug: battle.category?.slug ?? "documentary",
+              seasonId: battle.season?.id ?? "",
+              status: battle.status,
+            },
+          ]),
         ),
       );
       setAdminUserDrafts(
@@ -4527,14 +4645,22 @@ export function HomeClient({
   async function saveAdminCompetitionCover(
     cover: AdminCompetitionCover,
   ): Promise<void> {
-    const coverUrl = adminCoverDrafts[cover.id]?.trim() ?? "";
+    const draft = adminCompetitionDrafts[cover.id];
+    if (!draft || draft.name.trim().length < 2) {
+      setAdminFeedback({ kind: "error", text: t("admin.nameRequired") });
+      return;
+    }
     setAdminBusyCoverId(cover.id);
     setAdminFeedback(null);
     try {
       await apiRequest(
-        `/admin/${cover.kind === "season" ? "seasons" : "challenges"}/${encodeURIComponent(cover.id)}/cover`,
+        `/admin/${cover.kind === "season" ? "seasons" : "challenges"}/${encodeURIComponent(cover.id)}`,
         {
-          body: JSON.stringify({ coverUrl }),
+          body: JSON.stringify({
+            coverUrl: draft.coverUrl.trim(),
+            [cover.kind === "season" ? "name" : "title"]: draft.name.trim(),
+            status: draft.status,
+          }),
           method: "PATCH",
         },
       );
@@ -4544,6 +4670,70 @@ export function HomeClient({
       setAdminFeedback({ kind: "error", text: t("admin.coverSaveFailed") });
     } finally {
       setAdminBusyCoverId(null);
+    }
+  }
+
+  async function moderateAdminSubmission(
+    submission: AdminCompetitionSubmission,
+    moderationStatus: "APPROVED" | "REJECTED" | "UNDER_REVIEW",
+  ): Promise<void> {
+    const draft = adminModerationDrafts[submission.entryId];
+    if (!draft) return;
+    if (moderationStatus === "REJECTED" && draft.reason.trim().length < 3) {
+      setAdminFeedback({ kind: "error", text: t("admin.reasonRequired") });
+      return;
+    }
+    setAdminBusySubmissionId(submission.entryId);
+    setAdminFeedback(null);
+    try {
+      await apiRequest(
+        `/admin/${submission.kind === "battle" ? "battle-entries" : "challenge-entries"}/${encodeURIComponent(submission.entryId)}/moderation`,
+        {
+          body: JSON.stringify({
+            categorySlug: draft.categorySlug,
+            moderationStatus,
+            reason: draft.reason.trim() || undefined,
+          }),
+          method: "PATCH",
+        },
+      );
+      setAdminFeedback({
+        kind: "success",
+        text:
+          moderationStatus === "APPROVED"
+            ? t("admin.entryApproved")
+            : moderationStatus === "REJECTED"
+              ? t("admin.entryRejected")
+              : t("admin.moderationSaved"),
+      });
+      await Promise.all([
+        loadAdminData(),
+        refreshServerBattles(),
+        refreshServerChallenges(),
+      ]);
+    } catch {
+      setAdminFeedback({ kind: "error", text: t("admin.actionFailed") });
+    } finally {
+      setAdminBusySubmissionId(null);
+    }
+  }
+
+  async function saveAdminBattle(battle: AdminBattleRecord): Promise<void> {
+    const draft = adminBattleDrafts[battle.id];
+    if (!draft) return;
+    setAdminBusyBattleId(battle.id);
+    setAdminFeedback(null);
+    try {
+      await apiRequest(`/admin/battles/${encodeURIComponent(battle.id)}`, {
+        body: JSON.stringify(draft),
+        method: "PATCH",
+      });
+      setAdminFeedback({ kind: "success", text: t("admin.battleSaved") });
+      await Promise.all([loadAdminData(), refreshServerBattles()]);
+    } catch {
+      setAdminFeedback({ kind: "error", text: t("admin.battleSaveFailed") });
+    } finally {
+      setAdminBusyBattleId(null);
     }
   }
 
@@ -6366,7 +6556,7 @@ export function HomeClient({
                     <span className="pill">{t(challenge.statusKey)}</span>
                     <span>{t(getCategoryKey(challenge.categoryId))}</span>
                   </div>
-                  <h2>{t(challenge.titleKey)}</h2>
+                  <h2>{challenge.title ?? t(challenge.titleKey)}</h2>
                   <p>{t(challenge.copyKey)}</p>
                   <dl className="stats-list challenge-stats">
                     <div>
@@ -7373,7 +7563,7 @@ export function HomeClient({
             <Trophy aria-hidden="true" size={22} />
             <div>
               <span className="eyebrow">{t("battles.seasonEyebrow")}</span>
-              <strong>{t("battles.seasonTitle")}</strong>
+              <strong>{seasonName ?? t("battles.seasonTitle")}</strong>
               <p>{t("battles.seasonCopy")}</p>
               <span className="season-status">
                 <Medal aria-hidden="true" size={15} />
@@ -7595,7 +7785,7 @@ export function HomeClient({
           <div className="season-copy">
             <Trophy aria-hidden="true" size={22} />
             <div>
-              <strong>{t("season.title")}</strong>
+              <strong>{seasonName ?? t("season.title")}</strong>
               <p>{t("season.copy")}</p>
               <span className="season-status">
                 {t("season.status")}:{" "}
@@ -7634,7 +7824,7 @@ export function HomeClient({
                     <span className="pill">{t(challenge.statusKey)}</span>
                     <span>{t(getCategoryKey(challenge.categoryId))}</span>
                   </div>
-                  <h2>{t(challenge.titleKey)}</h2>
+                  <h2>{challenge.title ?? t(challenge.titleKey)}</h2>
                   <p>{t(challenge.copyKey)}</p>
                   <dl className="stats-list challenge-stats">
                     <div>
@@ -10113,6 +10303,152 @@ export function HomeClient({
           ) : null}
 
           <div className="admin-moderation-list">
+            {adminCompetitionSubmissions.map((submission) => {
+              const draft = adminModerationDrafts[submission.entryId];
+              if (!draft) return null;
+              const isBusy = adminBusySubmissionId === submission.entryId;
+              const competitionLabel = submission.competition.label.includes(
+                ".",
+              )
+                ? t(submission.competition.label as MessageKey)
+                : submission.competition.label;
+
+              return (
+                <article
+                  className="admin-moderation-card"
+                  key={`${submission.kind}-${submission.entryId}`}
+                >
+                  <button
+                    aria-label={submission.title}
+                    className="admin-moderation-preview"
+                    disabled={!submission.displayUrl}
+                    onClick={() => {
+                      if (!submission.displayUrl) return;
+                      setImagePreview({
+                        alt: submission.title,
+                        src: submission.displayUrl,
+                      });
+                    }}
+                    type="button"
+                  >
+                    {submission.displayUrl ? (
+                      <img alt={submission.title} src={submission.displayUrl} />
+                    ) : (
+                      <Images aria-hidden="true" size={30} />
+                    )}
+                  </button>
+
+                  <div className="admin-moderation-body">
+                    <div className="admin-moderation-head">
+                      <div>
+                        <strong>{submission.title}</strong>
+                        <span>
+                          {submission.owner.displayName} ·{" "}
+                          {submission.owner.email}
+                        </span>
+                      </div>
+                      <span className="admin-moderation-status">
+                        {submission.kind === "battle"
+                          ? t("admin.inBattle")
+                          : t("admin.inChallenge")}
+                      </span>
+                    </div>
+
+                    <div className="admin-moderation-contexts">
+                      <span>
+                        {submission.kind === "battle" ? (
+                          <Swords aria-hidden="true" size={14} />
+                        ) : (
+                          <Trophy aria-hidden="true" size={14} />
+                        )}
+                        {competitionLabel} · {submission.competition.status}
+                      </span>
+                    </div>
+
+                    <div className="admin-moderation-fields">
+                      <label className="compact-field">
+                        <span>{t("admin.category")}</span>
+                        <select
+                          disabled={isBusy}
+                          onChange={(event) =>
+                            updateAdminModerationDraft(
+                              submission.entryId,
+                              "categorySlug",
+                              event.target.value,
+                            )
+                          }
+                          value={draft.categorySlug}
+                        >
+                          {categoryFilters
+                            .filter((category) => category.id !== "all")
+                            .map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {t(category.key)}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <label className="compact-field admin-moderation-reason">
+                        <span>{t("admin.reason")}</span>
+                        <input
+                          disabled={isBusy}
+                          maxLength={1000}
+                          onChange={(event) =>
+                            updateAdminModerationDraft(
+                              submission.entryId,
+                              "reason",
+                              event.target.value,
+                            )
+                          }
+                          placeholder={t("admin.moderationReasonPlaceholder")}
+                          type="text"
+                          value={draft.reason}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="admin-moderation-actions">
+                      <button
+                        className="secondary-action compact"
+                        disabled={isBusy}
+                        onClick={() =>
+                          void moderateAdminSubmission(
+                            submission,
+                            "UNDER_REVIEW",
+                          )
+                        }
+                        type="button"
+                      >
+                        <Eye aria-hidden="true" size={16} />
+                        {t("admin.keepReviewing")}
+                      </button>
+                      <button
+                        className="danger-action compact"
+                        disabled={isBusy}
+                        onClick={() =>
+                          void moderateAdminSubmission(submission, "REJECTED")
+                        }
+                        type="button"
+                      >
+                        <X aria-hidden="true" size={16} />
+                        {t("admin.reject")}
+                      </button>
+                      <button
+                        className="primary-action compact"
+                        disabled={isBusy}
+                        onClick={() =>
+                          void moderateAdminSubmission(submission, "APPROVED")
+                        }
+                        type="button"
+                      >
+                        <Check aria-hidden="true" size={16} />
+                        {t("admin.approve")}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
             {adminModerationPhotos.map((photo) => {
               const draft = adminModerationDrafts[photo.id];
               if (!draft) return null;
@@ -10253,7 +10589,9 @@ export function HomeClient({
             })}
           </div>
 
-          {!adminLoading && adminModerationPhotos.length === 0 ? (
+          {!adminLoading &&
+          adminModerationPhotos.length === 0 &&
+          adminCompetitionSubmissions.length === 0 ? (
             <div className="admin-empty">
               <CheckCircle2 aria-hidden="true" size={30} />
               <p>{t("admin.emptyModeration")}</p>
@@ -10274,23 +10612,21 @@ export function HomeClient({
 
           <div className="admin-cover-list">
             {adminCompetitionCovers.map((cover) => {
-              const draft = adminCoverDrafts[cover.id] ?? "";
+              const draft = adminCompetitionDrafts[cover.id];
+              if (!draft) return null;
               const isBusy = adminBusyCoverId === cover.id;
               return (
                 <article className="admin-cover-card" key={cover.id}>
                   <div className="admin-cover-preview">
-                    {draft ? (
-                      <img alt="" aria-hidden="true" src={draft} />
+                    {draft.coverUrl ? (
+                      <img alt="" aria-hidden="true" src={draft.coverUrl} />
                     ) : (
                       <Images aria-hidden="true" size={28} />
                     )}
                   </div>
                   <div className="admin-cover-body">
                     <div className="admin-cover-title">
-                      <strong>
-                        {t(cover.labelKey as MessageKey) ||
-                          humanizeSlug(cover.slug)}
-                      </strong>
+                      <strong>{draft.name}</strong>
                       <span>
                         {cover.kind === "season"
                           ? t("admin.coverSeason")
@@ -10299,24 +10635,231 @@ export function HomeClient({
                       </span>
                     </div>
                     <label className="compact-field">
+                      <span>{t("admin.competitionName")}</span>
+                      <input
+                        disabled={isBusy}
+                        maxLength={160}
+                        onChange={(event) =>
+                          setAdminCompetitionDrafts((current) => ({
+                            ...current,
+                            [cover.id]: {
+                              ...draft,
+                              name: event.target.value,
+                            },
+                          }))
+                        }
+                        type="text"
+                        value={draft.name}
+                      />
+                    </label>
+                    <label className="compact-field">
                       <span>{t("admin.coverUrl")}</span>
                       <input
                         disabled={isBusy}
                         onChange={(event) =>
-                          setAdminCoverDrafts((current) => ({
+                          setAdminCompetitionDrafts((current) => ({
                             ...current,
-                            [cover.id]: event.target.value,
+                            [cover.id]: {
+                              ...draft,
+                              coverUrl: event.target.value,
+                            },
                           }))
                         }
                         placeholder="/images/challenges/cover.png"
                         type="url"
-                        value={draft}
+                        value={draft.coverUrl}
                       />
+                    </label>
+                    <label className="compact-field">
+                      <span>{t("admin.status")}</span>
+                      <select
+                        disabled={isBusy}
+                        onChange={(event) =>
+                          setAdminCompetitionDrafts((current) => ({
+                            ...current,
+                            [cover.id]: {
+                              ...draft,
+                              status: event.target.value,
+                            },
+                          }))
+                        }
+                        value={draft.status}
+                      >
+                        {(cover.kind === "season"
+                          ? [
+                              "DRAFT",
+                              "UPCOMING",
+                              "ACTIVE",
+                              "COMPLETED",
+                              "ARCHIVED",
+                            ]
+                          : [
+                              "DRAFT",
+                              "UPCOMING",
+                              "ACTIVE",
+                              "COMPLETED",
+                              "CANCELLED",
+                            ]
+                        ).map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
                     </label>
                     <button
                       className="primary-action compact"
-                      disabled={isBusy || draft === (cover.coverUrl ?? "")}
+                      disabled={
+                        isBusy ||
+                        (draft.coverUrl === (cover.coverUrl ?? "") &&
+                          draft.name ===
+                            (cover.name ?? t(cover.labelKey as MessageKey)) &&
+                          draft.status === cover.status)
+                      }
                       onClick={() => void saveAdminCompetitionCover(cover)}
+                      type="button"
+                    >
+                      <Check aria-hidden="true" size={16} />
+                      {t("common.save")}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="admin-panel admin-battles-panel">
+          <div className="admin-panel-heading">
+            <div className="panel-title">
+              <Swords aria-hidden="true" size={22} />
+              <div>
+                <h2>{t("admin.battlesTitle")}</h2>
+                <p>{t("admin.battlesCopy")}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="admin-battle-list">
+            {adminBattles.map((battle) => {
+              const draft = adminBattleDrafts[battle.id];
+              if (!draft) return null;
+              const isBusy = adminBusyBattleId === battle.id;
+              return (
+                <article className="admin-battle-card" key={battle.id}>
+                  <div className="admin-battle-head">
+                    <div>
+                      <strong>
+                        {battle.entries.length > 0
+                          ? battle.entries
+                              .map((entry) => entry.title)
+                              .join(" / ")
+                          : t("admin.emptyBattle")}
+                      </strong>
+                      <span>
+                        {battle.entries.length}/2 · {battle.status}
+                      </span>
+                    </div>
+                    <span className="admin-moderation-status">
+                      {battle.id.slice(0, 8)}
+                    </span>
+                  </div>
+
+                  <div className="admin-battle-entries">
+                    {battle.entries.map((entry) => (
+                      <div key={entry.id}>
+                        {entry.displayUrl ? (
+                          <img alt={entry.title} src={entry.displayUrl} />
+                        ) : (
+                          <Images aria-hidden="true" size={22} />
+                        )}
+                        <span>
+                          <strong>{entry.ownerName}</strong>
+                          <small>{entry.moderationStatus}</small>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="admin-battle-fields">
+                    <label className="compact-field">
+                      <span>{t("admin.category")}</span>
+                      <select
+                        disabled={isBusy}
+                        onChange={(event) =>
+                          setAdminBattleDrafts((current) => ({
+                            ...current,
+                            [battle.id]: {
+                              ...draft,
+                              categorySlug: event.target.value,
+                            },
+                          }))
+                        }
+                        value={draft.categorySlug}
+                      >
+                        {categoryFilters
+                          .filter((category) => category.id !== "all")
+                          .map((category) => (
+                            <option key={category.id} value={category.id}>
+                              {t(category.key)}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className="compact-field">
+                      <span>{t("admin.coverSeason")}</span>
+                      <select
+                        disabled={isBusy}
+                        onChange={(event) =>
+                          setAdminBattleDrafts((current) => ({
+                            ...current,
+                            [battle.id]: {
+                              ...draft,
+                              seasonId: event.target.value,
+                            },
+                          }))
+                        }
+                        value={draft.seasonId}
+                      >
+                        <option value="">{t("admin.noSeason")}</option>
+                        {adminCompetitionCovers
+                          .filter((item) => item.kind === "season")
+                          .map((season) => (
+                            <option key={season.id} value={season.id}>
+                              {adminCompetitionDrafts[season.id]?.name ??
+                                t(season.labelKey as MessageKey)}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className="compact-field">
+                      <span>{t("admin.status")}</span>
+                      <select
+                        disabled={isBusy}
+                        onChange={(event) =>
+                          setAdminBattleDrafts((current) => ({
+                            ...current,
+                            [battle.id]: {
+                              ...draft,
+                              status: event.target.value,
+                            },
+                          }))
+                        }
+                        value={draft.status}
+                      >
+                        {["DRAFT", "OPEN", "CLOSED", "CANCELLED"].map(
+                          (status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+                    <button
+                      className="primary-action compact"
+                      disabled={isBusy}
+                      onClick={() => void saveAdminBattle(battle)}
                       type="button"
                     >
                       <Check aria-hidden="true" size={16} />
@@ -11492,23 +12035,35 @@ function mapServerNotification(
       ? notification.payload.reason
       : "";
   const messageKey =
-    notification.type === "photo_moderation_approved"
-      ? "notifications.moderationApproved"
-      : notification.type === "photo_moderation_rejected"
-        ? "notifications.moderationRejected"
-        : notification.type === "photo_moderation_submitted"
-          ? "notifications.moderationSubmitted"
-          : notification.type === "photo_moderation_updated"
-            ? "notifications.moderationUpdated"
-            : notification.type === "challenge_withdrawn"
-              ? "notifications.challengeWithdrawn"
-              : notification.type === "battle_withdrawn"
-                ? "notifications.battleWithdrawn"
-                : notification.type === "challenge_submitted"
-                  ? "notifications.challengeSubmitted"
-                  : notification.type === "battle_joined"
-                    ? "notifications.battleJoined"
-                    : "notifications.photoPublished";
+    notification.type === "battle_entry_approved"
+      ? "notifications.battleEntryApproved"
+      : notification.type === "battle_entry_rejected"
+        ? "notifications.battleEntryRejected"
+        : notification.type === "battle_entry_reviewing"
+          ? "notifications.battleEntryReviewing"
+          : notification.type === "challenge_entry_approved"
+            ? "notifications.challengeEntryApproved"
+            : notification.type === "challenge_entry_rejected"
+              ? "notifications.challengeEntryRejected"
+              : notification.type === "challenge_entry_reviewing"
+                ? "notifications.challengeEntryReviewing"
+                : notification.type === "photo_moderation_approved"
+                  ? "notifications.moderationApproved"
+                  : notification.type === "photo_moderation_rejected"
+                    ? "notifications.moderationRejected"
+                    : notification.type === "photo_moderation_submitted"
+                      ? "notifications.moderationSubmitted"
+                      : notification.type === "photo_moderation_updated"
+                        ? "notifications.moderationUpdated"
+                        : notification.type === "challenge_withdrawn"
+                          ? "notifications.challengeWithdrawn"
+                          : notification.type === "battle_withdrawn"
+                            ? "notifications.battleWithdrawn"
+                            : notification.type === "challenge_submitted"
+                              ? "notifications.challengeSubmitted"
+                              : notification.type === "battle_joined"
+                                ? "notifications.battleJoined"
+                                : "notifications.photoPublished";
   const baseMessage = getMessage(locale, messageKey)
     .replace("{title}", title)
     .replace("{reason}", reason || getMessage(locale, "admin.noReason"));
@@ -11608,7 +12163,7 @@ function mapServerBattle(
       locationId: inferLocationId(entry.locationLabel ?? undefined),
       photographerName: entry.owner.displayName,
       photoId: entry.photo.id,
-      moderationStatus: entry.photo.moderationStatus,
+      moderationStatus: entry.moderationStatus,
       rating: entry.owner.rating,
       title: entry.photo.title,
       votes: entry.votes,
@@ -11668,6 +12223,7 @@ function mapServerChallenge(
       challenge.status === "ACTIVE"
         ? "challenges.statusOpen"
         : "challenges.statusUpcoming",
+    title: challenge.title ?? undefined,
     titleKey: challenge.titleKey as MessageKey,
   };
 }

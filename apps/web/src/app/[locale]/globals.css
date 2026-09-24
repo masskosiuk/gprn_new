@@ -5051,7 +5051,9 @@ img {
   margin-bottom: 6px;
 }
 
-.admin-cover-body input {
+.admin-cover-body input,
+.admin-cover-body select,
+.admin-battle-fields select {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -5060,6 +5062,100 @@ img {
   min-height: 44px;
   padding: 0 12px;
   width: 100%;
+}
+
+.admin-battles-panel {
+  padding: 20px;
+}
+
+.admin-battle-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-battle-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.admin-battle-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.admin-battle-head > div,
+.admin-battle-head span {
+  display: grid;
+  min-width: 0;
+}
+
+.admin-battle-head > div > span {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.admin-battle-entries {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-battle-entries > div {
+  align-items: center;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 64px minmax(0, 1fr);
+  min-height: 66px;
+  overflow: hidden;
+  padding-right: 10px;
+}
+
+.admin-battle-entries img {
+  height: 64px;
+  object-fit: cover;
+  width: 64px;
+}
+
+.admin-battle-entries > div > svg {
+  justify-self: center;
+}
+
+.admin-battle-entries span {
+  display: grid;
+  min-width: 0;
+}
+
+.admin-battle-entries strong,
+.admin-battle-entries small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-battle-entries small {
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.admin-battle-fields {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(150px, 1fr)) auto;
+}
+
+.admin-battle-fields .compact-field > span {
+  display: block;
+  margin-bottom: 6px;
 }
 
 .admin-cover-title {
@@ -5501,6 +5597,10 @@ img {
     grid-template-columns: 1fr;
   }
 
+  .admin-battle-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .admin-reason-field {
     grid-column: 1 / -1;
   }
@@ -5522,6 +5622,7 @@ img {
 
   .admin-accounts-panel,
   .admin-covers-panel,
+  .admin-battles-panel,
   .admin-moderation-panel {
     padding: 15px;
   }
@@ -5531,6 +5632,11 @@ img {
   }
 
   .admin-cover-card {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-battle-entries,
+  .admin-battle-fields {
     grid-template-columns: 1fr;
   }
 

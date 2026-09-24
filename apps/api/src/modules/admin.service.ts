@@ -10,6 +10,11 @@ import type { CurrentUser } from "./auth.service.js";
 import { publicAssetUrl } from "./serialization.js";
 import { asRecord, optionalString, requiredString } from "./validation.js";
 
+type PrismaTx = Omit<
+  typeof prisma,
+  "$connect" | "$disconnect" | "$extends" | "$on" | "$transaction" | "$use"
+>;
+
 const reportStatuses = new Set([
   "OPEN",
   "UNDER_REVIEW",
@@ -51,6 +56,21 @@ const promotionStatuses = new Set([
   "CANCELLED",
   "REJECTED",
 ]);
+const battleStatuses = new Set(["DRAFT", "OPEN", "CLOSED", "CANCELLED"]);
+const challengeStatuses = new Set([
+  "DRAFT",
+  "UPCOMING",
+  "ACTIVE",
+  "COMPLETED",
+  "CANCELLED",
+]);
+const seasonStatuses = new Set([
+  "DRAFT",
+  "UPCOMING",
+  "ACTIVE",
+  "COMPLETED",
+  "ARCHIVED",
+]);
 
 @Injectable()
 export class AdminService {
@@ -67,6 +87,8 @@ export class AdminService {
       openReports,
       openDisputes,
       moderationPending,
+      battleModerationPending,
+      challengeModerationPending,
       flags,
     ] = await Promise.all([
       prisma.user.count(),
@@ -84,6 +106,20 @@ export class AdminService {
         },
       }),
       prisma.photo.count({
+        where: {
+          battleEntries: {
+            none: { moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] } },
+          },
+          challengeEntries: {
+            none: { moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] } },
+          },
+          moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] },
+        },
+      }),
+      prisma.battleEntry.count({
+        where: { moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] } },
+      }),
+      prisma.challengeEntry.count({
         where: { moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] } },
       }),
       prisma.featureFlag.findMany({ orderBy: { key: "asc" } }),
@@ -93,7 +129,10 @@ export class AdminService {
       counts: {
         battles,
         challenges,
-        moderationPending,
+        moderationPending:
+          moderationPending +
+          battleModerationPending +
+          challengeModerationPending,
         openDisputes,
         openReports,
         photos,
@@ -114,6 +153,7 @@ export class AdminService {
           id: true,
           slug: true,
           status: true,
+          title: true,
           titleKey: true,
         },
       }),
@@ -122,6 +162,7 @@ export class AdminService {
         select: {
           coverUrl: true,
           id: true,
+          name: true,
           nameKey: true,
           slug: true,
           status: true,
@@ -130,6 +171,220 @@ export class AdminService {
     ]);
 
     return { challenges, seasons };
+  }
+
+  async battles() {
+    const battles = await prisma.battle.findMany({
+      include: {
+        category: true,
+        entries: {
+          include: {
+            photo: {
+              include: { assets: true, owner: { include: { profile: true } } },
+            },
+          },
+          orderBy: { slot: "asc" },
+        },
+        season: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+
+    return {
+      battles: battles.map((battle) => ({
+        category: battle.category
+          ? { nameKey: battle.category.nameKey, slug: battle.category.slug }
+          : null,
+        createdAt: battle.createdAt.toISOString(),
+        endsAt: battle.endsAt?.toISOString() ?? null,
+        entries: battle.entries.map((entry) => {
+          const asset =
+            entry.photo.assets.find((item) => item.type === "THUMBNAIL") ??
+            entry.photo.assets.find((item) => item.type === "DISPLAY");
+          return {
+            displayUrl: asset
+              ? publicAssetUrl(this.env, asset.storageKey)
+              : null,
+            id: entry.id,
+            moderationStatus: entry.moderationStatus,
+            ownerName:
+              entry.photo.owner.profile?.displayName ?? entry.photo.owner.email,
+            photoId: entry.photoId,
+            slot: entry.slot,
+            title: entry.photo.title,
+          };
+        }),
+        id: battle.id,
+        season: battle.season
+          ? {
+              id: battle.season.id,
+              name: battle.season.name,
+              nameKey: battle.season.nameKey,
+              slug: battle.season.slug,
+            }
+          : null,
+        startsAt: battle.startsAt?.toISOString() ?? null,
+        status: battle.status,
+      })),
+    };
+  }
+
+  async updateChallenge(
+    actor: CurrentUser,
+    challengeId: string,
+    body: unknown,
+  ) {
+    const record = asRecord(body);
+    const title = requiredString(record, "title").slice(0, 160);
+    const coverUrl = parseCoverUrl(body);
+    const status = optionalString(record, "status");
+    if (status && !challengeStatuses.has(status)) throw invalidStatus();
+
+    return prisma.$transaction(async (tx) => {
+      const previous = await tx.challenge.findUnique({
+        where: { id: challengeId },
+      });
+      if (!previous) {
+        throw notFound("CHALLENGE_NOT_FOUND", "Challenge does not exist.");
+      }
+      const challenge = await tx.challenge.update({
+        data: {
+          coverUrl,
+          status: status ? (status as typeof previous.status) : undefined,
+          title,
+        },
+        where: { id: challengeId },
+      });
+      await tx.auditLog.create({
+        data: {
+          action: "challenge.updated",
+          actorUserId: actor.id,
+          next: { coverUrl, status: challenge.status, title },
+          previous: {
+            coverUrl: previous.coverUrl,
+            status: previous.status,
+            title: previous.title,
+          },
+          targetId: challengeId,
+          targetType: "challenge",
+        },
+      });
+      return { challenge };
+    });
+  }
+
+  async updateSeason(actor: CurrentUser, seasonId: string, body: unknown) {
+    const record = asRecord(body);
+    const name = requiredString(record, "name").slice(0, 160);
+    const coverUrl = parseCoverUrl(body);
+    const status = optionalString(record, "status");
+    if (status && !seasonStatuses.has(status)) throw invalidStatus();
+
+    return prisma.$transaction(async (tx) => {
+      const previous = await tx.season.findUnique({ where: { id: seasonId } });
+      if (!previous) {
+        throw notFound("SEASON_NOT_FOUND", "Season does not exist.");
+      }
+      const season = await tx.season.update({
+        data: {
+          coverUrl,
+          name,
+          status: status ? (status as typeof previous.status) : undefined,
+        },
+        where: { id: seasonId },
+      });
+      await tx.auditLog.create({
+        data: {
+          action: "season.updated",
+          actorUserId: actor.id,
+          next: { coverUrl, name, status: season.status },
+          previous: {
+            coverUrl: previous.coverUrl,
+            name: previous.name,
+            status: previous.status,
+          },
+          targetId: seasonId,
+          targetType: "season",
+        },
+      });
+      return { season };
+    });
+  }
+
+  async updateBattle(actor: CurrentUser, battleId: string, body: unknown) {
+    const record = asRecord(body);
+    const status = requiredString(record, "status");
+    const categorySlug = requiredString(record, "categorySlug");
+    const seasonId =
+      typeof record.seasonId === "string" && record.seasonId.trim()
+        ? record.seasonId.trim()
+        : null;
+    if (!battleStatuses.has(status)) throw invalidStatus();
+
+    return prisma.$transaction(async (tx) => {
+      const previous = await tx.battle.findUnique({
+        include: { entries: { include: { photo: true } } },
+        where: { id: battleId },
+      });
+      if (!previous)
+        throw notFound("BATTLE_NOT_FOUND", "Battle does not exist.");
+      const category = await tx.category.findUnique({
+        where: { slug: categorySlug },
+      });
+      if (!category)
+        throw notFound("CATEGORY_NOT_FOUND", "Category does not exist.");
+      if (seasonId) {
+        const season = await tx.season.findUnique({ where: { id: seasonId } });
+        if (!season)
+          throw notFound("SEASON_NOT_FOUND", "Season does not exist.");
+      }
+      if (
+        status === "OPEN" &&
+        (previous.entries.length !== 2 ||
+          previous.entries.some(
+            (entry) =>
+              entry.moderationStatus !== "APPROVED" ||
+              entry.photo.moderationStatus !== "APPROVED",
+          ))
+      ) {
+        throw new BadRequestException({
+          code: "BATTLE_ENTRIES_NOT_APPROVED",
+          message: "Both battle entries must be approved before opening.",
+        });
+      }
+      const battle = await tx.battle.update({
+        data: {
+          categoryId: category.id,
+          endsAt:
+            status === "OPEN"
+              ? (previous.endsAt ?? new Date(Date.now() + 3 * 86_400_000))
+              : previous.endsAt,
+          seasonId,
+          startsAt:
+            status === "OPEN"
+              ? (previous.startsAt ?? new Date())
+              : previous.startsAt,
+          status: status as typeof previous.status,
+        },
+        where: { id: battleId },
+      });
+      await tx.auditLog.create({
+        data: {
+          action: "battle.updated",
+          actorUserId: actor.id,
+          next: { categoryId: category.id, seasonId: battle.seasonId, status },
+          previous: {
+            categoryId: previous.categoryId,
+            seasonId: previous.seasonId,
+            status: previous.status,
+          },
+          targetId: battleId,
+          targetType: "battle",
+        },
+      });
+      return { battle };
+    });
   }
 
   async updateChallengeCover(
@@ -304,38 +559,81 @@ export class AdminService {
   }
 
   async moderationQueue() {
-    const [photos, reports, disputes] = await Promise.all([
-      prisma.photo.findMany({
-        include: {
-          assets: true,
-          battleEntries: { include: { battle: true } },
-          category: true,
-          challengeEntries: { include: { challenge: true } },
-          owner: { include: { profile: true } },
-          provenance: true,
-        },
-        orderBy: { updatedAt: "asc" },
-        take: 100,
-        where: {
-          moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] },
-          deletedAt: null,
-        },
-      }),
-      prisma.report.findMany({
-        include: { photo: true, reporter: { include: { profile: true } } },
-        orderBy: { createdAt: "asc" },
-        take: 100,
-        where: { status: { in: ["OPEN", "UNDER_REVIEW"] } },
-      }),
-      prisma.copyrightDispute.findMany({
-        include: { subjectPhoto: true },
-        orderBy: { createdAt: "asc" },
-        take: 100,
-        where: {
-          status: { in: ["OPEN", "EVIDENCE_REQUESTED", "UNDER_REVIEW"] },
-        },
-      }),
-    ]);
+    const [photos, battleEntries, challengeEntries, reports, disputes] =
+      await Promise.all([
+        prisma.photo.findMany({
+          include: {
+            assets: true,
+            battleEntries: { include: { battle: true } },
+            category: true,
+            challengeEntries: { include: { challenge: true } },
+            owner: { include: { profile: true } },
+            provenance: true,
+          },
+          orderBy: { updatedAt: "asc" },
+          take: 100,
+          where: {
+            battleEntries: {
+              none: { moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] } },
+            },
+            challengeEntries: {
+              none: { moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] } },
+            },
+            moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] },
+            deletedAt: null,
+          },
+        }),
+        prisma.battleEntry.findMany({
+          include: {
+            battle: { include: { category: true, season: true } },
+            photo: {
+              include: {
+                assets: true,
+                category: true,
+                owner: { include: { profile: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+          take: 100,
+          where: {
+            moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] },
+            photo: { deletedAt: null },
+          },
+        }),
+        prisma.challengeEntry.findMany({
+          include: {
+            challenge: { include: { category: true, season: true } },
+            photo: {
+              include: {
+                assets: true,
+                category: true,
+                owner: { include: { profile: true } },
+              },
+            },
+          },
+          orderBy: { submittedAt: "asc" },
+          take: 100,
+          where: {
+            moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] },
+            photo: { deletedAt: null },
+          },
+        }),
+        prisma.report.findMany({
+          include: { photo: true, reporter: { include: { profile: true } } },
+          orderBy: { createdAt: "asc" },
+          take: 100,
+          where: { status: { in: ["OPEN", "UNDER_REVIEW"] } },
+        }),
+        prisma.copyrightDispute.findMany({
+          include: { subjectPhoto: true },
+          orderBy: { createdAt: "asc" },
+          take: 100,
+          where: {
+            status: { in: ["OPEN", "EVIDENCE_REQUESTED", "UNDER_REVIEW"] },
+          },
+        }),
+      ]);
 
     return {
       disputes,
@@ -377,6 +675,93 @@ export class AdminService {
         };
       }),
       reports,
+      submissions: [
+        ...battleEntries.map((entry) =>
+          this.toCompetitionModerationItem(
+            "battle",
+            entry.id,
+            entry.moderationStatus,
+            entry.createdAt,
+            entry.photo,
+            {
+              id: entry.battleId,
+              label: entry.battle.category?.nameKey ?? "battle",
+              status: entry.battle.status,
+            },
+          ),
+        ),
+        ...challengeEntries.map((entry) =>
+          this.toCompetitionModerationItem(
+            "challenge",
+            entry.id,
+            entry.moderationStatus,
+            entry.submittedAt,
+            entry.photo,
+            {
+              id: entry.challengeId,
+              label: entry.challenge.title ?? entry.challenge.titleKey,
+              status: entry.challenge.status,
+            },
+          ),
+        ),
+      ].sort((left, right) => left.createdAt.localeCompare(right.createdAt)),
+    };
+  }
+
+  private toCompetitionModerationItem(
+    kind: "battle" | "challenge",
+    entryId: string,
+    moderationStatus: string,
+    createdAt: Date,
+    photo: {
+      readonly assets: readonly {
+        readonly storageKey: string;
+        readonly type: string;
+      }[];
+      readonly category: {
+        readonly nameKey: string;
+        readonly slug: string;
+      } | null;
+      readonly id: string;
+      readonly owner: {
+        readonly email: string;
+        readonly id: string;
+        readonly profile: {
+          readonly displayName: string;
+          readonly username: string;
+        } | null;
+      };
+      readonly title: string;
+    },
+    competition: {
+      readonly id: string;
+      readonly label: string;
+      readonly status: string;
+    },
+  ) {
+    const displayAsset =
+      photo.assets.find((asset) => asset.type === "DISPLAY") ??
+      photo.assets.find((asset) => asset.type === "THUMBNAIL");
+    return {
+      category: photo.category
+        ? { nameKey: photo.category.nameKey, slug: photo.category.slug }
+        : null,
+      competition,
+      createdAt: createdAt.toISOString(),
+      displayUrl: displayAsset
+        ? publicAssetUrl(this.env, displayAsset.storageKey)
+        : null,
+      entryId,
+      kind,
+      moderationStatus,
+      owner: {
+        displayName: photo.owner.profile?.displayName ?? photo.owner.email,
+        email: photo.owner.email,
+        id: photo.owner.id,
+        username: photo.owner.profile?.username ?? null,
+      },
+      photoId: photo.id,
+      title: photo.title,
     };
   }
 
@@ -506,8 +891,22 @@ export class AdminService {
       ];
 
       if (moderationStatus === "REJECTED") {
-        await tx.challengeEntry.deleteMany({ where: { photoId } });
-        await tx.battleEntry.deleteMany({ where: { photoId } });
+        await tx.challengeEntry.updateMany({
+          data: {
+            moderatedAt: new Date(),
+            moderationReason: reason ?? null,
+            moderationStatus: "REJECTED",
+          },
+          where: { photoId },
+        });
+        await tx.battleEntry.updateMany({
+          data: {
+            moderatedAt: new Date(),
+            moderationReason: reason ?? null,
+            moderationStatus: "REJECTED",
+          },
+          where: { photoId },
+        });
       }
 
       for (const battleId of battleIds) {
@@ -524,7 +923,9 @@ export class AdminService {
         const readyToOpen =
           battle.entries.length === 2 &&
           battle.entries.every(
-            (entry) => entry.photo.moderationStatus === "APPROVED",
+            (entry) =>
+              entry.photo.moderationStatus === "APPROVED" &&
+              entry.moderationStatus === "APPROVED",
           );
         if (!readyToOpen) {
           await tx.battleVote.deleteMany({ where: { battleId: battle.id } });
@@ -580,6 +981,199 @@ export class AdminService {
       });
       return { photo };
     });
+  }
+
+  async moderateCompetitionEntry(
+    actor: CurrentUser,
+    kind: "battle" | "challenge",
+    entryId: string,
+    body: unknown,
+  ) {
+    const record = asRecord(body);
+    const moderationStatus = requiredString(record, "moderationStatus");
+    const reason = optionalString(record, "reason")?.slice(0, 2000);
+    const categorySlug = optionalString(record, "categorySlug");
+    if (
+      !moderationStatuses.has(moderationStatus) ||
+      moderationStatus === "PENDING"
+    ) {
+      throw invalidStatus();
+    }
+    if (moderationStatus === "REJECTED" && (!reason || reason.length < 3)) {
+      throw new BadRequestException({
+        code: "MODERATION_REASON_REQUIRED",
+        message: "A rejection reason of at least 3 characters is required.",
+      });
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const category = categorySlug
+        ? await tx.category.findUnique({ where: { slug: categorySlug } })
+        : null;
+      if (categorySlug && !category) {
+        throw notFound("CATEGORY_NOT_FOUND", "Category does not exist.");
+      }
+
+      if (kind === "battle") {
+        const entry = await tx.battleEntry.findUnique({
+          include: { battle: true, photo: true },
+          where: { id: entryId },
+        });
+        if (!entry) {
+          throw notFound(
+            "BATTLE_ENTRY_NOT_FOUND",
+            "Battle entry does not exist.",
+          );
+        }
+
+        await tx.battleEntry.update({
+          data: {
+            moderatedAt: new Date(),
+            moderationReason: reason ?? null,
+            moderationStatus: moderationStatus as typeof entry.moderationStatus,
+          },
+          where: { id: entry.id },
+        });
+        await this.updateCompetitionPhoto(
+          tx,
+          entry.photo,
+          moderationStatus,
+          category?.id,
+        );
+
+        const battle = await tx.battle.findUnique({
+          include: { entries: { include: { photo: true } } },
+          where: { id: entry.battleId },
+        });
+        if (battle) {
+          const readyToOpen =
+            battle.entries.length === 2 &&
+            battle.entries.every(
+              (item) =>
+                item.moderationStatus === "APPROVED" &&
+                item.photo.moderationStatus === "APPROVED",
+            );
+          await tx.battle.update({
+            data: readyToOpen
+              ? {
+                  endsAt:
+                    battle.endsAt ?? new Date(Date.now() + 3 * 86_400_000),
+                  startsAt: battle.startsAt ?? new Date(),
+                  status: "OPEN",
+                }
+              : { endsAt: null, startsAt: null, status: "DRAFT" },
+            where: { id: battle.id },
+          });
+        }
+
+        await tx.auditLog.create({
+          data: {
+            action: "battle_entry.moderated",
+            actorUserId: actor.id,
+            next: {
+              categoryId: category?.id ?? entry.photo.categoryId,
+              moderationStatus,
+            },
+            previous: { moderationStatus: entry.moderationStatus },
+            reason,
+            targetId: entry.id,
+            targetType: "battle_entry",
+          },
+        });
+        await tx.notification.create({
+          data: {
+            payload: { reason, title: entry.photo.title },
+            type: competitionNotificationType(kind, moderationStatus),
+            userId: entry.userId,
+          },
+        });
+        return { entryId, kind, moderationStatus };
+      }
+
+      const entry = await tx.challengeEntry.findUnique({
+        include: { challenge: true, photo: true },
+        where: { id: entryId },
+      });
+      if (!entry) {
+        throw notFound(
+          "CHALLENGE_ENTRY_NOT_FOUND",
+          "Challenge entry does not exist.",
+        );
+      }
+      await tx.challengeEntry.update({
+        data: {
+          moderatedAt: new Date(),
+          moderationReason: reason ?? null,
+          moderationStatus: moderationStatus as typeof entry.moderationStatus,
+        },
+        where: { id: entry.id },
+      });
+      await this.updateCompetitionPhoto(
+        tx,
+        entry.photo,
+        moderationStatus,
+        category?.id,
+      );
+      await tx.auditLog.create({
+        data: {
+          action: "challenge_entry.moderated",
+          actorUserId: actor.id,
+          next: {
+            categoryId: category?.id ?? entry.photo.categoryId,
+            moderationStatus,
+          },
+          previous: { moderationStatus: entry.moderationStatus },
+          reason,
+          targetId: entry.id,
+          targetType: "challenge_entry",
+        },
+      });
+      await tx.notification.create({
+        data: {
+          payload: { reason, title: entry.photo.title },
+          type: competitionNotificationType(kind, moderationStatus),
+          userId: entry.userId,
+        },
+      });
+      return { entryId, kind, moderationStatus };
+    });
+  }
+
+  private async updateCompetitionPhoto(
+    tx: PrismaTx,
+    photo: {
+      readonly categoryId: string | null;
+      readonly id: string;
+      readonly moderationStatus: string;
+      readonly publishedAt: Date | null;
+    },
+    moderationStatus: string,
+    categoryId: string | undefined,
+  ) {
+    if (moderationStatus === "APPROVED") {
+      await tx.photo.update({
+        data: {
+          categoryId,
+          moderationStatus: "APPROVED",
+          publishedAt: photo.publishedAt ?? new Date(),
+          status: "PUBLISHED",
+          visibility: "PUBLIC",
+        },
+        where: { id: photo.id },
+      });
+    } else if (
+      moderationStatus === "UNDER_REVIEW" &&
+      photo.moderationStatus !== "APPROVED"
+    ) {
+      await tx.photo.update({
+        data: {
+          categoryId,
+          moderationStatus: "UNDER_REVIEW",
+          status: "UNDER_REVIEW",
+        },
+        where: { id: photo.id },
+      });
+    }
   }
 
   async auditLogs() {
@@ -901,6 +1495,19 @@ function invalidStatus(): BadRequestException {
     code: "INVALID_STATUS",
     message: "Status is not supported.",
   });
+}
+
+function competitionNotificationType(
+  kind: "battle" | "challenge",
+  moderationStatus: string,
+): string {
+  const outcome =
+    moderationStatus === "APPROVED"
+      ? "approved"
+      : moderationStatus === "REJECTED"
+        ? "rejected"
+        : "reviewing";
+  return `${kind}_entry_${outcome}`;
 }
 
 function parseCoverUrl(body: unknown): string | null {

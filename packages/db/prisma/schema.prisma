@@ -729,6 +729,7 @@ model PhotoVersion {
 model Season {
   id             String                @id @default(uuid()) @db.Uuid
   slug           String                @unique
+  name           String?
   nameKey        String
   descriptionKey String?
   coverUrl       String?
@@ -767,6 +768,7 @@ model Challenge {
   seasonId       String?          @db.Uuid
   categoryId     String?          @db.Uuid
   slug           String           @unique
+  title          String?
   titleKey       String
   descriptionKey String?
   coverUrl       String?
@@ -787,18 +789,22 @@ model Challenge {
 }
 
 model ChallengeEntry {
-  id          String    @id @default(uuid()) @db.Uuid
-  challengeId String    @db.Uuid
-  photoId     String    @db.Uuid
-  userId      String    @db.Uuid
-  submittedAt DateTime  @default(now())
-  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
-  photo       Photo     @relation(fields: [photoId], references: [id], onDelete: Restrict)
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String           @id @default(uuid()) @db.Uuid
+  challengeId      String           @db.Uuid
+  photoId          String           @db.Uuid
+  userId           String           @db.Uuid
+  moderationStatus ModerationStatus @default(PENDING)
+  moderationReason String?
+  moderatedAt      DateTime?
+  submittedAt      DateTime         @default(now())
+  challenge        Challenge        @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  photo            Photo            @relation(fields: [photoId], references: [id], onDelete: Restrict)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([challengeId, photoId])
   @@unique([challengeId, userId])
   @@index([userId])
+  @@index([moderationStatus, submittedAt])
   @@map("challenge_entries")
 }
 
@@ -834,6 +840,9 @@ model BattleEntry {
   slot             String
   ratingBefore     Int?
   ratingAfter      Int?
+  moderationStatus ModerationStatus  @default(PENDING)
+  moderationReason String?
+  moderatedAt      DateTime?
   createdAt        DateTime          @default(now())
   battle           Battle            @relation(fields: [battleId], references: [id], onDelete: Cascade)
   photo            Photo             @relation(fields: [photoId], references: [id], onDelete: Restrict)
@@ -843,6 +852,7 @@ model BattleEntry {
   @@unique([battleId, photoId])
   @@unique([battleId, slot])
   @@index([userId])
+  @@index([moderationStatus, createdAt])
   @@map("battle_entries")
 }
 

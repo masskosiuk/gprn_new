@@ -715,6 +715,18 @@ const baseMessages = {
     "Challenge participation was cancelled. The work remains in your profile.",
   "notifications.battleWithdrawn":
     "Battle participation was cancelled. The work remains in your profile.",
+  "notifications.battleEntryApproved":
+    "The work “{title}” was approved for the battle.",
+  "notifications.battleEntryRejected":
+    "The work “{title}” was rejected for the battle. Reason: {reason}",
+  "notifications.battleEntryReviewing":
+    "The battle entry “{title}” remains under review.",
+  "notifications.challengeEntryApproved":
+    "The work “{title}” was approved for the challenge.",
+  "notifications.challengeEntryRejected":
+    "The work “{title}” was rejected for the challenge. Reason: {reason}",
+  "notifications.challengeEntryReviewing":
+    "The challenge entry “{title}” remains under review.",
 
   "privacy.title": "Privacy and account",
   "privacy.copy":
@@ -914,14 +926,28 @@ const baseMessages = {
   "admin.moderationRejected": "The work was rejected and the author notified.",
   "admin.moderationSaved": "The work remains under review.",
   "admin.emptyModeration": "There are no works awaiting moderation.",
-  "admin.coversTitle": "Competition covers",
+  "admin.coversTitle": "Seasons and challenges",
   "admin.coversCopy":
-    "Change the public cover for each season and challenge. Use a site path or an HTTPS URL.",
+    "Change public names, covers and statuses for seasons and challenges.",
   "admin.coverSeason": "Season",
   "admin.coverChallenge": "Challenge",
   "admin.coverUrl": "Cover URL",
   "admin.coverSaved": "The cover was updated.",
   "admin.coverSaveFailed": "The cover could not be updated.",
+  "admin.competitionName": "Public name",
+  "admin.nameRequired": "Enter a name of at least 2 characters.",
+  "admin.entryApproved":
+    "The competition entry was approved and the author notified.",
+  "admin.entryRejected":
+    "The competition entry was rejected and the author notified.",
+  "admin.battlesTitle": "Battle administration",
+  "admin.battlesCopy":
+    "Review participants and change each battle's category, season and status.",
+  "admin.battleSaved": "The battle was updated.",
+  "admin.battleSaveFailed":
+    "The battle could not be updated. Two approved entries are required to open it.",
+  "admin.emptyBattle": "Battle without participants",
+  "admin.noSeason": "No season",
   "admin.noReason": "No reason provided",
   "admin.refresh": "Refresh accounts",
   "admin.search": "Search accounts",
@@ -1662,6 +1688,18 @@ const ruMessages: Partial<MessageMap> = {
     "Участие в челлендже отменено. Работа осталась в профиле.",
   "notifications.battleWithdrawn":
     "Участие в батле отменено. Работа осталась в профиле.",
+  "notifications.battleEntryApproved":
+    "Работа «{title}» одобрена для участия в батле.",
+  "notifications.battleEntryRejected":
+    "Работа «{title}» отклонена для участия в батле. Причина: {reason}",
+  "notifications.battleEntryReviewing":
+    "Заявка «{title}» в батл оставлена на проверке.",
+  "notifications.challengeEntryApproved":
+    "Работа «{title}» одобрена для участия в челлендже.",
+  "notifications.challengeEntryRejected":
+    "Работа «{title}» отклонена для участия в челлендже. Причина: {reason}",
+  "notifications.challengeEntryReviewing":
+    "Заявка «{title}» в челлендж оставлена на проверке.",
   "privacy.title": "Приватность и аккаунт",
   "privacy.copy":
     "Экспортируйте локальные данные MVP или запросите удаление аккаунта. При отключении источника импортированные фото остаются в портфолио.",
@@ -1794,14 +1832,28 @@ const ruMessages: Partial<MessageMap> = {
   "admin.moderationRejected": "Работа отклонена, автор получил уведомление.",
   "admin.moderationSaved": "Работа оставлена на проверке.",
   "admin.emptyModeration": "Работ, ожидающих модерации, нет.",
-  "admin.coversTitle": "Обложки соревнований",
+  "admin.coversTitle": "Сезоны и челленджи",
   "admin.coversCopy":
-    "Меняйте публичные обложки сезонов и челленджей. Укажите путь на сайте или HTTPS-ссылку.",
+    "Меняйте публичные названия, обложки и статусы сезонов и челленджей.",
   "admin.coverSeason": "Сезон",
   "admin.coverChallenge": "Челлендж",
   "admin.coverUrl": "URL обложки",
   "admin.coverSaved": "Обложка обновлена.",
   "admin.coverSaveFailed": "Не удалось обновить обложку.",
+  "admin.competitionName": "Публичное название",
+  "admin.nameRequired": "Введите название длиной не менее 2 символов.",
+  "admin.entryApproved":
+    "Заявка на участие одобрена, автор получил уведомление.",
+  "admin.entryRejected":
+    "Заявка на участие отклонена, автор получил уведомление.",
+  "admin.battlesTitle": "Администрирование батлов",
+  "admin.battlesCopy":
+    "Проверяйте участников и меняйте категорию, сезон и статус каждого батла.",
+  "admin.battleSaved": "Батл обновлён.",
+  "admin.battleSaveFailed":
+    "Не удалось обновить батл. Для открытия нужны две одобренные заявки.",
+  "admin.emptyBattle": "Батл без участников",
+  "admin.noSeason": "Без сезона",
   "admin.noReason": "Причина не указана",
   "admin.refresh": "Обновить аккаунты",
   "admin.search": "Поиск аккаунтов",
