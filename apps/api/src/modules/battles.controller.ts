@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Req,
+} from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 
 import { AuthService } from "./auth.service.js";
@@ -38,5 +46,14 @@ export class BattlesController {
     requirePermission(user, "battle:vote");
 
     return this.battlesService.vote(user, battleId, body, request);
+  }
+
+  @Delete(":battleId/participation")
+  async withdraw(
+    @Req() request: CookieRequest,
+    @Param("battleId") battleId: string,
+  ) {
+    const user = await this.authService.requireUserFromRequest(request);
+    return this.battlesService.withdraw(user, battleId);
   }
 }

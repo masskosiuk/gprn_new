@@ -5,8 +5,9 @@ const booleanString = z
   .transform((value) => value === "true");
 
 const optionalSecret = z.preprocess(
-  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
-  z.string().min(1).optional()
+  (value) =>
+    typeof value === "string" && value.trim() === "" ? undefined : value,
+  z.string().min(1).optional(),
 );
 
 export const runtimeEnvSchema = z.object({
@@ -21,11 +22,18 @@ export const runtimeEnvSchema = z.object({
   EXPERT_REVIEWS_ENABLED: booleanString.default(false),
   FACEBOOK_CLIENT_ID: optionalSecret,
   FACEBOOK_CLIENT_SECRET: optionalSecret,
+  GOOGLE_CLIENT_ID: optionalSecret,
+  GOOGLE_CLIENT_SECRET: optionalSecret,
   INSTAGRAM_CLIENT_ID: optionalSecret,
   INSTAGRAM_CLIENT_SECRET: optionalSecret,
   MARKETPLACE_ENABLED: booleanString.default(false),
-  META_GRAPH_API_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v26.0"),
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  META_GRAPH_API_VERSION: z
+    .string()
+    .regex(/^v\d+\.\d+$/)
+    .default("v26.0"),
+  NODE_ENV: z
+    .enum(["development", "test", "production"])
+    .default("development"),
   PAYMENTS_ENABLED: booleanString.default(false),
   REDIS_URL: z.string().min(1),
   S3_ACCESS_KEY: z.string().min(1),
@@ -35,11 +43,13 @@ export const runtimeEnvSchema = z.object({
   S3_FORCE_PATH_STYLE: booleanString.default(true),
   S3_REGION: z.string().min(1),
   S3_SECRET_KEY: z.string().min(1),
-  SESSION_SECRET: z.string().min(1)
+  SESSION_SECRET: z.string().min(1),
 });
 
 export type RuntimeEnv = z.infer<typeof runtimeEnvSchema>;
 
-export function loadRuntimeEnv(source: NodeJS.ProcessEnv = process.env): RuntimeEnv {
+export function loadRuntimeEnv(
+  source: NodeJS.ProcessEnv = process.env,
+): RuntimeEnv {
   return runtimeEnvSchema.parse(source);
 }

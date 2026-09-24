@@ -76,6 +76,7 @@ interface BattleRecord {
     readonly userId: string;
     readonly photo: {
       readonly id: string;
+      readonly moderationStatus: string;
       readonly title: string;
       readonly assets: readonly {
         readonly type: string;
@@ -128,7 +129,16 @@ export class BattlesService {
     });
 
     return {
-      battles: battles.map((battle) => this.toBattleResponse(battle, viewerId)),
+      battles: battles
+        .filter(
+          (battle) =>
+            battle.status === "OPEN" ||
+            battle.entries.every(
+              (entry) => entry.photo.moderationStatus === "APPROVED",
+            ) ||
+            battle.entries.some((entry) => entry.userId === viewerId),
+        )
+        .map((battle) => this.toBattleResponse(battle, viewerId)),
     };
   }
 
@@ -140,17 +150,25 @@ export class BattlesService {
 
     const battleId = await prisma.$transaction(async (tx) => {
       const photo = await tx.photo.findFirst({
-        select: { categoryId: true, id: true },
+        select: {
+          categoryId: true,
+          id: true,
+          moderationStatus: true,
+          status: true,
+          title: true,
+        },
         where: {
+          deletedAt: null,
           id: photoId,
-          moderationStatus: "APPROVED",
           ownerId: user.id,
-          status: "PUBLISHED",
-          visibility: "PUBLIC",
         },
       });
 
-      if (!photo) {
+      if (
+        !photo ||
+        !["READY", "UNDER_REVIEW", "PUBLISHED"].includes(photo.status) ||
+        photo.moderationStatus === "REJECTED"
+      ) {
         throw new ConflictException({
           code: "BATTLE_PHOTO_NOT_ELIGIBLE",
           message: "Choose one of your approved public photos.",
@@ -166,8 +184,32 @@ export class BattlesService {
       });
       if (existingEntry) return existingEntry.battleId;
 
+      if (photo.moderationStatus !== "APPROVED") {
+        await tx.photo.update({
+          data: {
+            moderationStatus: "UNDER_REVIEW",
+            status: "UNDER_REVIEW",
+            visibility: "PUBLIC",
+          },
+          where: { id: photo.id },
+        });
+        if (photo.moderationStatus !== "UNDER_REVIEW") {
+          await tx.notification.create({
+            data: {
+              payload: { photoId: photo.id, title: photo.title },
+              type: "photo_moderation_submitted",
+              userId: user.id,
+            },
+          });
+        }
+      }
+
       const waitingBattle = await tx.battle.findFirst({
-        include: { entries: true },
+        include: {
+          entries: {
+            include: { photo: { select: { moderationStatus: true } } },
+          },
+        },
         orderBy: { createdAt: "asc" },
         where: {
           categoryId: photo.categoryId,
@@ -185,11 +227,16 @@ export class BattlesService {
             userId: user.id,
           },
         });
+        const readyToOpen =
+          photo.moderationStatus === "APPROVED" &&
+          waitingBattle.entries[0]?.photo.moderationStatus === "APPROVED";
         await tx.battle.update({
           data: {
-            endsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-            startsAt: new Date(),
-            status: "OPEN",
+            endsAt: readyToOpen
+              ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+              : null,
+            startsAt: readyToOpen ? new Date() : null,
+            status: readyToOpen ? "OPEN" : "DRAFT",
           },
           where: { id: waitingBattle.id },
         });
@@ -433,6 +480,53 @@ export class BattlesService {
     }
   }
 
+  async withdraw(user: CurrentUser, battleId: string) {
+    const entry = await prisma.battleEntry.findFirst({
+      include: { battle: true },
+      where: { battleId, userId: user.id },
+    });
+    if (!entry) {
+      throw new NotFoundException({
+        code: "BATTLE_ENTRY_NOT_FOUND",
+        message: "Battle participation does not exist.",
+      });
+    }
+    if (entry.battle.status === "CLOSED") {
+      throw new ConflictException({
+        code: "BATTLE_ALREADY_CLOSED",
+        message: "A completed battle cannot be withdrawn.",
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.battleVote.deleteMany({ where: { battleId } });
+      await tx.battleEntry.delete({ where: { id: entry.id } });
+      const remaining = await tx.battleEntry.count({ where: { battleId } });
+      if (remaining === 0) {
+        await tx.battle.delete({ where: { id: battleId } });
+      } else {
+        await tx.battle.update({
+          data: {
+            endsAt: null,
+            startsAt: null,
+            status: "DRAFT",
+            winnerPhotoId: null,
+          },
+          where: { id: battleId },
+        });
+      }
+      await tx.notification.create({
+        data: {
+          payload: { battleId, photoId: entry.photoId },
+          type: "battle_withdrawn",
+          userId: user.id,
+        },
+      });
+    });
+
+    return { battleId, ok: true };
+  }
+
   private async applyBattleRating(
     tx: PrismaTx,
     battleId: string,
@@ -661,6 +755,7 @@ export class BattlesService {
               ? publicAssetUrl(this.env, displayAsset.storageKey)
               : null,
             id: entry.photo.id,
+            moderationStatus: entry.photo.moderationStatus,
             provenanceStatus: entry.photo.provenance?.status ?? null,
             title: entry.photo.title,
           },
@@ -677,6 +772,9 @@ export class BattlesService {
         : null,
       startsAt: dateToIso(battle.startsAt),
       status: battle.status,
+      viewerParticipates: Boolean(
+        viewerId && battle.entries.some((entry) => entry.userId === viewerId),
+      ),
       viewerVote: viewerVote
         ? {
             selectedEntryId: viewerVote.selectedEntryId,

@@ -378,7 +378,7 @@ export class PhotosService {
             },
           },
           moderationStatus:
-            duplicateStatus === "EXACT_MATCH" ? "UNDER_REVIEW" : "APPROVED",
+            duplicateStatus === "EXACT_MATCH" ? "UNDER_REVIEW" : "PENDING",
           ownerId: user.id,
           provenance: {
             create: {
@@ -540,13 +540,14 @@ export class PhotosService {
         });
       }
 
-      if (!["READY", "PUBLISHED"].includes(existing.status)) {
+      if (!["READY", "PUBLISHED", "UNDER_REVIEW"].includes(existing.status)) {
         throw new ConflictException({
           code: "PHOTO_NOT_READY",
           message: "This photo is not ready to publish.",
         });
       }
 
+      const isApproved = existing.moderationStatus === "APPROVED";
       const updated = await tx.photo.update({
         data: {
           location: {
@@ -554,9 +555,9 @@ export class PhotosService {
               visibility: input.locationVisibility,
             },
           },
-          moderationStatus: "APPROVED",
-          publishedAt: existing.publishedAt ?? new Date(),
-          status: "PUBLISHED",
+          moderationStatus: isApproved ? "APPROVED" : "UNDER_REVIEW",
+          publishedAt: isApproved ? (existing.publishedAt ?? new Date()) : null,
+          status: isApproved ? "PUBLISHED" : "UNDER_REVIEW",
           visibility: input.visibility,
         },
         include: photoInclude,
@@ -575,8 +576,18 @@ export class PhotosService {
         },
       });
 
+      if (!isApproved && existing.moderationStatus !== "UNDER_REVIEW") {
+        await tx.notification.create({
+          data: {
+            payload: { photoId: existing.id, title: existing.title },
+            type: "photo_moderation_submitted",
+            userId: user.id,
+          },
+        });
+      }
+
       const battleCreated =
-        input.visibility === "PUBLIC"
+        isApproved && input.visibility === "PUBLIC"
           ? await this.tryCreateBattle(tx, updated)
           : false;
 

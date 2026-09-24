@@ -45,6 +45,35 @@ export class AdminController {
     return this.adminService.moderationQueue();
   }
 
+  @Get("competition-covers")
+  async competitionCovers(@Req() request: CookieRequest) {
+    const user = await this.authService.requireUserFromRequest(request);
+    requirePermission(user, "user:admin");
+    return this.adminService.competitionCovers();
+  }
+
+  @Patch("challenges/:challengeId/cover")
+  async updateChallengeCover(
+    @Req() request: CookieRequest,
+    @Param("challengeId") challengeId: string,
+    @Body() body: unknown,
+  ) {
+    const user = await this.authService.requireUserFromRequest(request);
+    requirePermission(user, "user:admin");
+    return this.adminService.updateChallengeCover(user, challengeId, body);
+  }
+
+  @Patch("seasons/:seasonId/cover")
+  async updateSeasonCover(
+    @Req() request: CookieRequest,
+    @Param("seasonId") seasonId: string,
+    @Body() body: unknown,
+  ) {
+    const user = await this.authService.requireUserFromRequest(request);
+    requirePermission(user, "user:admin");
+    return this.adminService.updateSeasonCover(user, seasonId, body);
+  }
+
   @Patch("reports/:reportId")
   async updateReport(
     @Req() request: CookieRequest,

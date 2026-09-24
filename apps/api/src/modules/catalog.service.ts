@@ -37,6 +37,7 @@ export class CatalogService {
 
   async getCurrentSeason(): Promise<{
     season: {
+      readonly coverUrl: string | null;
       readonly descriptionKey: string | null;
       readonly endsAt: string | null;
       readonly nameKey: string;
@@ -57,6 +58,7 @@ export class CatalogService {
     return {
       season: season
         ? {
+            coverUrl: season.coverUrl,
             descriptionKey: season.descriptionKey,
             endsAt: dateToIso(season.endsAt),
             nameKey: season.nameKey,

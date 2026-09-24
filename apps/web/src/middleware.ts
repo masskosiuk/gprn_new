@@ -1,4 +1,9 @@
-import { defaultLocale, isSupportedLocale, supportedLocales, type SupportedLocale } from "@gprn/i18n";
+import {
+  defaultLocale,
+  isSupportedLocale,
+  supportedLocales,
+  type SupportedLocale,
+} from "@gprn/i18n";
 import { NextResponse, type NextRequest } from "next/server";
 
 const localeCookieName = "gprn_locale";
@@ -29,14 +34,18 @@ function detectLocale(request: NextRequest): SupportedLocale {
     .filter((value): value is string => Boolean(value));
 
   for (const acceptedLanguage of acceptedLanguages ?? []) {
-    const exactMatch = supportedLocales.find((supportedLocale) => supportedLocale === acceptedLanguage);
+    const exactMatch = supportedLocales.find(
+      (supportedLocale) => supportedLocale === acceptedLanguage,
+    );
 
     if (exactMatch) {
       return exactMatch;
     }
 
     const baseLanguage = acceptedLanguage.split("-")[0];
-    const baseMatch = supportedLocales.find((supportedLocale) => supportedLocale === baseLanguage);
+    const baseMatch = supportedLocales.find(
+      (supportedLocale) => supportedLocale === baseLanguage,
+    );
 
     if (baseMatch) {
       return baseMatch;
@@ -48,6 +57,6 @@ function detectLocale(request: NextRequest): SupportedLocale {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|icon.svg|robots.txt|sitemap.xml).*)"
-  ]
+    "/((?!api|_next/static|_next/image|images|favicon.ico|icon.svg|robots.txt|sitemap.xml).*)",
+  ],
 };

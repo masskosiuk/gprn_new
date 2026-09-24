@@ -103,6 +103,25 @@ nano .env.production
 
 ### Автоматическое подключение социальных профилей
 
+Для регистрации и входа через Google создайте OAuth 2.0 Client ID типа
+`Web application` в Google Cloud Console. Укажите разрешённый источник и
+точный callback URL:
+
+```text
+https://photoapp.metarp.top
+https://photoapp.metarp.top/api/v1/auth/google/callback
+```
+
+Добавьте полученные значения в `/opt/gprn/.env.production`:
+
+```dotenv
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+```
+
+Если эти переменные не заданы, кнопка Google остаётся видимой, но сообщает,
+что провайдер ещё не настроен. После изменения env пересоздайте контейнер API.
+
 Создайте приложения в Meta Developer и зарегистрируйте точные callback URL:
 
 ```text

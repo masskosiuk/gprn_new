@@ -731,6 +731,7 @@ model Season {
   slug           String                @unique
   nameKey        String
   descriptionKey String?
+  coverUrl       String?
   status         SeasonStatus          @default(DRAFT)
   startsAt       DateTime
   endsAt         DateTime
@@ -768,6 +769,7 @@ model Challenge {
   slug           String           @unique
   titleKey       String
   descriptionKey String?
+  coverUrl       String?
   status         ChallengeStatus  @default(DRAFT)
   startsAt       DateTime?
   endsAt         DateTime?

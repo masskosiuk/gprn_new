@@ -81,6 +81,8 @@ import {
 import { getSectionHref, type SectionId } from "./sections";
 
 type AuthMode = "login" | "register";
+type GoogleAuthStatus =
+  "AVAILABLE" | "COMING_SOON" | "LOADING" | "NEEDS_CONFIGURATION";
 type ThemeMode = "dark" | "light";
 type AccountTier =
   "viewer" | "amateur" | "beginner" | "experienced" | "professional" | "star";
@@ -191,7 +193,9 @@ interface LocalNotification {
   readonly createdAt: string;
   readonly id: string;
   readonly messageKey: MessageKey;
+  readonly message?: string;
   readonly read: boolean;
+  readonly serverBacked?: boolean;
 }
 
 interface AccountRecord {
@@ -265,6 +269,7 @@ interface ServerPhotoPayload {
     readonly visibility: string;
   } | null;
   readonly locationLabel?: string | null;
+  readonly moderationStatus?: string;
   readonly owner?: {
     readonly displayName: string;
     readonly id: string;
@@ -342,6 +347,7 @@ interface ServerBattlePayload {
     readonly photo: {
       readonly displayUrl: string | null;
       readonly id: string;
+      readonly moderationStatus: string;
       readonly provenanceStatus: string | null;
       readonly title: string;
     };
@@ -360,6 +366,7 @@ interface ServerBattlePayload {
     readonly submittedAt: string;
   } | null;
   readonly votesCount: number;
+  readonly viewerParticipates: boolean;
 }
 
 interface ServerChallengePayload {
@@ -368,6 +375,7 @@ interface ServerChallengePayload {
     readonly slug: string;
   } | null;
   readonly descriptionKey: string | null;
+  readonly coverUrl: string | null;
   readonly endsAt: string | null;
   readonly entriesCount: number;
   readonly entries: readonly {
@@ -437,6 +445,57 @@ interface AdminOverviewRecord {
   };
 }
 
+interface AdminModerationPhoto {
+  readonly category: { readonly nameKey: string; readonly slug: string } | null;
+  readonly contexts: {
+    readonly battles: readonly {
+      readonly battleId: string;
+      readonly status: string;
+    }[];
+    readonly challenges: readonly {
+      readonly challengeId: string;
+      readonly slug: string;
+      readonly status: string;
+    }[];
+  };
+  readonly createdAt: string;
+  readonly displayUrl: string | null;
+  readonly id: string;
+  readonly moderationStatus: string;
+  readonly owner: {
+    readonly displayName: string;
+    readonly email: string;
+    readonly id: string;
+    readonly username: string | null;
+  };
+  readonly provenanceStatus: string | null;
+  readonly status: string;
+  readonly title: string;
+}
+
+interface AdminModerationDraft {
+  readonly categorySlug: string;
+  readonly reason: string;
+}
+
+interface AdminCompetitionCover {
+  readonly coverUrl: string | null;
+  readonly id: string;
+  readonly kind: "challenge" | "season";
+  readonly labelKey: string;
+  readonly slug: string;
+  readonly status: string;
+}
+
+interface ServerNotificationPayload {
+  readonly createdAt: string;
+  readonly id: string;
+  readonly payload: Record<string, unknown> | null;
+  readonly readAt: string | null;
+  readonly status: string;
+  readonly type: string;
+}
+
 interface SocialLinkRecord {
   readonly avatarUrl?: string;
   readonly displayName?: string;
@@ -504,6 +563,7 @@ interface PhotoRecord {
   readonly uploadedAt?: string;
   readonly votes: number;
   readonly moodboardCount?: number;
+  readonly moderationStatus?: string;
 }
 
 interface VideoRecord {
@@ -527,6 +587,7 @@ interface BattleEntry {
   readonly imageUrl: string;
   readonly isMine?: boolean;
   readonly locationId: LocationId;
+  readonly moderationStatus?: string;
   readonly photographerKey?: MessageKey;
   readonly photographerName?: string;
   readonly photoId?: string;
@@ -734,6 +795,11 @@ type CommerceDialog =
     }
   | { readonly kind: "promotion"; readonly photo: PhotoRecord }
   | { readonly kind: "wallet" }
+  | null;
+
+type WorkPickerTarget =
+  | { readonly kind: "battle" }
+  | { readonly challengeId: string; readonly kind: "challenge" }
   | null;
 
 interface CommerceForm {
@@ -2103,7 +2169,7 @@ const demoChallenges: readonly ChallengeRecord[] = [
   {
     categoryId: "street",
     copyKey: "data.challenge.cityNight.copy",
-    coverUrl: sampleImages.city,
+    coverUrl: "/images/challenges/city-night.png",
     deadline: "2026-09-18T21:00:00.000Z",
     id: "city-night",
     participants: 428,
@@ -2113,7 +2179,7 @@ const demoChallenges: readonly ChallengeRecord[] = [
   {
     categoryId: "architecture",
     copyKey: "data.challenge.humanScale.copy",
-    coverUrl: sampleImages.architecture,
+    coverUrl: "/images/challenges/human-scale.png",
     deadline: "2026-09-24T21:00:00.000Z",
     id: "human-scale",
     participants: 211,
@@ -2123,7 +2189,7 @@ const demoChallenges: readonly ChallengeRecord[] = [
   {
     categoryId: "landscape",
     copyKey: "data.challenge.wildWeather.copy",
-    coverUrl: sampleImages.mountain,
+    coverUrl: "/images/challenges/wild-weather.png",
     deadline: "2026-10-02T21:00:00.000Z",
     id: "wild-weather",
     participants: 96,
@@ -2572,6 +2638,8 @@ export function HomeClient({
   } | null>(null);
   const [authForm, setAuthForm] = useState<AuthForm>(emptyAuthForm);
   const [authFeedback, setAuthFeedback] = useState<Feedback | null>(null);
+  const [googleAuthStatus, setGoogleAuthStatus] =
+    useState<GoogleAuthStatus>("LOADING");
   const [globalFeedback, setGlobalFeedback] = useState<Feedback | null>(null);
   const [account, setAccount] = useState<AccountRecord | null>(null);
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
@@ -2579,6 +2647,18 @@ export function HomeClient({
   const [adminOverview, setAdminOverview] =
     useState<AdminOverviewRecord | null>(null);
   const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>([]);
+  const [adminModerationPhotos, setAdminModerationPhotos] = useState<
+    AdminModerationPhoto[]
+  >([]);
+  const [adminModerationDrafts, setAdminModerationDrafts] = useState<
+    Record<string, AdminModerationDraft>
+  >({});
+  const [adminCompetitionCovers, setAdminCompetitionCovers] = useState<
+    AdminCompetitionCover[]
+  >([]);
+  const [adminCoverDrafts, setAdminCoverDrafts] = useState<
+    Record<string, string>
+  >({});
   const [adminUserDrafts, setAdminUserDrafts] = useState<
     Record<string, AdminUserDraft>
   >({});
@@ -2591,6 +2671,8 @@ export function HomeClient({
   >("ALL");
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminBusyUserId, setAdminBusyUserId] = useState<string | null>(null);
+  const [adminBusyPhotoId, setAdminBusyPhotoId] = useState<string | null>(null);
+  const [adminBusyCoverId, setAdminBusyCoverId] = useState<string | null>(null);
   const [adminDeleteConfirmId, setAdminDeleteConfirmId] = useState<
     string | null
   >(null);
@@ -2638,6 +2720,9 @@ export function HomeClient({
     Record<string, string>
   >({});
   const [seasonJoined, setSeasonJoined] = useState(false);
+  const [seasonCoverUrl, setSeasonCoverUrl] = useState(
+    "/images/challenges/city-night.png",
+  );
   const [leaderboardScope, setLeaderboardScope] =
     useState<LeaderboardScope>("global");
   const [savedPhotoIds, setSavedPhotoIds] = useState<string[]>([]);
@@ -2648,6 +2733,8 @@ export function HomeClient({
   const [notifications, setNotifications] = useState<LocalNotification[]>([]);
   const [isNotificationMenuOpen, setNotificationMenuOpen] = useState(false);
   const [commerceDialog, setCommerceDialog] = useState<CommerceDialog>(null);
+  const [workPickerTarget, setWorkPickerTarget] =
+    useState<WorkPickerTarget>(null);
   const [commerceForm, setCommerceForm] =
     useState<CommerceForm>(emptyCommerceForm);
   const [walletBalanceMinor, setWalletBalanceMinor] = useState(0);
@@ -3318,6 +3405,42 @@ export function HomeClient({
   }, [locale, router]);
 
   useEffect(() => {
+    const outcome = new URLSearchParams(window.location.search).get("auth");
+    if (!outcome?.startsWith("google_")) return;
+
+    void (async () => {
+      if (outcome === "google_success") {
+        const user = await refreshServerSession();
+        setGlobalFeedback({
+          kind: user ? "success" : "error",
+          text: user ? t("auth.googleSuccess") : t("auth.googleFailed"),
+        });
+      } else if (outcome !== "google_cancelled") {
+        setGlobalFeedback({ kind: "error", text: t("auth.googleFailed") });
+      }
+      router.replace(window.location.pathname);
+    })();
+  }, [locale, router]);
+
+  useEffect(() => {
+    if (!isAuthOpen) return;
+    setGoogleAuthStatus("LOADING");
+    void apiRequest<{
+      providers: readonly {
+        readonly id: string;
+        readonly status: "AVAILABLE" | "COMING_SOON" | "NEEDS_CONFIGURATION";
+      }[];
+    }>("/auth/providers")
+      .then((response) => {
+        const google = response.providers.find(
+          (provider) => provider.id === "google",
+        );
+        setGoogleAuthStatus(google?.status ?? "COMING_SOON");
+      })
+      .catch(() => setGoogleAuthStatus("NEEDS_CONFIGURATION"));
+  }, [isAuthOpen]);
+
+  useEffect(() => {
     if (
       !isAuthOpen &&
       !isAddPhotoOpen &&
@@ -3327,6 +3450,7 @@ export function HomeClient({
       !isLanguageMenuOpen &&
       !isNotificationMenuOpen &&
       !commerceDialog &&
+      !workPickerTarget &&
       !photoPendingDeletion
     ) {
       return;
@@ -3342,6 +3466,7 @@ export function HomeClient({
         setLanguageMenuOpen(false);
         setNotificationMenuOpen(false);
         setCommerceDialog(null);
+        setWorkPickerTarget(null);
         setPhotoPendingDeletion(null);
       }
     }
@@ -3360,6 +3485,7 @@ export function HomeClient({
     isMobileMenuOpen,
     isNotificationMenuOpen,
     commerceDialog,
+    workPickerTarget,
     photoPendingDeletion,
   ]);
 
@@ -3380,7 +3506,13 @@ export function HomeClient({
   }, [isLanguageMenuOpen]);
 
   useEffect(() => {
-    if (!imagePreview && !commerceDialog && !photoPendingDeletion) return;
+    if (
+      !imagePreview &&
+      !commerceDialog &&
+      !workPickerTarget &&
+      !photoPendingDeletion
+    )
+      return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -3388,7 +3520,7 @@ export function HomeClient({
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [commerceDialog, imagePreview, photoPendingDeletion]);
+  }, [commerceDialog, imagePreview, photoPendingDeletion, workPickerTarget]);
 
   function t(key: MessageKey): string {
     return getMessage(locale, key);
@@ -3684,6 +3816,20 @@ export function HomeClient({
     setAuthOpen(true);
   }
 
+  function startGoogleAuth(): void {
+    if (googleAuthStatus !== "AVAILABLE") {
+      setAuthFeedback({
+        kind: "error",
+        text: t("auth.googleNotConfigured"),
+      });
+      return;
+    }
+    const returnTo = `${window.location.pathname}${window.location.search}`;
+    window.location.assign(
+      `${getApiRoot()}/auth/google/start?returnTo=${encodeURIComponent(returnTo)}`,
+    );
+  }
+
   async function refreshSocialConnections(includeMine: boolean): Promise<void> {
     try {
       const availability = await apiRequest<{
@@ -3954,12 +4100,20 @@ export function HomeClient({
 
   async function refreshServerChallenges(): Promise<void> {
     try {
-      const response = await apiRequest<{
-        challenges: readonly ServerChallengePayload[];
-      }>("/challenges");
+      const [response, seasonResponse] = await Promise.all([
+        apiRequest<{
+          challenges: readonly ServerChallengePayload[];
+        }>("/challenges"),
+        apiRequest<{
+          season: { readonly coverUrl: string | null } | null;
+        }>("/seasons/current"),
+      ]);
       setChallenges(
         response.challenges.map((challenge) => mapServerChallenge(challenge)),
       );
+      if (seasonResponse.season?.coverUrl) {
+        setSeasonCoverUrl(seasonResponse.season.coverUrl);
+      }
     } catch {
       // Demo challenges remain visible only while the public API is unavailable.
     }
@@ -4002,17 +4156,24 @@ export function HomeClient({
     user: ServerSessionUser,
   ): Promise<void> {
     try {
-      const [profileResponse, photosResponse, dashboardResponse] =
-        await Promise.all([
-          apiRequest<{ profile: ServerProfilePayload }>("/profiles/me"),
-          apiRequest<{ photos: ServerPhotoPayload[] }>("/photos/mine"),
-          apiRequest<{
-            bookmarks: string[];
-            moodboards: readonly {
-              readonly items: readonly { photoId: string }[];
-            }[];
-          }>("/platform/dashboard"),
-        ]);
+      const [
+        profileResponse,
+        photosResponse,
+        dashboardResponse,
+        notificationsResponse,
+      ] = await Promise.all([
+        apiRequest<{ profile: ServerProfilePayload }>("/profiles/me"),
+        apiRequest<{ photos: ServerPhotoPayload[] }>("/photos/mine"),
+        apiRequest<{
+          bookmarks: string[];
+          moodboards: readonly {
+            readonly items: readonly { photoId: string }[];
+          }[];
+        }>("/platform/dashboard"),
+        apiRequest<{
+          notifications: ServerNotificationPayload[];
+        }>("/notifications"),
+      ]);
       const profile = profileResponse.profile;
       const previousAccount =
         account?.email === user.email ? account : undefined;
@@ -4030,6 +4191,11 @@ export function HomeClient({
       setMoodboardPhotoIds(
         dashboardResponse.moodboards.flatMap((board) =>
           board.items.map((item) => item.photoId),
+        ),
+      );
+      setNotifications(
+        notificationsResponse.notifications.map((notification) =>
+          mapServerNotification(notification, locale),
         ),
       );
     } catch {
@@ -4104,14 +4270,62 @@ export function HomeClient({
     if (adminTierFilter !== "ALL") query.set("tier", adminTierFilter);
 
     try {
-      const [overview, usersResponse] = await Promise.all([
-        apiRequest<AdminOverviewRecord>("/admin/overview"),
-        apiRequest<{ users: AdminUserRecord[] }>(
-          `/admin/users${query.size > 0 ? `?${query.toString()}` : ""}`,
-        ),
-      ]);
+      const [overview, usersResponse, moderationResponse, coversResponse] =
+        await Promise.all([
+          apiRequest<AdminOverviewRecord>("/admin/overview"),
+          apiRequest<{ users: AdminUserRecord[] }>(
+            `/admin/users${query.size > 0 ? `?${query.toString()}` : ""}`,
+          ),
+          apiRequest<{ photos: AdminModerationPhoto[] }>("/admin/moderation"),
+          apiRequest<{
+            challenges: readonly {
+              readonly coverUrl: string | null;
+              readonly id: string;
+              readonly slug: string;
+              readonly status: string;
+              readonly titleKey: string;
+            }[];
+            seasons: readonly {
+              readonly coverUrl: string | null;
+              readonly id: string;
+              readonly nameKey: string;
+              readonly slug: string;
+              readonly status: string;
+            }[];
+          }>("/admin/competition-covers"),
+        ]);
       setAdminOverview(overview);
       setAdminUsers(usersResponse.users);
+      setAdminModerationPhotos(moderationResponse.photos);
+      setAdminModerationDrafts(
+        Object.fromEntries(
+          moderationResponse.photos.map((photo) => [
+            photo.id,
+            {
+              categorySlug: photo.category?.slug ?? "documentary",
+              reason: "",
+            },
+          ]),
+        ),
+      );
+      const competitionCovers: AdminCompetitionCover[] = [
+        ...coversResponse.seasons.map((season) => ({
+          ...season,
+          kind: "season" as const,
+          labelKey: season.nameKey,
+        })),
+        ...coversResponse.challenges.map((challenge) => ({
+          ...challenge,
+          kind: "challenge" as const,
+          labelKey: challenge.titleKey,
+        })),
+      ];
+      setAdminCompetitionCovers(competitionCovers);
+      setAdminCoverDrafts(
+        Object.fromEntries(
+          competitionCovers.map((cover) => [cover.id, cover.coverUrl ?? ""]),
+        ),
+      );
       setAdminUserDrafts(
         Object.fromEntries(
           usersResponse.users.map((user) => [
@@ -4248,6 +4462,88 @@ export function HomeClient({
       setAdminFeedback({ kind: "error", text: t("admin.actionFailed") });
     } finally {
       setAdminBusyUserId(null);
+    }
+  }
+
+  function updateAdminModerationDraft(
+    photoId: string,
+    field: keyof AdminModerationDraft,
+    value: string,
+  ): void {
+    setAdminModerationDrafts((current) => ({
+      ...current,
+      [photoId]: {
+        ...(current[photoId] ?? {
+          categorySlug: "documentary",
+          reason: "",
+        }),
+        [field]: value,
+      },
+    }));
+  }
+
+  async function moderateAdminPhoto(
+    photo: AdminModerationPhoto,
+    moderationStatus: "APPROVED" | "REJECTED" | "UNDER_REVIEW",
+  ): Promise<void> {
+    const draft = adminModerationDrafts[photo.id];
+    if (!draft) return;
+    if (moderationStatus === "REJECTED" && draft.reason.trim().length < 3) {
+      setAdminFeedback({ kind: "error", text: t("admin.reasonRequired") });
+      return;
+    }
+
+    setAdminBusyPhotoId(photo.id);
+    setAdminFeedback(null);
+    try {
+      await apiRequest(
+        `/admin/photos/${encodeURIComponent(photo.id)}/moderation`,
+        {
+          body: JSON.stringify({
+            categorySlug: draft.categorySlug,
+            moderationStatus,
+            reason: draft.reason.trim() || undefined,
+          }),
+          method: "PATCH",
+        },
+      );
+      setAdminFeedback({
+        kind: "success",
+        text:
+          moderationStatus === "APPROVED"
+            ? t("admin.moderationApproved")
+            : moderationStatus === "REJECTED"
+              ? t("admin.moderationRejected")
+              : t("admin.moderationSaved"),
+      });
+      await loadAdminData();
+    } catch {
+      setAdminFeedback({ kind: "error", text: t("admin.actionFailed") });
+    } finally {
+      setAdminBusyPhotoId(null);
+    }
+  }
+
+  async function saveAdminCompetitionCover(
+    cover: AdminCompetitionCover,
+  ): Promise<void> {
+    const coverUrl = adminCoverDrafts[cover.id]?.trim() ?? "";
+    setAdminBusyCoverId(cover.id);
+    setAdminFeedback(null);
+    try {
+      await apiRequest(
+        `/admin/${cover.kind === "season" ? "seasons" : "challenges"}/${encodeURIComponent(cover.id)}/cover`,
+        {
+          body: JSON.stringify({ coverUrl }),
+          method: "PATCH",
+        },
+      );
+      setAdminFeedback({ kind: "success", text: t("admin.coverSaved") });
+      await Promise.all([loadAdminData(), refreshServerChallenges()]);
+    } catch {
+      setAdminFeedback({ kind: "error", text: t("admin.coverSaveFailed") });
+    } finally {
+      setAdminBusyCoverId(null);
     }
   }
 
@@ -4992,6 +5288,23 @@ export function HomeClient({
     );
   }
 
+  async function markAllNotificationsRead(): Promise<void> {
+    const unreadServerNotifications = notifications.filter(
+      (notification) => !notification.read && notification.serverBacked,
+    );
+    setNotifications((current) =>
+      current.map((notification) => ({ ...notification, read: true })),
+    );
+    await Promise.all(
+      unreadServerNotifications.map((notification) =>
+        apiRequest(
+          `/notifications/${encodeURIComponent(notification.id)}/read`,
+          { method: "PATCH" },
+        ).catch(() => undefined),
+      ),
+    );
+  }
+
   async function shareItem(title: string, path: string): Promise<void> {
     const url = new URL(path, window.location.origin).toString();
 
@@ -5246,26 +5559,30 @@ export function HomeClient({
     }
   }
 
-  async function joinBattle(): Promise<void> {
+  async function joinBattle(photo?: PhotoRecord): Promise<void> {
     if (!currentProfile) {
       openAuth("login");
       setGlobalFeedback({ kind: "error", text: t("battles.needLogin") });
       return;
     }
 
-    if (!selectedUploadedPhoto) {
+    const submissionPhoto = photo ?? selectedUploadedPhoto;
+    if (!submissionPhoto) {
       setGlobalFeedback({ kind: "error", text: t("battles.needPhoto") });
       return;
     }
 
-    if (selectedUploadedPhoto.serverBacked) {
+    if (submissionPhoto.serverBacked) {
       try {
-        if (!selectedUploadedPhoto.published) {
+        if (
+          !submissionPhoto.published &&
+          submissionPhoto.moderationStatus !== "UNDER_REVIEW"
+        ) {
           const published = await apiRequest<{ photo: ServerPhotoPayload }>(
-            `/photos/${encodeURIComponent(selectedUploadedPhoto.id)}/publish`,
+            `/photos/${encodeURIComponent(submissionPhoto.id)}/publish`,
             {
               body: JSON.stringify({
-                locationVisibility: selectedUploadedPhoto.locationLabel
+                locationVisibility: submissionPhoto.locationLabel
                   ? "CITY"
                   : "HIDDEN",
                 visibility: "PUBLIC",
@@ -5289,7 +5606,7 @@ export function HomeClient({
         const response = await apiRequest<{ battle: ServerBattlePayload }>(
           "/battles/join",
           {
-            body: JSON.stringify({ photoId: selectedUploadedPhoto.id }),
+            body: JSON.stringify({ photoId: submissionPhoto.id }),
             method: "POST",
           },
         );
@@ -5301,6 +5618,7 @@ export function HomeClient({
           ...current.filter((candidate) => candidate.id !== battle.id),
         ]);
         setBattleFilter("all");
+        setWorkPickerTarget(null);
         setGlobalFeedback({ kind: "success", text: t("battles.joined") });
         await refreshServerBattles(serverUser?.id);
       } catch {
@@ -5309,13 +5627,13 @@ export function HomeClient({
       return;
     }
 
-    if (!selectedUploadedPhoto.published) {
+    if (!submissionPhoto.published) {
       setGlobalFeedback({ kind: "error", text: t("battles.needPublished") });
       return;
     }
 
     const opponent = curatedPhotos
-      .filter((photo) => photo.categoryId === selectedUploadedPhoto.categoryId)
+      .filter((photo) => photo.categoryId === submissionPhoto.categoryId)
       .map((photo) => ({
         photo,
         rating:
@@ -5335,18 +5653,18 @@ export function HomeClient({
 
     const battleId = `local-battle-${Date.now()}`;
     const newBattle: BattleRecord = {
-      categoryId: selectedUploadedPhoto.categoryId,
+      categoryId: submissionPhoto.categoryId,
       endsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
       entries: [
         {
           id: `${battleId}-mine`,
-          imageUrl: selectedUploadedPhoto.src,
+          imageUrl: submissionPhoto.src,
           isMine: true,
-          locationId: selectedUploadedPhoto.locationId,
+          locationId: submissionPhoto.locationId,
           photographerName: currentProfile.name,
-          photoId: selectedUploadedPhoto.id,
+          photoId: submissionPhoto.id,
           rating: currentProfile.rating,
-          title: getPhotoTitle(selectedUploadedPhoto, locale),
+          title: getPhotoTitle(submissionPhoto, locale),
           votes: 0,
         },
         {
@@ -5388,14 +5706,18 @@ export function HomeClient({
     }
   }
 
-  async function submitChallenge(challengeId: string): Promise<void> {
+  async function submitChallenge(
+    challengeId: string,
+    photo?: PhotoRecord,
+  ): Promise<void> {
     if (!currentProfile) {
       openAuth("login");
       setGlobalFeedback({ kind: "error", text: t("challenges.needLogin") });
       return;
     }
 
-    if (!selectedUploadedPhoto) {
+    const submissionPhoto = photo ?? selectedUploadedPhoto;
+    if (!submissionPhoto) {
       setGlobalFeedback({ kind: "error", text: t("challenges.needPhoto") });
       return;
     }
@@ -5408,18 +5730,21 @@ export function HomeClient({
       return;
     }
 
-    if (!selectedUploadedPhoto.serverBacked) {
+    if (!submissionPhoto.serverBacked) {
       setGlobalFeedback({ kind: "error", text: t("challenges.submitFailed") });
       return;
     }
 
     try {
-      if (!selectedUploadedPhoto.published) {
+      if (
+        !submissionPhoto.published &&
+        submissionPhoto.moderationStatus !== "UNDER_REVIEW"
+      ) {
         const published = await apiRequest<{ photo: ServerPhotoPayload }>(
-          `/photos/${encodeURIComponent(selectedUploadedPhoto.id)}/publish`,
+          `/photos/${encodeURIComponent(submissionPhoto.id)}/publish`,
           {
             body: JSON.stringify({
-              locationVisibility: selectedUploadedPhoto.locationLabel
+              locationVisibility: submissionPhoto.locationLabel
                 ? "CITY"
                 : "HIDDEN",
               visibility: "PUBLIC",
@@ -5439,14 +5764,15 @@ export function HomeClient({
       await apiRequest(
         `/challenges/${encodeURIComponent(challengeId)}/submit`,
         {
-          body: JSON.stringify({ photoId: selectedUploadedPhoto.id }),
+          body: JSON.stringify({ photoId: submissionPhoto.id }),
           method: "POST",
         },
       );
       setChallengeEntries((currentEntries) => ({
         ...currentEntries,
-        [challengeId]: selectedUploadedPhoto.id,
+        [challengeId]: submissionPhoto.id,
       }));
+      setWorkPickerTarget(null);
       setGlobalFeedback({ kind: "success", text: t("challenges.submitted") });
       await Promise.all([
         refreshChallengeParticipation(true),
@@ -5458,6 +5784,57 @@ export function HomeClient({
         text: t("challenges.submitFailed"),
       });
     }
+  }
+
+  async function withdrawChallenge(challengeId: string): Promise<void> {
+    try {
+      await apiRequest(
+        `/challenges/${encodeURIComponent(challengeId)}/submission`,
+        { method: "DELETE" },
+      );
+      setChallengeEntries((current) => {
+        const next = { ...current };
+        delete next[challengeId];
+        return next;
+      });
+      setGlobalFeedback({
+        kind: "success",
+        text: t("challenges.withdrawn"),
+      });
+      await Promise.all([
+        refreshChallengeParticipation(true),
+        refreshServerChallenges(),
+      ]);
+    } catch {
+      setGlobalFeedback({
+        kind: "error",
+        text: t("challenges.withdrawFailed"),
+      });
+    }
+  }
+
+  async function withdrawBattle(battleId: string): Promise<void> {
+    try {
+      await apiRequest(
+        `/battles/${encodeURIComponent(battleId)}/participation`,
+        { method: "DELETE" },
+      );
+      setGlobalFeedback({ kind: "success", text: t("battles.withdrawn") });
+      await refreshServerBattles(serverUser?.id);
+    } catch {
+      setGlobalFeedback({
+        kind: "error",
+        text: t("battles.withdrawFailed"),
+      });
+    }
+  }
+
+  function openWorkPicker(target: Exclude<WorkPickerTarget, null>): void {
+    if (!currentProfile) {
+      openAuth("login");
+      return;
+    }
+    setWorkPickerTarget(target);
   }
 
   function toggleWishlist(productId: string): void {
@@ -5633,12 +6010,7 @@ export function HomeClient({
                       <button
                         className="text-link-button"
                         onClick={() => {
-                          setNotifications((current) =>
-                            current.map((notification) => ({
-                              ...notification,
-                              read: true,
-                            })),
-                          );
+                          void markAllNotificationsRead();
                         }}
                         type="button"
                       >
@@ -5651,7 +6023,9 @@ export function HomeClient({
                           className={`header-notification-item${notification.read ? "" : " is-unread"}`}
                           key={notification.id}
                         >
-                          <span>{t(notification.messageKey)}</span>
+                          <span>
+                            {notification.message ?? t(notification.messageKey)}
+                          </span>
                           <time>
                             {formatDate(locale, notification.createdAt)}
                           </time>
@@ -5767,6 +6141,7 @@ export function HomeClient({
       {isAuthOpen ? renderAuthDialog() : null}
       {isAddPhotoOpen ? renderAddPhotoDialog() : null}
       {commerceDialog ? renderCommerceDialog() : null}
+      {workPickerTarget ? renderWorkPickerDialog() : null}
       {photoPendingDeletion ? renderDeletePhotoDialog() : null}
       {imagePreview ? renderImagePreviewDialog() : null}
     </main>
@@ -6825,7 +7200,15 @@ export function HomeClient({
               <span
                 className={`photo-status ${photo.published ? "is-public" : "is-draft"}`}
               >
-                {photo.published ? t("photo.public") : t("photo.draft")}
+                {photo.published
+                  ? t("photo.public")
+                  : photo.moderationStatus === "REJECTED"
+                    ? t("submission.rejected")
+                    : photo.moderationStatus === "UNDER_REVIEW"
+                      ? t("submission.reviewing")
+                      : photo.moderationStatus === "PENDING"
+                        ? t("submission.pending")
+                        : t("photo.draft")}
               </span>
             </div>
           ) : null}
@@ -6917,18 +7300,7 @@ export function HomeClient({
             </button>
             {photo.isMine ? (
               <>
-                {!photo.published ? (
-                  <button
-                    className="primary-action compact"
-                    onClick={() => {
-                      void publishPhoto(photo.id);
-                    }}
-                    type="button"
-                  >
-                    <Upload aria-hidden="true" size={16} />
-                    {t("photo.publish")}
-                  </button>
-                ) : (
+                {photo.published ? (
                   <>
                     <button
                       className="secondary-action compact"
@@ -6955,7 +7327,19 @@ export function HomeClient({
                       {t("promotion.promote")}
                     </button>
                   </>
-                )}
+                ) : photo.moderationStatus !== "UNDER_REVIEW" &&
+                  photo.moderationStatus !== "REJECTED" ? (
+                  <button
+                    className="primary-action compact"
+                    onClick={() => {
+                      void publishPhoto(photo.id);
+                    }}
+                    type="button"
+                  >
+                    <Upload aria-hidden="true" size={16} />
+                    {t("photo.publish")}
+                  </button>
+                ) : null}
                 <button
                   aria-label={t("photo.delete")}
                   className="icon-button photo-delete-action"
@@ -6983,7 +7367,7 @@ export function HomeClient({
             alt=""
             aria-hidden="true"
             className="season-cover"
-            src={sampleImages.battleSeason}
+            src={seasonCoverUrl}
           />
           <div className="season-copy">
             <Trophy aria-hidden="true" size={22} />
@@ -7019,37 +7403,13 @@ export function HomeClient({
             </div>
 
             <div className="battle-create-actions">
-              <label className="select-box full-width">
-                <Grid3X3 aria-hidden="true" size={18} />
-                <span className="visually-hidden">
-                  {t("common.selectPhoto")}
-                </span>
-                <select
-                  disabled={uploadedPhotos.length === 0}
-                  onChange={(event) => {
-                    setSelectedPhotoId(event.target.value);
-                  }}
-                  value={selectedUploadedPhoto?.id ?? ""}
-                >
-                  {uploadedPhotos.length === 0 ? (
-                    <option value="">{t("photo.empty")}</option>
-                  ) : (
-                    uploadedPhotos.map((photo) => (
-                      <option key={photo.id} value={photo.id}>
-                        {getPhotoTitle(photo, locale)} -{" "}
-                        {photo.published ? t("photo.public") : t("photo.draft")}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </label>
               <button
                 className="primary-action"
-                onClick={joinBattle}
+                onClick={() => openWorkPicker({ kind: "battle" })}
                 type="button"
               >
-                <Trophy aria-hidden="true" size={18} />
-                {t("battles.join")}
+                <Upload aria-hidden="true" size={18} />
+                {t("common.submitFile")}
               </button>
             </div>
           </div>
@@ -7129,6 +7489,18 @@ export function HomeClient({
             >
               <Share2 aria-hidden="true" size={16} />
             </button>
+            {battle.serverBacked &&
+            battle.entries.some((entry) => entry.isMine) ? (
+              <button
+                aria-label={t("battles.withdraw")}
+                className="icon-button danger-icon-button"
+                onClick={() => void withdrawBattle(battle.id)}
+                title={t("battles.withdraw")}
+                type="button"
+              >
+                <X aria-hidden="true" size={16} />
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -7218,7 +7590,7 @@ export function HomeClient({
             alt=""
             aria-hidden="true"
             className="season-cover"
-            src={sampleImages.night}
+            src={seasonCoverUrl}
           />
           <div className="season-copy">
             <Trophy aria-hidden="true" size={22} />
@@ -7292,7 +7664,10 @@ export function HomeClient({
                       Boolean(submittedPhotoId) || !challenge.acceptingEntries
                     }
                     onClick={() => {
-                      submitChallenge(challenge.id);
+                      openWorkPicker({
+                        challengeId: challenge.id,
+                        kind: "challenge",
+                      });
                     }}
                     type="button"
                   >
@@ -7301,8 +7676,18 @@ export function HomeClient({
                       ? t("challenges.already")
                       : !challenge.acceptingEntries
                         ? t("challenges.statusUpcoming")
-                        : t("challenges.submit")}
+                        : t("common.submitFile")}
                   </button>
+                  {submittedPhotoId ? (
+                    <button
+                      className="secondary-action full-width"
+                      onClick={() => void withdrawChallenge(challenge.id)}
+                      type="button"
+                    >
+                      <X aria-hidden="true" size={17} />
+                      {t("challenges.withdraw")}
+                    </button>
+                  ) : null}
                 </div>
               </article>
             );
@@ -9552,7 +9937,9 @@ export function HomeClient({
                         }
                         key={notification.id}
                       >
-                        <span>{t(notification.messageKey)}</span>
+                        <span>
+                          {notification.message ?? t(notification.messageKey)}
+                        </span>
                         <time dateTime={notification.createdAt}>
                           {formatDate(locale, notification.createdAt)}
                         </time>
@@ -9562,12 +9949,7 @@ export function HomeClient({
                   <button
                     className="secondary-action full-width"
                     onClick={() => {
-                      setNotifications((current) =>
-                        current.map((notification) => ({
-                          ...notification,
-                          read: true,
-                        })),
-                      );
+                      void markAllNotificationsRead();
                     }}
                     type="button"
                   >
@@ -9701,6 +10083,251 @@ export function HomeClient({
             </div>
           ))}
         </div>
+
+        <section className="admin-panel admin-moderation-panel">
+          <div className="admin-panel-heading">
+            <div className="panel-title">
+              <ShieldCheck aria-hidden="true" size={22} />
+              <div>
+                <h2>{t("admin.moderationTitle")}</h2>
+                <p>{t("admin.moderationCopy")}</p>
+              </div>
+            </div>
+            <button
+              aria-label={t("admin.refreshModeration")}
+              className="icon-button"
+              disabled={adminLoading}
+              onClick={() => void loadAdminData()}
+              title={t("admin.refreshModeration")}
+              type="button"
+            >
+              <RefreshCw aria-hidden="true" size={17} />
+            </button>
+          </div>
+
+          {adminLoading && adminModerationPhotos.length === 0 ? (
+            <div className="admin-loading">
+              <RefreshCw aria-hidden="true" size={20} />
+              {t("admin.loadingModeration")}
+            </div>
+          ) : null}
+
+          <div className="admin-moderation-list">
+            {adminModerationPhotos.map((photo) => {
+              const draft = adminModerationDrafts[photo.id];
+              if (!draft) return null;
+              const isBusy = adminBusyPhotoId === photo.id;
+
+              return (
+                <article className="admin-moderation-card" key={photo.id}>
+                  <button
+                    aria-label={photo.title}
+                    className="admin-moderation-preview"
+                    disabled={!photo.displayUrl}
+                    onClick={() => {
+                      if (!photo.displayUrl) return;
+                      setImagePreview({
+                        alt: photo.title,
+                        src: photo.displayUrl,
+                      });
+                    }}
+                    type="button"
+                  >
+                    {photo.displayUrl ? (
+                      <img alt={photo.title} src={photo.displayUrl} />
+                    ) : (
+                      <Images aria-hidden="true" size={30} />
+                    )}
+                  </button>
+
+                  <div className="admin-moderation-body">
+                    <div className="admin-moderation-head">
+                      <div>
+                        <strong>{photo.title}</strong>
+                        <span>
+                          {photo.owner.displayName} · {photo.owner.email}
+                        </span>
+                      </div>
+                      <span className="admin-moderation-status">
+                        {photo.moderationStatus === "UNDER_REVIEW"
+                          ? t("submission.reviewing")
+                          : t("submission.pending")}
+                      </span>
+                    </div>
+
+                    <div className="admin-moderation-contexts">
+                      {photo.contexts.battles.map((context) => (
+                        <span key={context.battleId}>
+                          <Swords aria-hidden="true" size={14} />
+                          {t("admin.inBattle")}
+                        </span>
+                      ))}
+                      {photo.contexts.challenges.map((context) => (
+                        <span key={context.challengeId}>
+                          <Trophy aria-hidden="true" size={14} />
+                          {t("admin.inChallenge")}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="admin-moderation-fields">
+                      <label className="compact-field">
+                        <span>{t("admin.category")}</span>
+                        <select
+                          disabled={isBusy}
+                          onChange={(event) =>
+                            updateAdminModerationDraft(
+                              photo.id,
+                              "categorySlug",
+                              event.target.value,
+                            )
+                          }
+                          value={draft.categorySlug}
+                        >
+                          {categoryFilters
+                            .filter((category) => category.id !== "all")
+                            .map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {t(category.key)}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <label className="compact-field admin-moderation-reason">
+                        <span>{t("admin.reason")}</span>
+                        <input
+                          disabled={isBusy}
+                          maxLength={1000}
+                          onChange={(event) =>
+                            updateAdminModerationDraft(
+                              photo.id,
+                              "reason",
+                              event.target.value,
+                            )
+                          }
+                          placeholder={t("admin.moderationReasonPlaceholder")}
+                          type="text"
+                          value={draft.reason}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="admin-moderation-actions">
+                      <button
+                        className="secondary-action compact"
+                        disabled={isBusy}
+                        onClick={() =>
+                          void moderateAdminPhoto(photo, "UNDER_REVIEW")
+                        }
+                        type="button"
+                      >
+                        <Eye aria-hidden="true" size={16} />
+                        {t("admin.keepReviewing")}
+                      </button>
+                      <button
+                        className="danger-action compact"
+                        disabled={isBusy}
+                        onClick={() =>
+                          void moderateAdminPhoto(photo, "REJECTED")
+                        }
+                        type="button"
+                      >
+                        <X aria-hidden="true" size={16} />
+                        {t("admin.reject")}
+                      </button>
+                      <button
+                        className="primary-action compact"
+                        disabled={isBusy}
+                        onClick={() =>
+                          void moderateAdminPhoto(photo, "APPROVED")
+                        }
+                        type="button"
+                      >
+                        <Check aria-hidden="true" size={16} />
+                        {t("admin.approve")}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {!adminLoading && adminModerationPhotos.length === 0 ? (
+            <div className="admin-empty">
+              <CheckCircle2 aria-hidden="true" size={30} />
+              <p>{t("admin.emptyModeration")}</p>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="admin-panel admin-covers-panel">
+          <div className="admin-panel-heading">
+            <div className="panel-title">
+              <Images aria-hidden="true" size={22} />
+              <div>
+                <h2>{t("admin.coversTitle")}</h2>
+                <p>{t("admin.coversCopy")}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="admin-cover-list">
+            {adminCompetitionCovers.map((cover) => {
+              const draft = adminCoverDrafts[cover.id] ?? "";
+              const isBusy = adminBusyCoverId === cover.id;
+              return (
+                <article className="admin-cover-card" key={cover.id}>
+                  <div className="admin-cover-preview">
+                    {draft ? (
+                      <img alt="" aria-hidden="true" src={draft} />
+                    ) : (
+                      <Images aria-hidden="true" size={28} />
+                    )}
+                  </div>
+                  <div className="admin-cover-body">
+                    <div className="admin-cover-title">
+                      <strong>
+                        {t(cover.labelKey as MessageKey) ||
+                          humanizeSlug(cover.slug)}
+                      </strong>
+                      <span>
+                        {cover.kind === "season"
+                          ? t("admin.coverSeason")
+                          : t("admin.coverChallenge")}{" "}
+                        · {cover.status}
+                      </span>
+                    </div>
+                    <label className="compact-field">
+                      <span>{t("admin.coverUrl")}</span>
+                      <input
+                        disabled={isBusy}
+                        onChange={(event) =>
+                          setAdminCoverDrafts((current) => ({
+                            ...current,
+                            [cover.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="/images/challenges/cover.png"
+                        type="url"
+                        value={draft}
+                      />
+                    </label>
+                    <button
+                      className="primary-action compact"
+                      disabled={isBusy || draft === (cover.coverUrl ?? "")}
+                      onClick={() => void saveAdminCompetitionCover(cover)}
+                      type="button"
+                    >
+                      <Check aria-hidden="true" size={16} />
+                      {t("common.save")}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
 
         <section className="admin-panel admin-accounts-panel">
           <div className="admin-panel-heading">
@@ -10487,6 +11114,99 @@ export function HomeClient({
     );
   }
 
+  function renderWorkPickerDialog(): ReactNode {
+    if (!workPickerTarget) return null;
+    const works = uploadedPhotos.filter((photo) => !photo.profileAsset);
+
+    return (
+      <div
+        className="modal-backdrop"
+        onMouseDown={() => setWorkPickerTarget(null)}
+        role="presentation"
+      >
+        <section
+          aria-labelledby="work-picker-title"
+          aria-modal="true"
+          className="auth-dialog work-picker-dialog"
+          onMouseDown={(event) => event.stopPropagation()}
+          role="dialog"
+        >
+          <div className="dialog-header">
+            <div>
+              <span className="eyebrow">{t("common.submitFile")}</span>
+              <h2 id="work-picker-title">{t("submission.chooseWork")}</h2>
+              <p>{t("submission.chooseWorkCopy")}</p>
+            </div>
+            <button
+              aria-label={t("auth.close")}
+              className="icon-button"
+              onClick={() => setWorkPickerTarget(null)}
+              type="button"
+            >
+              <X aria-hidden="true" size={19} />
+            </button>
+          </div>
+
+          {works.length > 0 ? (
+            <div className="work-picker-grid">
+              {works.map((photo) => (
+                <article className="work-picker-item" key={photo.id}>
+                  <img alt={getPhotoTitle(photo, locale)} src={photo.src} />
+                  <div>
+                    <strong>{getPhotoTitle(photo, locale)}</strong>
+                    <span>
+                      {photo.moderationStatus === "APPROVED"
+                        ? t("submission.approved")
+                        : photo.moderationStatus === "REJECTED"
+                          ? t("submission.rejected")
+                          : photo.moderationStatus === "UNDER_REVIEW"
+                            ? t("submission.reviewing")
+                            : t("submission.pending")}
+                    </span>
+                  </div>
+                  <button
+                    className="primary-action compact"
+                    disabled={photo.moderationStatus === "REJECTED"}
+                    onClick={() => {
+                      if (workPickerTarget.kind === "battle") {
+                        void joinBattle(photo);
+                      } else {
+                        void submitChallenge(
+                          workPickerTarget.challengeId,
+                          photo,
+                        );
+                      }
+                    }}
+                    type="button"
+                  >
+                    <Check aria-hidden="true" size={16} />
+                    {t("common.select")}
+                  </button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <Images aria-hidden="true" size={28} />
+              <p>{t("submission.empty")}</p>
+              <button
+                className="primary-action compact"
+                onClick={() => {
+                  setWorkPickerTarget(null);
+                  openAddPhoto();
+                }}
+                type="button"
+              >
+                <Upload aria-hidden="true" size={16} />
+                {t("photo.add")}
+              </button>
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
+
   function renderAddPhotoDialog(): ReactNode {
     return (
       <div
@@ -10626,6 +11346,24 @@ export function HomeClient({
             </button>
           </div>
 
+          <button
+            className="google-auth-button"
+            disabled={googleAuthStatus === "LOADING"}
+            onClick={startGoogleAuth}
+            type="button"
+          >
+            <span aria-hidden="true" className="google-auth-mark">
+              G
+            </span>
+            {authMode === "register"
+              ? t("auth.registerGoogle")
+              : t("auth.loginGoogle")}
+          </button>
+
+          <div className="auth-divider">
+            <span>{t("auth.orEmail")}</span>
+          </div>
+
           <form
             className="auth-form"
             onSubmit={(event) => {
@@ -10741,6 +11479,50 @@ function getPhotoTitle(
   );
 }
 
+function mapServerNotification(
+  notification: ServerNotificationPayload,
+  locale: SupportedLocale,
+): LocalNotification {
+  const title =
+    typeof notification.payload?.title === "string"
+      ? notification.payload.title
+      : getMessage(locale, "photo.selected");
+  const reason =
+    typeof notification.payload?.reason === "string"
+      ? notification.payload.reason
+      : "";
+  const messageKey =
+    notification.type === "photo_moderation_approved"
+      ? "notifications.moderationApproved"
+      : notification.type === "photo_moderation_rejected"
+        ? "notifications.moderationRejected"
+        : notification.type === "photo_moderation_submitted"
+          ? "notifications.moderationSubmitted"
+          : notification.type === "photo_moderation_updated"
+            ? "notifications.moderationUpdated"
+            : notification.type === "challenge_withdrawn"
+              ? "notifications.challengeWithdrawn"
+              : notification.type === "battle_withdrawn"
+                ? "notifications.battleWithdrawn"
+                : notification.type === "challenge_submitted"
+                  ? "notifications.challengeSubmitted"
+                  : notification.type === "battle_joined"
+                    ? "notifications.battleJoined"
+                    : "notifications.photoPublished";
+  const baseMessage = getMessage(locale, messageKey)
+    .replace("{title}", title)
+    .replace("{reason}", reason || getMessage(locale, "admin.noReason"));
+
+  return {
+    createdAt: notification.createdAt,
+    id: notification.id,
+    message: baseMessage,
+    messageKey,
+    read: notification.status !== "UNREAD",
+    serverBacked: true,
+  };
+}
+
 function mapServerPhoto(
   photo: ServerPhotoPayload,
   currentUserId?: string,
@@ -10790,6 +11572,7 @@ function mapServerPhoto(
     locationId: inferLocationId(locationLabel),
     locationLabel: locationLabel ?? "—",
     moodboardCount: photo.counts?.moodboards ?? 0,
+    moderationStatus: photo.moderationStatus,
     originKey: "status.directUpload",
     provenanceKey:
       (photo.provenance?.status ?? photo.provenanceStatus) === "UNVERIFIED"
@@ -10825,6 +11608,7 @@ function mapServerBattle(
       locationId: inferLocationId(entry.locationLabel ?? undefined),
       photographerName: entry.owner.displayName,
       photoId: entry.photo.id,
+      moderationStatus: entry.photo.moderationStatus,
       rating: entry.owner.rating,
       title: entry.photo.title,
       votes: entry.votes,
@@ -10868,6 +11652,8 @@ function mapServerChallenge(
     ...fallback,
     acceptingEntries: challenge.status === "ACTIVE",
     categoryId: normalizeServerCategory(challenge.category?.slug),
+    copyKey: (challenge.descriptionKey ?? fallback.copyKey) as MessageKey,
+    coverUrl: challenge.coverUrl ?? fallback.coverUrl,
     deadline: challenge.endsAt ?? fallback.deadline,
     id: challenge.slug || challenge.id,
     participants: challenge.entriesCount,
@@ -10882,7 +11668,16 @@ function mapServerChallenge(
       challenge.status === "ACTIVE"
         ? "challenges.statusOpen"
         : "challenges.statusUpcoming",
+    titleKey: challenge.titleKey as MessageKey,
   };
+}
+
+function humanizeSlug(slug: string): string {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
 }
 
 function mapServerProfileToAccount(

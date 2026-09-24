@@ -63,11 +63,13 @@ const baseMessages = {
   "common.save": "Save",
   "common.saved": "Saved",
   "common.search": "Search",
+  "common.select": "Select",
   "common.share": "Share",
   "common.selectPhoto": "Select photo",
   "common.signInRequired": "Sign in to use this action.",
   "common.status": "Status",
   "common.submit": "Submit",
+  "common.submitFile": "Submit file",
   "common.view": "View",
   "common.votes": "Votes",
   "common.winner": "Winner",
@@ -90,7 +92,7 @@ const baseMessages = {
   "auth.switchToLogin": "I already have an account",
   "auth.switchToRegister": "Create a new account",
   "auth.note":
-    "This MVP stores account data locally in this browser until the API is connected.",
+    "Your account is stored securely on the service and is available on every device.",
   "auth.validation":
     "Enter a name, a valid email and a password with at least 8 characters.",
   "auth.loginValidation": "Enter a valid email and password.",
@@ -98,6 +100,13 @@ const baseMessages = {
   "auth.badPassword": "The password does not match this local account.",
   "auth.success": "Profile created and you are signed in.",
   "auth.loginSuccess": "You are signed in.",
+  "auth.registerGoogle": "Register with Google",
+  "auth.loginGoogle": "Continue with Google",
+  "auth.orEmail": "or use email",
+  "auth.googleSuccess": "You are signed in with Google.",
+  "auth.googleFailed": "Google sign-in could not be completed.",
+  "auth.googleNotConfigured":
+    "Google sign-in is not configured on the server yet.",
   "auth.loggedInAs": "Signed in as",
   "auth.loggedOut": "You are signed out.",
 
@@ -125,7 +134,7 @@ const baseMessages = {
     "Choose the stronger photograph in a quick head-to-head vote. Results stay hidden until you make your choice.",
   "section.challenges.title": "Challenges",
   "section.challenges.intro":
-    "Join themed competitions, submit a selected photo and track which challenges already contain your work.",
+    "Join themed competitions, submit a file from your profile and track your entries.",
   "section.leaderboard.title": "Reputation leaderboard",
   "section.leaderboard.intro":
     "Compare photographers by global, city and category reputation signals.",
@@ -176,8 +185,10 @@ const baseMessages = {
   "photo.connectWhenAvailable": "Connect when available",
   "photo.deviceWorks": "Device upload is working in this MVP.",
   "photo.public": "Published",
-  "photo.publish": "Publish",
-  "photo.published": "Photo published to your profile and discovery surfaces.",
+  "photo.publish": "Submit for moderation",
+  "photo.published": "Photo sent for moderation.",
+  "photo.moderationSubmitted":
+    "The photo remains in your profile and will become public after approval.",
   "photo.publishRequiresLogin": "Log in before publishing a photo.",
   "photo.delete": "Delete photo",
   "photo.deleteTitle": "Delete this photo?",
@@ -304,17 +315,21 @@ const baseMessages = {
   "battles.evaluationSaved": "Evaluation submitted",
   "battles.duplicate": "You already voted in this battle.",
   "battles.signIn": "Log in before voting.",
-  "battles.joinTitle": "Create a battle from your photo",
+  "battles.joinTitle": "Submit a work to a battle",
   "battles.joinCopy":
-    "Choose a published photo; the opponent is matched by category and rating.",
+    "Choose a work from your profile; it will appear after moderation.",
   "battles.join": "Join battle",
   "battles.joined": "Photo added to the shared battle queue.",
   "battles.joinFailed": "The photo could not be added to the battle queue.",
+  "battles.withdraw": "Cancel battle participation",
+  "battles.withdrawn":
+    "Battle participation cancelled. The file remains in your profile.",
+  "battles.withdrawFailed": "Battle participation could not be cancelled.",
   "battles.voteFailed":
     "The vote could not be submitted. You may have already voted or be participating in this battle.",
   "battles.needPublished":
-    "Publish the selected photo before joining a battle.",
-  "battles.needPhoto": "Upload and select a photo before joining a battle.",
+    "Submit the selected work for moderation before joining a battle.",
+  "battles.needPhoto": "Upload and select a work before joining a battle.",
   "battles.needLogin": "Log in before joining a battle.",
   "battles.ends": "Ends",
   "battles.local": "Local battle",
@@ -329,19 +344,33 @@ const baseMessages = {
     "Photo battles now run in seasons. At the end of each season, the strongest photographers and works will be named winners across dedicated nominations.",
   "battles.seasonFinale": "Season finale and winner nominations",
 
-  "challenges.submit": "Submit selected photo",
-  "challenges.submitted": "Photo submitted to this challenge.",
+  "challenges.submit": "Submit file",
+  "challenges.submitted": "Work submitted to this challenge.",
   "challenges.submitFailed":
     "The photo could not be submitted to this challenge.",
+  "challenges.withdraw": "Cancel participation",
+  "challenges.withdrawn":
+    "Challenge participation cancelled. The file remains in your profile.",
+  "challenges.withdrawFailed":
+    "Challenge participation could not be cancelled.",
   "challenges.notActive": "This challenge is not accepting entries yet.",
   "challenges.submissions": "Participant entries",
   "challenges.already": "Already submitted",
-  "challenges.needPhoto": "Upload and select a photo before submitting.",
+  "challenges.needPhoto": "Upload and select a work before submitting.",
   "challenges.needLogin": "Log in before submitting.",
   "challenges.participants": "Participants",
   "challenges.deadline": "Deadline",
   "challenges.statusOpen": "Open",
   "challenges.statusUpcoming": "Upcoming",
+
+  "submission.chooseWork": "Choose a work from your profile",
+  "submission.chooseWorkCopy":
+    "Select an uploaded work. New submissions remain hidden until moderation is complete.",
+  "submission.approved": "Approved",
+  "submission.rejected": "Rejected",
+  "submission.reviewing": "Under review",
+  "submission.pending": "Awaiting moderation",
+  "submission.empty": "Upload a work to your profile before participating.",
 
   "season.title": "Season 1",
   "season.copy":
@@ -674,6 +703,18 @@ const baseMessages = {
   "notifications.seasonJoined": "You joined Season 1.",
   "notifications.challengeSubmitted":
     "Your photo was submitted to a challenge.",
+  "notifications.moderationApproved":
+    "“{title}” was approved and is now visible to everyone.",
+  "notifications.moderationRejected":
+    "“{title}” was rejected. Reason: {reason}",
+  "notifications.moderationSubmitted":
+    "“{title}” was submitted for moderation.",
+  "notifications.moderationUpdated":
+    "“{title}” remains under moderation review.",
+  "notifications.challengeWithdrawn":
+    "Challenge participation was cancelled. The work remains in your profile.",
+  "notifications.battleWithdrawn":
+    "Battle participation was cancelled. The work remains in your profile.",
 
   "privacy.title": "Privacy and account",
   "privacy.copy":
@@ -728,6 +769,15 @@ const baseMessages = {
     "Architecture, people and scale in one frame.",
   "data.challenge.wildWeather.copy":
     "Landscape or documentary work shaped by weather.",
+  "challenge.street-stories.title": "Street stories",
+  "challenge.street-stories.description":
+    "Honest street scenes with a clear moment and a strong sense of place.",
+  "challenge.available-light-portrait.title": "Available-light portrait",
+  "challenge.available-light-portrait.description":
+    "Portraits shaped by natural or existing light, without a staged studio look.",
+  "challenge.weather-and-land.title": "Weather and land",
+  "challenge.weather-and-land.description":
+    "Landscape and documentary work where weather becomes part of the story.",
 
   "data.market.print.title": "Museum-grade city print",
   "data.market.license.title": "Editorial street set",
@@ -847,6 +897,32 @@ const baseMessages = {
   "admin.accounts": "Accounts and reputation",
   "admin.accountsCopy":
     "Search accounts, assign tiers and ratings, or restrict access.",
+  "admin.moderationTitle": "Battle and challenge moderation",
+  "admin.moderationCopy":
+    "Review submitted works, correct categories, approve or reject entries.",
+  "admin.refreshModeration": "Refresh moderation queue",
+  "admin.loadingModeration": "Loading moderation queue...",
+  "admin.category": "Category",
+  "admin.inBattle": "Battle entry",
+  "admin.inChallenge": "Challenge entry",
+  "admin.moderationReasonPlaceholder":
+    "Required for rejection; sent to the author",
+  "admin.keepReviewing": "Keep under review",
+  "admin.reject": "Reject",
+  "admin.approve": "Approve",
+  "admin.moderationApproved": "The work was approved and published.",
+  "admin.moderationRejected": "The work was rejected and the author notified.",
+  "admin.moderationSaved": "The work remains under review.",
+  "admin.emptyModeration": "There are no works awaiting moderation.",
+  "admin.coversTitle": "Competition covers",
+  "admin.coversCopy":
+    "Change the public cover for each season and challenge. Use a site path or an HTTPS URL.",
+  "admin.coverSeason": "Season",
+  "admin.coverChallenge": "Challenge",
+  "admin.coverUrl": "Cover URL",
+  "admin.coverSaved": "The cover was updated.",
+  "admin.coverSaveFailed": "The cover could not be updated.",
+  "admin.noReason": "No reason provided",
   "admin.refresh": "Refresh accounts",
   "admin.search": "Search accounts",
   "admin.searchPlaceholder": "Name, username or email",
@@ -953,11 +1029,13 @@ const ruMessages: Partial<MessageMap> = {
   "common.save": "Сохранить",
   "common.saved": "Сохранено",
   "common.search": "Поиск",
+  "common.select": "Выбрать",
   "common.share": "Поделиться",
   "common.selectPhoto": "Выбрать фото",
   "common.signInRequired": "Войдите, чтобы выполнить это действие.",
   "common.status": "Статус",
   "common.submit": "Отправить",
+  "common.submitFile": "Отправить файл",
   "common.view": "Смотреть",
   "common.votes": "Голоса",
   "common.winner": "Победитель",
@@ -978,7 +1056,7 @@ const ruMessages: Partial<MessageMap> = {
   "auth.switchToLogin": "У меня уже есть аккаунт",
   "auth.switchToRegister": "Создать новый аккаунт",
   "auth.note":
-    "В MVP данные аккаунта сохраняются локально в этом браузере, пока API не подключено.",
+    "Аккаунт безопасно хранится в сервисе и доступен на всех ваших устройствах.",
   "auth.validation":
     "Введите имя, корректный email и пароль минимум из 8 символов.",
   "auth.loginValidation": "Введите корректный email и пароль.",
@@ -986,6 +1064,12 @@ const ruMessages: Partial<MessageMap> = {
   "auth.badPassword": "Пароль не совпадает с локальным аккаунтом.",
   "auth.success": "Профиль создан, вы вошли в аккаунт.",
   "auth.loginSuccess": "Вы вошли в аккаунт.",
+  "auth.registerGoogle": "Регистрация через Google",
+  "auth.loginGoogle": "Продолжить с Google",
+  "auth.orEmail": "или используйте email",
+  "auth.googleSuccess": "Вы вошли через Google.",
+  "auth.googleFailed": "Не удалось завершить вход через Google.",
+  "auth.googleNotConfigured": "Вход через Google ещё не настроен на сервере.",
   "auth.loggedInAs": "Вы вошли как",
   "auth.loggedOut": "Вы вышли из аккаунта.",
   "home.headline": "Глобальная соревновательная сеть для фотографов.",
@@ -1011,7 +1095,16 @@ const ruMessages: Partial<MessageMap> = {
     "Выберите более сильную фотографию в быстром сравнении. Результаты откроются только после вашего голоса.",
   "section.challenges.title": "Челленджи",
   "section.challenges.intro":
-    "Участвуйте в тематических конкурсах, отправляйте выбранное фото и отслеживайте свои заявки.",
+    "Участвуйте в тематических конкурсах, отправляйте файл из профиля и отслеживайте свои заявки.",
+  "challenge.street-stories.title": "Уличные истории",
+  "challenge.street-stories.description":
+    "Честные уличные сцены с выразительным моментом и ощущением места.",
+  "challenge.available-light-portrait.title": "Портрет в доступном свете",
+  "challenge.available-light-portrait.description":
+    "Портреты в естественном или существующем свете без постановочного студийного эффекта.",
+  "challenge.weather-and-land.title": "Погода и земля",
+  "challenge.weather-and-land.description":
+    "Пейзажные и документальные работы, в которых погода становится частью истории.",
   "section.leaderboard.title": "Рейтинг репутации",
   "section.leaderboard.intro":
     "Сравнивайте фотографов по глобальным, городским и категорийным сигналам репутации.",
@@ -1058,8 +1151,10 @@ const ruMessages: Partial<MessageMap> = {
   "photo.connectWhenAvailable": "Подключить, когда будет доступно",
   "photo.deviceWorks": "Загрузка с устройства работает в этом MVP.",
   "photo.public": "Опубликовано",
-  "photo.publish": "Опубликовать",
-  "photo.published": "Фото опубликовано в профиле и разделе обзора.",
+  "photo.publish": "Отправить на модерацию",
+  "photo.published": "Фото отправлено на модерацию.",
+  "photo.moderationSubmitted":
+    "Фото останется в профиле и станет публичным после одобрения.",
   "photo.publishRequiresLogin": "Войдите перед публикацией фото.",
   "photo.delete": "Удалить фото",
   "photo.deleteTitle": "Удалить это фото?",
@@ -1181,16 +1276,21 @@ const ruMessages: Partial<MessageMap> = {
   "battles.evaluationSaved": "Оценка отправлена",
   "battles.duplicate": "Вы уже голосовали в этом батле.",
   "battles.signIn": "Войдите перед голосованием.",
-  "battles.joinTitle": "Создать батл из своего фото",
+  "battles.joinTitle": "Отправить работу в батл",
   "battles.joinCopy":
-    "Выберите опубликованное фото — соперник подбирается по категории и близкому рейтингу.",
+    "Выберите работу из профиля — она появится в батле после модерации.",
   "battles.join": "Участвовать в батле",
   "battles.joined": "Фото добавлено в общую очередь батлов.",
   "battles.joinFailed": "Не удалось добавить фото в очередь батлов.",
+  "battles.withdraw": "Отменить участие в батле",
+  "battles.withdrawn":
+    "Участие в батле отменено. Файл остался в вашем профиле.",
+  "battles.withdrawFailed": "Не удалось отменить участие в батле.",
   "battles.voteFailed":
     "Не удалось отправить голос. Возможно, вы уже голосовали или участвуете в этом батле.",
-  "battles.needPublished": "Опубликуйте выбранное фото перед участием в батле.",
-  "battles.needPhoto": "Загрузите и выберите фото перед участием.",
+  "battles.needPublished":
+    "Отправьте выбранную работу на модерацию перед участием в батле.",
+  "battles.needPhoto": "Загрузите и выберите работу перед участием.",
   "battles.needLogin": "Войдите перед участием в батле.",
   "battles.ends": "Завершение",
   "battles.local": "Локальный батл",
@@ -1204,18 +1304,30 @@ const ruMessages: Partial<MessageMap> = {
   "battles.seasonCopy":
     "Теперь фотобатлы проходят по сезонам. В финале каждого сезона мы объявим победителей среди фотографов и работ в отдельных номинациях.",
   "battles.seasonFinale": "Финал сезона и номинации победителей",
-  "challenges.submit": "Отправить выбранное фото",
-  "challenges.submitted": "Фото отправлено в челлендж.",
+  "challenges.submit": "Отправить файл",
+  "challenges.submitted": "Работа отправлена в челлендж.",
   "challenges.submitFailed": "Не удалось отправить фото в этот челлендж.",
+  "challenges.withdraw": "Отменить участие",
+  "challenges.withdrawn":
+    "Участие в челлендже отменено. Файл остался в вашем профиле.",
+  "challenges.withdrawFailed": "Не удалось отменить участие в челлендже.",
   "challenges.notActive": "Этот челлендж пока не принимает работы.",
   "challenges.submissions": "Работы участников",
   "challenges.already": "Уже отправлено",
-  "challenges.needPhoto": "Загрузите и выберите фото перед отправкой.",
+  "challenges.needPhoto": "Загрузите и выберите работу перед отправкой.",
   "challenges.needLogin": "Войдите перед отправкой.",
   "challenges.participants": "Участники",
   "challenges.deadline": "Дедлайн",
   "challenges.statusOpen": "Открыт",
   "challenges.statusUpcoming": "Скоро",
+  "submission.chooseWork": "Выберите работу из профиля",
+  "submission.chooseWorkCopy":
+    "Выберите уже загруженную работу. Новая заявка будет скрыта до завершения модерации.",
+  "submission.approved": "Одобрено",
+  "submission.rejected": "Отклонено",
+  "submission.reviewing": "На проверке",
+  "submission.pending": "Ожидает модерации",
+  "submission.empty": "Сначала загрузите работу в свой профиль.",
   "season.title": "Сезон 1",
   "season.copy":
     "Вступайте в первый сезон, отправляйте работы в челленджи и боритесь за итоговые номинации сезона.",
@@ -1539,6 +1651,17 @@ const ruMessages: Partial<MessageMap> = {
   "notifications.battleJoined": "Ваше фото участвует в батле.",
   "notifications.seasonJoined": "Вы вступили в Сезон 1.",
   "notifications.challengeSubmitted": "Ваше фото отправлено в челлендж.",
+  "notifications.moderationApproved":
+    "Работа «{title}» одобрена и теперь видна всем.",
+  "notifications.moderationRejected":
+    "Работа «{title}» отклонена. Причина: {reason}",
+  "notifications.moderationSubmitted":
+    "Работа «{title}» отправлена на модерацию.",
+  "notifications.moderationUpdated": "Работа «{title}» оставлена на модерации.",
+  "notifications.challengeWithdrawn":
+    "Участие в челлендже отменено. Работа осталась в профиле.",
+  "notifications.battleWithdrawn":
+    "Участие в батле отменено. Работа осталась в профиле.",
   "privacy.title": "Приватность и аккаунт",
   "privacy.copy":
     "Экспортируйте локальные данные MVP или запросите удаление аккаунта. При отключении источника импортированные фото остаются в портфолио.",
@@ -1654,6 +1777,32 @@ const ruMessages: Partial<MessageMap> = {
   "admin.accounts": "Аккаунты и репутация",
   "admin.accountsCopy":
     "Поиск аккаунтов, назначение рангов и рейтинга, блокировка доступа.",
+  "admin.moderationTitle": "Модерация батлов и челленджей",
+  "admin.moderationCopy":
+    "Проверяйте работы, исправляйте категории, одобряйте или отклоняйте заявки.",
+  "admin.refreshModeration": "Обновить очередь модерации",
+  "admin.loadingModeration": "Загрузка очереди модерации...",
+  "admin.category": "Категория",
+  "admin.inBattle": "Участие в батле",
+  "admin.inChallenge": "Участие в челлендже",
+  "admin.moderationReasonPlaceholder":
+    "Обязательно при отклонении; автор получит эту причину",
+  "admin.keepReviewing": "Оставить на проверке",
+  "admin.reject": "Отклонить",
+  "admin.approve": "Одобрить",
+  "admin.moderationApproved": "Работа одобрена и опубликована.",
+  "admin.moderationRejected": "Работа отклонена, автор получил уведомление.",
+  "admin.moderationSaved": "Работа оставлена на проверке.",
+  "admin.emptyModeration": "Работ, ожидающих модерации, нет.",
+  "admin.coversTitle": "Обложки соревнований",
+  "admin.coversCopy":
+    "Меняйте публичные обложки сезонов и челленджей. Укажите путь на сайте или HTTPS-ссылку.",
+  "admin.coverSeason": "Сезон",
+  "admin.coverChallenge": "Челлендж",
+  "admin.coverUrl": "URL обложки",
+  "admin.coverSaved": "Обложка обновлена.",
+  "admin.coverSaveFailed": "Не удалось обновить обложку.",
+  "admin.noReason": "Причина не указана",
   "admin.refresh": "Обновить аккаунты",
   "admin.search": "Поиск аккаунтов",
   "admin.searchPlaceholder": "Имя, никнейм или email",

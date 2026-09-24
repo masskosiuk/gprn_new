@@ -50,6 +50,7 @@ interface ChallengeRecord {
     readonly slug: string;
   } | null;
   readonly descriptionKey: string | null;
+  readonly coverUrl: string | null;
   readonly endsAt: Date | null;
   readonly entries: readonly {
     readonly id: string;
@@ -213,6 +214,7 @@ export class ChallengesService {
     entries: readonly {
       readonly challengeId: string;
       readonly challengeSlug: string;
+      readonly moderationStatus: string;
       readonly photoId: string;
       readonly submittedAt: string;
     }[];
@@ -220,7 +222,7 @@ export class ChallengesService {
   }> {
     const [entries, membership] = await Promise.all([
       prisma.challengeEntry.findMany({
-        include: { challenge: true },
+        include: { challenge: true, photo: true },
         orderBy: { submittedAt: "desc" },
         where: { userId: user.id },
       }),
@@ -236,6 +238,7 @@ export class ChallengesService {
       entries: entries.map((entry) => ({
         challengeId: entry.challengeId,
         challengeSlug: entry.challenge.slug,
+        moderationStatus: entry.photo.moderationStatus,
         photoId: entry.photoId,
         submittedAt: entry.submittedAt.toISOString(),
       })),
@@ -297,6 +300,7 @@ export class ChallengesService {
           moderationStatus: true,
           ownerId: true,
           status: true,
+          title: true,
           visibility: true,
         },
         where: {
@@ -312,14 +316,12 @@ export class ChallengesService {
       }
 
       if (
-        photo.status !== "PUBLISHED" ||
-        photo.visibility !== "PUBLIC" ||
-        photo.moderationStatus !== "APPROVED"
+        !["READY", "UNDER_REVIEW", "PUBLISHED"].includes(photo.status) ||
+        photo.moderationStatus === "REJECTED"
       ) {
         throw new ConflictException({
-          code: "CHALLENGE_PHOTO_NOT_PUBLIC",
-          message:
-            "Publish an approved public photo before submitting it to a challenge.",
+          code: "CHALLENGE_PHOTO_NOT_ELIGIBLE",
+          message: "This work cannot be submitted to a challenge.",
         });
       }
 
@@ -344,6 +346,26 @@ export class ChallengesService {
           userId: user.id,
         },
       });
+
+      if (photo.moderationStatus !== "APPROVED") {
+        await tx.photo.update({
+          data: {
+            moderationStatus: "UNDER_REVIEW",
+            status: "UNDER_REVIEW",
+            visibility: "PUBLIC",
+          },
+          where: { id: photo.id },
+        });
+        if (photo.moderationStatus !== "UNDER_REVIEW") {
+          await tx.notification.create({
+            data: {
+              payload: { photoId: photo.id, title: photo.title },
+              type: "photo_moderation_submitted",
+              userId: user.id,
+            },
+          });
+        }
+      }
 
       await tx.analyticsEvent.createMany({
         data: [
@@ -413,6 +435,40 @@ export class ChallengesService {
     };
   }
 
+  async withdraw(user: CurrentUser, challengeIdOrSlug: string) {
+    const entry = await prisma.challengeEntry.findFirst({
+      include: { challenge: true },
+      where: {
+        challenge: isUuid(challengeIdOrSlug)
+          ? { id: challengeIdOrSlug }
+          : { slug: challengeIdOrSlug },
+        userId: user.id,
+      },
+    });
+    if (!entry) {
+      throw new NotFoundException({
+        code: "CHALLENGE_ENTRY_NOT_FOUND",
+        message: "Challenge submission does not exist.",
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.challengeEntry.delete({ where: { id: entry.id } });
+      await tx.notification.create({
+        data: {
+          payload: {
+            challengeSlug: entry.challenge.slug,
+            photoId: entry.photoId,
+          },
+          type: "challenge_withdrawn",
+          userId: user.id,
+        },
+      });
+    });
+
+    return { challengeSlug: entry.challenge.slug, ok: true };
+  }
+
   private toChallengeResponse(challenge: ChallengeRecord) {
     return {
       category: challenge.category
@@ -422,6 +478,7 @@ export class ChallengesService {
           }
         : null,
       descriptionKey: challenge.descriptionKey,
+      coverUrl: challenge.coverUrl,
       endsAt: dateToIso(challenge.endsAt),
       entriesCount: challenge._count.entries,
       entries: challenge.entries.flatMap((entry) => {
@@ -462,6 +519,7 @@ export class ChallengesService {
   }
 
   private toSeasonResponse(season: {
+    readonly coverUrl: string | null;
     readonly descriptionKey: string | null;
     readonly endsAt: Date;
     readonly nameKey: string;
@@ -470,6 +528,7 @@ export class ChallengesService {
     readonly status: string;
   }) {
     return {
+      coverUrl: season.coverUrl,
       descriptionKey: season.descriptionKey,
       endsAt: season.endsAt.toISOString(),
       nameKey: season.nameKey,

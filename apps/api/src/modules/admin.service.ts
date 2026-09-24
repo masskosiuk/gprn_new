@@ -1,3 +1,4 @@
+import { loadRuntimeEnv } from "@gprn/config";
 import { prisma } from "@gprn/db";
 import {
   BadRequestException,
@@ -6,6 +7,7 @@ import {
 } from "@nestjs/common";
 
 import type { CurrentUser } from "./auth.service.js";
+import { publicAssetUrl } from "./serialization.js";
 import { asRecord, optionalString, requiredString } from "./validation.js";
 
 const reportStatuses = new Set([
@@ -52,6 +54,8 @@ const promotionStatuses = new Set([
 
 @Injectable()
 export class AdminService {
+  private readonly env = loadRuntimeEnv();
+
   async overview() {
     const [
       users,
@@ -99,6 +103,89 @@ export class AdminService {
       },
       featureFlags: flags,
     };
+  }
+
+  async competitionCovers() {
+    const [challenges, seasons] = await Promise.all([
+      prisma.challenge.findMany({
+        orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
+        select: {
+          coverUrl: true,
+          id: true,
+          slug: true,
+          status: true,
+          titleKey: true,
+        },
+      }),
+      prisma.season.findMany({
+        orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
+        select: {
+          coverUrl: true,
+          id: true,
+          nameKey: true,
+          slug: true,
+          status: true,
+        },
+      }),
+    ]);
+
+    return { challenges, seasons };
+  }
+
+  async updateChallengeCover(
+    actor: CurrentUser,
+    challengeId: string,
+    body: unknown,
+  ) {
+    const coverUrl = parseCoverUrl(body);
+    return prisma.$transaction(async (tx) => {
+      const previous = await tx.challenge.findUnique({
+        where: { id: challengeId },
+      });
+      if (!previous) {
+        throw notFound("CHALLENGE_NOT_FOUND", "Challenge does not exist.");
+      }
+      const challenge = await tx.challenge.update({
+        data: { coverUrl },
+        where: { id: challengeId },
+      });
+      await tx.auditLog.create({
+        data: {
+          action: "challenge.cover_updated",
+          actorUserId: actor.id,
+          next: { coverUrl },
+          previous: { coverUrl: previous.coverUrl },
+          targetId: challengeId,
+          targetType: "challenge",
+        },
+      });
+      return { challenge };
+    });
+  }
+
+  async updateSeasonCover(actor: CurrentUser, seasonId: string, body: unknown) {
+    const coverUrl = parseCoverUrl(body);
+    return prisma.$transaction(async (tx) => {
+      const previous = await tx.season.findUnique({ where: { id: seasonId } });
+      if (!previous) {
+        throw notFound("SEASON_NOT_FOUND", "Season does not exist.");
+      }
+      const season = await tx.season.update({
+        data: { coverUrl },
+        where: { id: seasonId },
+      });
+      await tx.auditLog.create({
+        data: {
+          action: "season.cover_updated",
+          actorUserId: actor.id,
+          next: { coverUrl },
+          previous: { coverUrl: previous.coverUrl },
+          targetId: seasonId,
+          targetType: "season",
+        },
+      });
+      return { season };
+    });
   }
 
   async users(query: unknown) {
@@ -219,7 +306,14 @@ export class AdminService {
   async moderationQueue() {
     const [photos, reports, disputes] = await Promise.all([
       prisma.photo.findMany({
-        include: { owner: { include: { profile: true } }, provenance: true },
+        include: {
+          assets: true,
+          battleEntries: { include: { battle: true } },
+          category: true,
+          challengeEntries: { include: { challenge: true } },
+          owner: { include: { profile: true } },
+          provenance: true,
+        },
         orderBy: { updatedAt: "asc" },
         take: 100,
         where: {
@@ -243,7 +337,47 @@ export class AdminService {
       }),
     ]);
 
-    return { disputes, photos, reports };
+    return {
+      disputes,
+      photos: photos.map((photo) => {
+        const displayAsset =
+          photo.assets.find((asset) => asset.type === "DISPLAY") ??
+          photo.assets.find((asset) => asset.type === "THUMBNAIL");
+
+        return {
+          category: photo.category
+            ? { nameKey: photo.category.nameKey, slug: photo.category.slug }
+            : null,
+          contexts: {
+            battles: photo.battleEntries.map((entry) => ({
+              battleId: entry.battleId,
+              status: entry.battle.status,
+            })),
+            challenges: photo.challengeEntries.map((entry) => ({
+              challengeId: entry.challengeId,
+              slug: entry.challenge.slug,
+              status: entry.challenge.status,
+            })),
+          },
+          createdAt: photo.createdAt.toISOString(),
+          displayUrl: displayAsset
+            ? publicAssetUrl(this.env, displayAsset.storageKey)
+            : null,
+          id: photo.id,
+          moderationStatus: photo.moderationStatus,
+          owner: {
+            displayName: photo.owner.profile?.displayName ?? photo.owner.email,
+            email: photo.owner.email,
+            id: photo.owner.id,
+            username: photo.owner.profile?.username ?? null,
+          },
+          provenanceStatus: photo.provenance?.status ?? null,
+          status: photo.status,
+          title: photo.title,
+        };
+      }),
+      reports,
+    };
   }
 
   async updateReport(actor: CurrentUser, reportId: string, body: unknown) {
@@ -320,34 +454,103 @@ export class AdminService {
     const record = asRecord(body);
     const moderationStatus = requiredString(record, "moderationStatus");
     const reason = optionalString(record, "reason")?.slice(0, 2000);
+    const categorySlug = optionalString(record, "categorySlug");
     if (!moderationStatuses.has(moderationStatus)) {
       throw invalidStatus();
+    }
+    if (moderationStatus === "REJECTED" && (!reason || reason.length < 3)) {
+      throw new BadRequestException({
+        code: "MODERATION_REASON_REQUIRED",
+        message: "A rejection reason of at least 3 characters is required.",
+      });
     }
 
     return prisma.$transaction(async (tx) => {
       const previous = await tx.photo.findUnique({ where: { id: photoId } });
       if (!previous) throw notFound("PHOTO_NOT_FOUND", "Photo does not exist.");
+      const category = categorySlug
+        ? await tx.category.findUnique({ where: { slug: categorySlug } })
+        : null;
+      if (categorySlug && !category) {
+        throw notFound("CATEGORY_NOT_FOUND", "Category does not exist.");
+      }
       const nextPhotoStatus =
         moderationStatus === "REJECTED"
           ? "REJECTED"
           : moderationStatus === "UNDER_REVIEW"
             ? "UNDER_REVIEW"
-            : previous.status === "UNDER_REVIEW"
-              ? "READY"
-              : previous.status;
+            : moderationStatus === "APPROVED"
+              ? "PUBLISHED"
+              : "READY";
       const photo = await tx.photo.update({
         data: {
+          categoryId: category?.id,
           moderationStatus:
             moderationStatus as typeof previous.moderationStatus,
+          publishedAt:
+            moderationStatus === "APPROVED"
+              ? (previous.publishedAt ?? new Date())
+              : undefined,
           status: nextPhotoStatus,
+          visibility: moderationStatus === "APPROVED" ? "PUBLIC" : undefined,
         },
         where: { id: photoId },
       });
+
+      const battleEntries = await tx.battleEntry.findMany({
+        select: { battleId: true },
+        where: { photoId },
+      });
+      const battleIds = [
+        ...new Set(battleEntries.map((entry) => entry.battleId)),
+      ];
+
+      if (moderationStatus === "REJECTED") {
+        await tx.challengeEntry.deleteMany({ where: { photoId } });
+        await tx.battleEntry.deleteMany({ where: { photoId } });
+      }
+
+      for (const battleId of battleIds) {
+        const battle = await tx.battle.findUnique({
+          include: { entries: { include: { photo: true } } },
+          where: { id: battleId },
+        });
+        if (!battle) continue;
+        if (battle.entries.length === 0) {
+          await tx.battle.delete({ where: { id: battle.id } });
+          continue;
+        }
+
+        const readyToOpen =
+          battle.entries.length === 2 &&
+          battle.entries.every(
+            (entry) => entry.photo.moderationStatus === "APPROVED",
+          );
+        if (!readyToOpen) {
+          await tx.battleVote.deleteMany({ where: { battleId: battle.id } });
+        }
+        await tx.battle.update({
+          data: readyToOpen
+            ? {
+                endsAt:
+                  battle.endsAt ??
+                  new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+                startsAt: battle.startsAt ?? new Date(),
+                status: "OPEN",
+              }
+            : { endsAt: null, startsAt: null, status: "DRAFT" },
+          where: { id: battle.id },
+        });
+      }
       await tx.auditLog.create({
         data: {
           action: "photo.moderated",
           actorUserId: actor.id,
-          next: { moderationStatus, status: nextPhotoStatus },
+          next: {
+            categoryId: category?.id ?? previous.categoryId,
+            moderationStatus,
+            status: nextPhotoStatus,
+          },
           previous: {
             moderationStatus: previous.moderationStatus,
             status: previous.status,
@@ -359,8 +562,19 @@ export class AdminService {
       });
       await tx.notification.create({
         data: {
-          payload: { moderationStatus, photoId, reason },
-          type: "photo_moderated",
+          payload: {
+            categorySlug: category?.slug ?? null,
+            moderationStatus,
+            photoId,
+            reason,
+            title: previous.title,
+          },
+          type:
+            moderationStatus === "APPROVED"
+              ? "photo_moderation_approved"
+              : moderationStatus === "REJECTED"
+                ? "photo_moderation_rejected"
+                : "photo_moderation_updated",
           userId: previous.ownerId,
         },
       });
@@ -687,6 +901,21 @@ function invalidStatus(): BadRequestException {
     code: "INVALID_STATUS",
     message: "Status is not supported.",
   });
+}
+
+function parseCoverUrl(body: unknown): string | null {
+  const coverUrl = optionalString(asRecord(body), "coverUrl");
+  if (!coverUrl) return null;
+  if (
+    coverUrl.length > 2048 ||
+    (!coverUrl.startsWith("/") && !/^https?:\/\//i.test(coverUrl))
+  ) {
+    throw new BadRequestException({
+      code: "INVALID_COVER_URL",
+      message: "coverUrl must be a root-relative or HTTP(S) URL.",
+    });
+  }
+  return coverUrl;
 }
 
 function notFound(code: string, message: string): NotFoundException {
