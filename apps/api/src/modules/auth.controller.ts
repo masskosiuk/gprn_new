@@ -15,6 +15,7 @@ import type { CookieReply, CookieRequest } from "./http.types.js";
 
 interface RedirectReply extends CookieReply {
   redirect(url: string): RedirectReply;
+  status(code: number): RedirectReply;
 }
 
 @ApiTags("auth")
@@ -89,7 +90,7 @@ export class AuthController {
     @Res() reply: RedirectReply,
     @Query("returnTo") returnTo?: string,
   ) {
-    return reply.redirect(
+    return reply.status(302).redirect(
       this.authService.createGoogleAuthorizationUrl(returnTo),
     );
   }
@@ -101,13 +102,15 @@ export class AuthController {
     @Query("state") state?: string,
   ) {
     if (!code || !state) {
-      return reply.redirect(this.authService.createGoogleCancelledUrl());
+      return reply
+        .status(302)
+        .redirect(this.authService.createGoogleCancelledUrl());
     }
     const destination = await this.authService.completeGoogleAuthentication(
       code,
       state,
       reply,
     );
-    return reply.redirect(destination);
+    return reply.status(302).redirect(destination);
   }
 }
