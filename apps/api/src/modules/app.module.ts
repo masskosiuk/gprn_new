@@ -19,6 +19,7 @@ import { FutureController } from "./future.controller.js";
 import { HealthController } from "./health.controller.js";
 import { LeaderboardsController } from "./leaderboards.controller.js";
 import { LeaderboardsService } from "./leaderboards.service.js";
+import { LocationsService } from "./locations.service.js";
 import { NotificationsController } from "./notifications.controller.js";
 import { NotificationsService } from "./notifications.service.js";
 import { PhotosController } from "./photos.controller.js";
@@ -55,7 +56,7 @@ import { SocialConnectionsService } from "./social-connections.service.js";
     ProfilesController,
     ReportsController,
     SeasonsController,
-    SocialConnectionsController
+    SocialConnectionsController,
   ],
   providers: [
     AdminService,
@@ -66,13 +67,14 @@ import { SocialConnectionsService } from "./social-connections.service.js";
     ChallengesService,
     DiscoverService,
     LeaderboardsService,
+    LocationsService,
     NotificationsService,
     PhotosService,
     PlatformService,
     PrivacyService,
     ProfilesService,
     ReportsService,
-    SocialConnectionsService
-  ]
+    SocialConnectionsService,
+  ],
 })
 export class AppModule {}

@@ -9,9 +9,16 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
+import { gps as readGps } from "exifr";
 import sharp, { type Metadata } from "sharp";
 
 import type { CurrentUser } from "./auth.service.js";
+import {
+  formatStoredCityLabel,
+  type LocationSelection,
+  LocationsService,
+  parseLocationSelection,
+} from "./locations.service.js";
 import { bigintToString, dateToIso, publicAssetUrl } from "./serialization.js";
 import {
   asRecord,
@@ -50,7 +57,7 @@ interface AddPhotoInput {
   readonly dataUrl: string;
   readonly description?: string;
   readonly fileName: string;
-  readonly locationLabel?: string;
+  readonly location?: LocationSelection;
   readonly locationVisibility: (typeof allowedLocationVisibility)[number];
   readonly mimeType: (typeof allowedMimeTypes)[number];
   readonly title: string;
@@ -108,7 +115,12 @@ interface PhotoRecord {
     readonly exifJson: unknown;
   } | null;
   readonly location: {
+    readonly city: { readonly slug: string } | null;
+    readonly cityId: string | null;
     readonly publicLabel: string | null;
+    readonly publicLatitude: { toString(): string } | null;
+    readonly publicLongitude: { toString(): string } | null;
+    readonly source: string | null;
     readonly visibility: string;
     readonly precision: string;
   } | null;
@@ -130,6 +142,7 @@ interface ImageRenditions {
   };
   readonly hasExif: boolean;
   readonly height?: number;
+  readonly gps?: { readonly latitude: number; readonly longitude: number };
   readonly metadataSummary: Record<string, unknown>;
   readonly perceptualHash: string;
   readonly sha256: string;
@@ -156,7 +169,7 @@ const photoInclude = {
   },
   assets: true,
   category: true,
-  location: true,
+  location: { include: { city: true } },
   metadata: true,
   owner: {
     include: {
@@ -176,6 +189,8 @@ export class PhotosService {
     region: this.env.S3_REGION,
     secretAccessKey: this.env.S3_SECRET_KEY,
   });
+
+  constructor(private readonly locationsService: LocationsService) {}
 
   getImportSources(): {
     sources: readonly {
@@ -269,6 +284,12 @@ export class PhotosService {
     }
 
     const renditions = await createImageRenditions(decoded);
+    const resolvedLocation = await this.resolvePhotoLocation(
+      user.id,
+      input.location,
+      input.locationVisibility,
+      renditions.gps,
+    );
     const existingHash = await prisma.photoHash.findFirst({
       where: {
         algorithm: "SHA256",
@@ -362,16 +383,13 @@ export class PhotosService {
           },
           id: photoId,
           location: {
-            create: {
-              precision: input.locationLabel ? "CITY" : "UNKNOWN",
-              publicLabel: input.locationLabel,
-              source: input.locationLabel ? "USER_ENTERED" : undefined,
-              visibility: input.locationVisibility,
-            },
+            create: resolvedLocation,
           },
           metadata: {
             create: {
               exifJson: JSON.parse(JSON.stringify(renditions.metadataSummary)),
+              gpsLatitudePrivate: renditions.gps?.latitude,
+              gpsLongitudePrivate: renditions.gps?.longitude,
               orientation: stringifyMetadataValue(
                 renditions.metadataSummary.orientation,
               ),
@@ -384,7 +402,7 @@ export class PhotosService {
             create: {
               captureDateDetected: false,
               duplicateCheckStatus: duplicateStatus,
-              gpsDetected: false,
+              gpsDetected: Boolean(renditions.gps),
               metadataDetected: renditions.hasExif,
               originalFileDetected: true,
               originType: "DIRECT_UPLOAD",
@@ -454,6 +472,92 @@ export class PhotosService {
       duplicate: duplicateStatus,
       photo: this.toPhotoResponse(photo),
       provenance: this.toProvenanceSummary(photo),
+    };
+  }
+
+  private async resolvePhotoLocation(
+    userId: string,
+    selectedLocation: LocationSelection | undefined,
+    requestedVisibility: (typeof allowedLocationVisibility)[number],
+    exifGps:
+      { readonly latitude: number; readonly longitude: number } | undefined,
+  ) {
+    if (selectedLocation) {
+      const city =
+        await this.locationsService.resolveSelection(selectedLocation);
+      return {
+        cityId: city.cityId,
+        countryId: city.countryId,
+        latitudePrivate: city.latitude,
+        longitudePrivate: city.longitude,
+        precision: "CITY" as const,
+        publicLabel: city.label,
+        publicLatitude: city.latitude,
+        publicLongitude: city.longitude,
+        regionId: city.regionId,
+        source: "USER_SELECTED" as const,
+        visibility:
+          requestedVisibility === "HIDDEN"
+            ? ("HIDDEN" as const)
+            : ("CITY" as const),
+      };
+    }
+
+    if (exifGps) {
+      const nearest = await this.locationsService.nearestKnownCity(
+        exifGps.latitude,
+        exifGps.longitude,
+      );
+      return {
+        cityId: nearest?.cityId,
+        countryId: nearest?.countryId,
+        latitudePrivate: exifGps.latitude,
+        longitudePrivate: exifGps.longitude,
+        precision: "EXACT" as const,
+        publicLabel:
+          nearest?.label ??
+          `${exifGps.latitude.toFixed(2)}, ${exifGps.longitude.toFixed(2)}`,
+        publicLatitude: roundCoordinate(exifGps.latitude),
+        publicLongitude: roundCoordinate(exifGps.longitude),
+        regionId: nearest?.regionId,
+        source: "EXIF" as const,
+        visibility:
+          requestedVisibility === "HIDDEN"
+            ? ("HIDDEN" as const)
+            : ("APPROXIMATE" as const),
+      };
+    }
+
+    const profile = await prisma.profile.findUnique({
+      include: { city: true, country: true },
+      where: { userId },
+    });
+    if (profile?.city?.latitude && profile.city.longitude) {
+      return {
+        cityId: profile.city.id,
+        countryId: profile.city.countryId,
+        latitudePrivate: Number(profile.city.latitude),
+        longitudePrivate: Number(profile.city.longitude),
+        precision: "CITY" as const,
+        publicLabel: formatStoredCityLabel(
+          profile.city.nameKey,
+          profile.city.slug,
+          profile.country?.nameKey,
+        ),
+        publicLatitude: Number(profile.city.latitude),
+        publicLongitude: Number(profile.city.longitude),
+        regionId: profile.city.regionId,
+        source: "USER_SELECTED" as const,
+        visibility:
+          requestedVisibility === "HIDDEN"
+            ? ("HIDDEN" as const)
+            : ("CITY" as const),
+      };
+    }
+
+    return {
+      precision: "UNKNOWN" as const,
+      visibility: "HIDDEN" as const,
     };
   }
 
@@ -910,8 +1014,22 @@ export class PhotosService {
       id: photo.id,
       location: photo.location
         ? {
+            city: photo.location.city
+              ? { slug: photo.location.city.slug }
+              : null,
             precision: photo.location.precision,
             publicLabel: photo.location.publicLabel,
+            publicLatitude:
+              photo.location.visibility === "HIDDEN" ||
+              photo.location.publicLatitude === null
+                ? null
+                : Number(photo.location.publicLatitude),
+            publicLongitude:
+              photo.location.visibility === "HIDDEN" ||
+              photo.location.publicLongitude === null
+                ? null
+                : Number(photo.location.publicLongitude),
+            source: photo.location.source,
             visibility: photo.location.visibility,
           }
         : null,
@@ -1017,7 +1135,7 @@ function parseAddPhotoInput(body: unknown): AddPhotoInput {
     dataUrl: requiredString(record, "dataUrl"),
     description: optionalString(record, "description"),
     fileName: requiredString(record, "fileName"),
-    locationLabel: optionalString(record, "locationLabel"),
+    location: parseLocationSelection(record.location),
     locationVisibility:
       optionalEnum(record, "locationVisibility", allowedLocationVisibility) ??
       "HIDDEN",
@@ -1083,6 +1201,8 @@ async function createImageRenditions(buffer: Buffer): Promise<ImageRenditions> {
       .webp({ quality: 78 })
       .toBuffer({ resolveWithObject: true });
 
+    const gps = await readGps(buffer).catch(() => undefined);
+
     return {
       display: {
         buffer: display.data,
@@ -1091,6 +1211,10 @@ async function createImageRenditions(buffer: Buffer): Promise<ImageRenditions> {
       },
       hasExif: Boolean(metadata.exif),
       height: metadata.height,
+      gps:
+        gps && Number.isFinite(gps.latitude) && Number.isFinite(gps.longitude)
+          ? gps
+          : undefined,
       metadataSummary: metadataToJson(metadata),
       perceptualHash: await createPerceptualHash(buffer),
       sha256: sha256(buffer),
@@ -1108,6 +1232,10 @@ async function createImageRenditions(buffer: Buffer): Promise<ImageRenditions> {
       reason: error instanceof Error ? error.message : "unknown",
     });
   }
+}
+
+function roundCoordinate(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 async function createPerceptualHash(buffer: Buffer): Promise<string> {

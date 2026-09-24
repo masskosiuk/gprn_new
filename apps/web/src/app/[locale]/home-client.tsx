@@ -122,7 +122,7 @@ type BattleScores = Record<BattleCriterion, number>;
 type LeaderboardScope = "global" | "city" | "category";
 type LocationId =
   "paris" | "kyiv" | "tokyo" | "reykjavik" | "lisbon" | "marrakech";
-type LocationFilter = "all" | LocationId;
+type LocationFilter = "all" | string;
 type StudioEquipment =
   | "cyclorama"
   | "flash"
@@ -209,6 +209,7 @@ interface AccountRecord {
   readonly following: number;
   readonly joinedAt: string;
   readonly location: string;
+  readonly locationSelection?: LocationOption;
   readonly name: string;
   readonly passwordHash: string;
   readonly rating: number;
@@ -265,7 +266,11 @@ interface ServerPhotoPayload {
   readonly displayUrl?: string | null;
   readonly id: string;
   readonly location?: {
+    readonly city: { readonly slug: string } | null;
     readonly publicLabel: string | null;
+    readonly publicLatitude: number | null;
+    readonly publicLongitude: number | null;
+    readonly source: string | null;
     readonly visibility: string;
   } | null;
   readonly locationLabel?: string | null;
@@ -298,7 +303,13 @@ interface ServerProfilePayload {
   readonly followers: number;
   readonly following: number;
   readonly location: {
-    readonly city: { readonly nameKey: string; readonly slug: string } | null;
+    readonly city: {
+      readonly label: string;
+      readonly latitude: number | null;
+      readonly longitude: number | null;
+      readonly nameKey: string;
+      readonly slug: string;
+    } | null;
     readonly country: {
       readonly iso2: string;
       readonly nameKey: string;
@@ -589,6 +600,17 @@ interface ProfileForm {
   readonly website: string;
 }
 
+interface LocationOption {
+  readonly admin1?: string;
+  readonly country: string;
+  readonly countryCode: string;
+  readonly externalId: string;
+  readonly label: string;
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly name: string;
+}
+
 interface PhotoRecord {
   readonly authorId?: string;
   readonly authorKey?: MessageKey;
@@ -603,9 +625,11 @@ interface PhotoRecord {
   readonly fileName?: string;
   readonly id: string;
   readonly isMine: boolean;
-  readonly locationId: LocationId;
+  readonly locationId: string;
   readonly locationHidden?: boolean;
   readonly locationLabel?: string;
+  readonly locationLatitude?: number;
+  readonly locationLongitude?: number;
   readonly originKey: MessageKey;
   readonly provenanceKey: MessageKey;
   readonly profileAsset?: boolean;
@@ -643,7 +667,7 @@ interface BattleEntry {
   readonly id: string;
   readonly imageUrl: string;
   readonly isMine?: boolean;
-  readonly locationId: LocationId;
+  readonly locationId: string;
   readonly moderationStatus?: string;
   readonly photographerKey?: MessageKey;
   readonly photographerName?: string;
@@ -2682,6 +2706,14 @@ export function HomeClient({
   const [authMode, setAuthMode] = useState<AuthMode>("register");
   const [isAuthOpen, setAuthOpen] = useState(false);
   const [isAddPhotoOpen, setAddPhotoOpen] = useState(false);
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
+  const [photoLocationQuery, setPhotoLocationQuery] = useState("");
+  const [photoLocationOptions, setPhotoLocationOptions] = useState<
+    readonly LocationOption[]
+  >([]);
+  const [photoLocationSelection, setPhotoLocationSelection] =
+    useState<LocationOption | null>(null);
+  const [photoUploadBusy, setPhotoUploadBusy] = useState(false);
   const [imagePreview, setImagePreview] = useState<ImagePreview | null>(null);
   const [isPhotoReviewOpen, setPhotoReviewOpen] = useState(false);
   const [photoReviewComment, setPhotoReviewComment] = useState("");
@@ -2748,6 +2780,11 @@ export function HomeClient({
   >(null);
   const [adminFeedback, setAdminFeedback] = useState<Feedback | null>(null);
   const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfileForm);
+  const [profileLocationOptions, setProfileLocationOptions] = useState<
+    readonly LocationOption[]
+  >([]);
+  const [profileLocationSelection, setProfileLocationSelection] =
+    useState<LocationOption | null>(null);
   const [socialProviders, setSocialProviders] = useState<
     readonly SocialProviderRecord[]
   >(defaultSocialProviders);
@@ -2991,25 +3028,58 @@ export function HomeClient({
   const profilePhotos = uploadedPhotos.filter(
     (photo) => photo.isMine && !photo.profileAsset,
   );
-  const mapLocations = useMemo(
-    () =>
-      locationPins.map((location) => ({
-        ...location,
-        label: getMessage(locale, location.key),
-      })),
-    [locale],
-  );
+  const mapLocations = useMemo(() => {
+    const knownLocations = locationPins.map((location) => ({
+      ...location,
+      label: getMessage(locale, location.key),
+    }));
+    const dynamicLocations = publicPhotos
+      .filter(
+        (photo) =>
+          !photo.locationHidden &&
+          photo.locationId &&
+          photo.locationLatitude !== undefined &&
+          photo.locationLongitude !== undefined &&
+          !locationPins.some((location) => location.id === photo.locationId),
+      )
+      .map((photo) => ({
+        id: photo.locationId,
+        label: photo.locationLabel ?? "—",
+        latitude: photo.locationLatitude!,
+        longitude: photo.locationLongitude!,
+      }));
+    return [
+      ...knownLocations,
+      ...dynamicLocations.filter(
+        (location, index, all) =>
+          all.findIndex((candidate) => candidate.id === location.id) === index,
+      ),
+    ];
+  }, [locale, publicPhotos]);
   const mapPhotoMarkers = useMemo<readonly PhotoMapMarker[]>(() => {
-    const locationPhotoCounts = new Map<LocationId, number>();
+    const locationPhotoCounts = new Map<string, number>();
 
     return publicPhotos
-      .filter((photo) => !photo.locationHidden)
+      .filter((photo) => {
+        if (photo.locationHidden) return false;
+        const knownLocation = locationPins.find(
+          (candidate) => candidate.id === photo.locationId,
+        );
+        return Boolean(
+          knownLocation ||
+          (photo.locationLatitude !== undefined &&
+            photo.locationLongitude !== undefined),
+        );
+      })
       .map((photo) => {
-        const location =
-          locationPins.find((candidate) => candidate.id === photo.locationId) ??
-          locationPins[0]!;
-        const locationPhotoIndex = locationPhotoCounts.get(location.id) ?? 0;
-        locationPhotoCounts.set(location.id, locationPhotoIndex + 1);
+        const knownLocation = locationPins.find(
+          (candidate) => candidate.id === photo.locationId,
+        );
+        const locationId = photo.locationId || `photo-${photo.id}`;
+        const latitude = photo.locationLatitude ?? knownLocation!.latitude;
+        const longitude = photo.locationLongitude ?? knownLocation!.longitude;
+        const locationPhotoIndex = locationPhotoCounts.get(locationId) ?? 0;
+        locationPhotoCounts.set(locationId, locationPhotoIndex + 1);
         const angle = (locationPhotoIndex * 137.5 * Math.PI) / 180;
         const radius =
           locationPhotoIndex === 0
@@ -3017,11 +3087,11 @@ export function HomeClient({
             : 0.045 * Math.ceil(locationPhotoIndex / 5);
 
         return {
-          id: location.id,
+          id: locationId,
           imageUrl: photo.src,
-          label: getLocationLabel(location.id, locale, photo.locationLabel),
-          latitude: location.latitude + Math.cos(angle) * radius,
-          longitude: location.longitude + Math.sin(angle) * radius,
+          label: getLocationLabel(locationId, locale, photo.locationLabel),
+          latitude: latitude + Math.cos(angle) * radius,
+          longitude: longitude + Math.sin(angle) * radius,
           photoId: photo.id,
           title: getPhotoTitle(photo, locale),
         };
@@ -3393,6 +3463,7 @@ export function HomeClient({
   useEffect(() => {
     if (!currentProfile) {
       setProfileForm(emptyProfileForm);
+      setProfileLocationSelection(null);
       setSocialSessionReady(false);
       return;
     }
@@ -3418,7 +3489,52 @@ export function HomeClient({
       username: currentProfile.username,
       website: currentProfile.website,
     });
+    setProfileLocationSelection(currentProfile.locationSelection ?? null);
   }, [currentProfile?.email, locale]);
+
+  useEffect(() => {
+    const query = profileForm.location.trim();
+    if (
+      query.length < 2 ||
+      profileLocationSelection?.label === profileForm.location
+    ) {
+      setProfileLocationOptions([]);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void searchLocations(query, locale).then((locations) => {
+        if (!cancelled) setProfileLocationOptions(locations);
+      });
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [locale, profileForm.location, profileLocationSelection?.label]);
+
+  useEffect(() => {
+    const query = photoLocationQuery.trim();
+    if (
+      query.length < 2 ||
+      photoLocationSelection?.label === photoLocationQuery
+    ) {
+      setPhotoLocationOptions([]);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void searchLocations(query, locale).then((locations) => {
+        if (!cancelled) setPhotoLocationOptions(locations);
+      });
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [locale, photoLocationQuery, photoLocationSelection?.label]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -3873,11 +3989,14 @@ export function HomeClient({
 
   function openAddPhoto(): void {
     setPhotoFeedback(null);
+    setPendingPhotoFile(null);
+    setPhotoLocationQuery("");
+    setPhotoLocationOptions([]);
+    setPhotoLocationSelection(null);
     setAddPhotoOpen(true);
   }
 
   function chooseDeviceUpload(): void {
-    setAddPhotoOpen(false);
     openPhotoPicker();
   }
 
@@ -3991,6 +4110,16 @@ export function HomeClient({
     }
 
     setPhotoFeedback(null);
+    setPendingPhotoFile(file);
+    setAddPhotoOpen(true);
+  }
+
+  async function uploadPendingPhoto(): Promise<void> {
+    const file = pendingPhotoFile;
+    if (!file || !currentProfile || !serverUser || photoUploadBusy) return;
+
+    setPhotoUploadBusy(true);
+    setPhotoFeedback(null);
     try {
       const dataUrl = await readFileAsDataUrl(file);
       const response = await apiRequest<{ photo: ServerPhotoPayload }>(
@@ -4000,8 +4129,8 @@ export function HomeClient({
             categorySlug: "documentary",
             dataUrl,
             fileName: file.name,
-            locationLabel: currentProfile.location,
-            locationVisibility: currentProfile.location ? "CITY" : "HIDDEN",
+            location: photoLocationSelection ?? undefined,
+            locationVisibility: "APPROXIMATE",
             mimeType: file.type,
             title: makePhotoTitle(file.name),
             visibility: "PUBLIC",
@@ -4019,9 +4148,15 @@ export function HomeClient({
       ]);
       setSelectedPhotoId(uploadedPhoto.id);
       setPhotoFeedback({ kind: "success", text: t("photo.saved") });
+      setAddPhotoOpen(false);
+      setPendingPhotoFile(null);
+      setPhotoLocationQuery("");
+      setPhotoLocationSelection(null);
       await refreshServerSession();
     } catch {
       setPhotoFeedback({ kind: "error", text: t("photo.invalid") });
+    } finally {
+      setPhotoUploadBusy(false);
     }
   }
 
@@ -4920,6 +5055,14 @@ export function HomeClient({
       return;
     }
 
+    if (profileForm.location.trim() && !profileLocationSelection) {
+      setGlobalFeedback({
+        kind: "error",
+        text: t("location.chooseFromList"),
+      });
+      return;
+    }
+
     const canOfferReviews = ["experienced", "professional", "star"].includes(
       currentProfile.tier ?? "viewer",
     );
@@ -4959,7 +5102,8 @@ export function HomeClient({
       detailedReviewPrice: canOfferReviews
         ? detailedReviewPrice
         : currentProfile.detailedReviewPrice,
-      location: profileForm.location.trim() || t("profile.defaultLocation"),
+      location: profileLocationSelection?.label ?? "",
+      locationSelection: profileLocationSelection ?? undefined,
       name: profileForm.displayName.trim() || currentProfile.name,
       presetPrice: profileForm.presetSalesEnabled
         ? presetPrice
@@ -4982,8 +5126,8 @@ export function HomeClient({
         body: JSON.stringify({
           availableForHire: profileForm.availableForHire,
           bio: nextAccount.bio,
-          citySlug: inferLocationId(profileForm.location, locale),
           displayName: nextAccount.name,
+          location: profileLocationSelection ?? undefined,
           username: nextAccount.username,
           visibility: "PUBLIC",
           websiteUrl: nextAccount.website,
@@ -7276,6 +7420,7 @@ export function HomeClient({
     };
 
     const openDiscoverWithLocation = (): void => {
+      if (photo.locationHidden || !photo.locationId) return;
       setDiscoverLocationFilter(photo.locationId);
 
       if (initialSection !== "discover") {
@@ -7362,6 +7507,7 @@ export function HomeClient({
                   discoverLocationFilter === photo.locationId
                 }
                 className="photo-meta-tag"
+                disabled={photo.locationHidden || !photo.locationId}
                 onClick={openDiscoverWithLocation}
                 type="button"
               >
@@ -9867,13 +10013,45 @@ export function HomeClient({
               <label className="form-field" htmlFor="profile-location">
                 <span>{t("profile.location")}</span>
                 <input
+                  autoComplete="off"
                   id="profile-location"
                   onChange={(event) => {
                     updateProfileField("location", event.target.value);
+                    setProfileLocationSelection(null);
                   }}
+                  placeholder={t("location.searchPlaceholder")}
                   type="text"
                   value={profileForm.location}
                 />
+                {profileLocationOptions.length > 0 ? (
+                  <div className="location-options" role="listbox">
+                    {profileLocationOptions.map((location) => (
+                      <button
+                        key={location.externalId}
+                        onClick={() => {
+                          setProfileLocationSelection(location);
+                          updateProfileField("location", location.label);
+                          setProfileLocationOptions([]);
+                        }}
+                        role="option"
+                        type="button"
+                      >
+                        <MapPin aria-hidden="true" size={15} />
+                        <span>{location.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <small>
+                  {t("location.profileHint")} {t("location.dataBy")}{" "}
+                  <a
+                    href="https://open-meteo.com/"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Open-Meteo
+                  </a>
+                </small>
               </label>
 
               <label className="form-field" htmlFor="profile-website">
@@ -11786,29 +11964,101 @@ export function HomeClient({
             </button>
           </div>
 
-          <div className="provider-list">
-            <button
-              className="provider-button is-enabled"
-              onClick={chooseDeviceUpload}
-              type="button"
-            >
-              <ImagePlus aria-hidden="true" size={18} />
-              <span>{t("photo.uploadDevice")}</span>
-              <small>{t("photo.deviceWorks")}</small>
-            </button>
-            {externalPhotoProviders.map((provider) => (
+          {pendingPhotoFile ? (
+            <div className="upload-details">
+              <div className="selected-file-row">
+                <ImagePlus aria-hidden="true" size={18} />
+                <div>
+                  <strong>{pendingPhotoFile.name}</strong>
+                  <small>{formatFileSize(pendingPhotoFile.size)}</small>
+                </div>
+                <button
+                  className="icon-button"
+                  onClick={chooseDeviceUpload}
+                  title={t("photo.chooseAnother")}
+                  type="button"
+                >
+                  <RefreshCw aria-hidden="true" size={16} />
+                </button>
+              </div>
+              <label className="form-field" htmlFor="photo-location">
+                <span>{t("photo.captureLocation")}</span>
+                <input
+                  autoComplete="off"
+                  id="photo-location"
+                  onChange={(event) => {
+                    setPhotoLocationQuery(event.target.value);
+                    setPhotoLocationSelection(null);
+                  }}
+                  placeholder={t("location.photoPlaceholder")}
+                  type="text"
+                  value={photoLocationQuery}
+                />
+                {photoLocationOptions.length > 0 ? (
+                  <div className="location-options" role="listbox">
+                    {photoLocationOptions.map((location) => (
+                      <button
+                        key={location.externalId}
+                        onClick={() => {
+                          setPhotoLocationSelection(location);
+                          setPhotoLocationQuery(location.label);
+                          setPhotoLocationOptions([]);
+                        }}
+                        role="option"
+                        type="button"
+                      >
+                        <MapPin aria-hidden="true" size={15} />
+                        <span>{location.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <small>
+                  {t("location.photoHint")} {t("location.dataBy")}{" "}
+                  <a
+                    href="https://open-meteo.com/"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Open-Meteo
+                  </a>
+                </small>
+              </label>
               <button
-                className="provider-button"
-                disabled
-                key={provider.id}
+                className="primary-action full-width"
+                disabled={photoUploadBusy}
+                onClick={() => void uploadPendingPhoto()}
                 type="button"
               >
-                <LockKeyhole aria-hidden="true" size={18} />
-                <span>{t(provider.key)}</span>
-                <small>{t("photo.connectWhenAvailable")}</small>
+                <Upload aria-hidden="true" size={17} />
+                {photoUploadBusy ? t("common.loading") : t("photo.upload")}
               </button>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="provider-list">
+              <button
+                className="provider-button is-enabled"
+                onClick={chooseDeviceUpload}
+                type="button"
+              >
+                <ImagePlus aria-hidden="true" size={18} />
+                <span>{t("photo.uploadDevice")}</span>
+                <small>{t("photo.deviceWorks")}</small>
+              </button>
+              {externalPhotoProviders.map((provider) => (
+                <button
+                  className="provider-button"
+                  disabled
+                  key={provider.id}
+                  type="button"
+                >
+                  <LockKeyhole aria-hidden="true" size={18} />
+                  <span>{t(provider.key)}</span>
+                  <small>{t("photo.connectWhenAvailable")}</small>
+                </button>
+              ))}
+            </div>
+          )}
 
           {photoFeedback ? (
             <p
@@ -11817,9 +12067,9 @@ export function HomeClient({
             >
               {photoFeedback.text}
             </p>
-          ) : (
+          ) : !pendingPhotoFile ? (
             <p className="helper-message">{t("photo.providersSoon")}</p>
-          )}
+          ) : null}
         </section>
       </div>
     );
@@ -12108,6 +12358,10 @@ function mapServerPhoto(
     photo.location?.visibility === "HIDDEN"
       ? undefined
       : (photo.location?.publicLabel ?? photo.locationLabel ?? undefined);
+  const locationId =
+    photo.location?.city?.slug ?? inferLocationId(locationLabel) ?? "";
+  const locationLatitude = photo.location?.publicLatitude ?? undefined;
+  const locationLongitude = photo.location?.publicLongitude ?? undefined;
 
   return {
     authorId: photo.owner?.id,
@@ -12123,9 +12377,12 @@ function mapServerPhoto(
     isMine: Boolean(currentUserId && photo.owner?.id === currentUserId),
     locationHidden:
       photo.location?.visibility === "HIDDEN" ||
-      (!photo.location && photo.locationLabel === null),
-    locationId: inferLocationId(locationLabel),
+      (!locationLabel &&
+        (locationLatitude === undefined || locationLongitude === undefined)),
+    locationId,
     locationLabel: locationLabel ?? "—",
+    locationLatitude,
+    locationLongitude,
     moodboardCount: photo.counts?.moodboards ?? 0,
     moderationStatus: photo.moderationStatus,
     originKey: "status.directUpload",
@@ -12160,7 +12417,7 @@ function mapServerBattle(
       id: entry.id,
       imageUrl: entry.photo.displayUrl,
       isMine: Boolean(currentUserId && entry.owner.id === currentUserId),
-      locationId: inferLocationId(entry.locationLabel ?? undefined),
+      locationId: inferLocationId(entry.locationLabel ?? undefined) ?? "kyiv",
       photographerName: entry.owner.displayName,
       photoId: entry.photo.id,
       moderationStatus: entry.moderationStatus,
@@ -12260,6 +12517,7 @@ function mapServerProfileToAccount(
     following: profile.following,
     joinedAt: previous?.joinedAt ?? new Date().toISOString(),
     location: getServerProfileLocation(profile, locale),
+    locationSelection: getServerProfileLocationSelection(profile),
     name: profile.displayName,
     passwordHash: previous?.passwordHash ?? "",
     presetPrice: previous?.presetPrice,
@@ -12320,7 +12578,32 @@ function getServerProfileLocation(
     return getMessage(locale, `map.location.${citySlug}` as MessageKey);
   }
 
-  return citySlug ?? profile.location.country?.iso2 ?? "";
+  return (
+    profile.location.city?.label ??
+    citySlug ??
+    profile.location.country?.iso2 ??
+    ""
+  );
+}
+
+function getServerProfileLocationSelection(
+  profile: ServerProfilePayload,
+): LocationOption | undefined {
+  const city = profile.location.city;
+  const country = profile.location.country;
+  if (!city || !country || city.latitude === null || city.longitude === null) {
+    return undefined;
+  }
+
+  return {
+    country: country.nameKey.includes(".") ? country.iso2 : country.nameKey,
+    countryCode: country.iso2,
+    externalId: city.slug.replace(/^geo-/, ""),
+    label: city.label,
+    latitude: city.latitude,
+    longitude: city.longitude,
+    name: city.nameKey.includes(".") ? city.label.split(",")[0]! : city.nameKey,
+  };
 }
 
 function normalizeServerCategory(slug?: string | null): CategoryId {
@@ -12337,17 +12620,18 @@ function normalizeServerCategory(slug?: string | null): CategoryId {
   return slug ? (aliases[slug] ?? "documentary") : "documentary";
 }
 
-function inferLocationId(label?: string, locale?: SupportedLocale): LocationId {
+function inferLocationId(
+  label?: string,
+  locale?: SupportedLocale,
+): LocationId | undefined {
   const normalized = label?.toLocaleLowerCase() ?? "";
-  return (
-    locationPins.find(
-      (location) =>
-        normalized.includes(location.id) ||
-        (locale
-          ? normalized === getMessage(locale, location.key).toLocaleLowerCase()
-          : false),
-    )?.id ?? "kyiv"
-  );
+  return locationPins.find(
+    (location) =>
+      normalized.includes(location.id) ||
+      (locale
+        ? normalized === getMessage(locale, location.key).toLocaleLowerCase()
+        : false),
+  )?.id;
 }
 
 function getPublicAuthorName(
@@ -12373,7 +12657,7 @@ function getPublicAuthorLocation(
 ): string {
   return (
     author.locationLabel ??
-    getLocationLabel(author.locationId ?? "kyiv", locale)
+    (author.locationId ? getLocationLabel(author.locationId, locale) : "")
   );
 }
 
@@ -12413,7 +12697,7 @@ function getBattleScopeKey(scope: BattleScope): MessageKey {
 }
 
 function getLocationLabel(
-  locationId: LocationId,
+  locationId: string,
   locale: SupportedLocale,
   fallback?: string,
 ): string {
@@ -12421,7 +12705,10 @@ function getLocationLabel(
     return fallback;
   }
 
-  return getMessage(locale, `map.location.${locationId}` as MessageKey);
+  const knownLocation = locationPins.find(
+    (location) => location.id === locationId,
+  );
+  return knownLocation ? getMessage(locale, knownLocation.key) : "—";
 }
 
 function formatFileSize(bytes: number): string {
@@ -12584,6 +12871,20 @@ async function apiRequest<T = unknown>(
   if (!response.ok)
     throw new Error(`API request failed with ${response.status}.`);
   return (await response.json()) as T;
+}
+
+async function searchLocations(
+  search: string,
+  locale: SupportedLocale,
+): Promise<readonly LocationOption[]> {
+  try {
+    const response = await apiRequest<{ locations: readonly LocationOption[] }>(
+      `/locations?search=${encodeURIComponent(search)}&language=${encodeURIComponent(locale)}`,
+    );
+    return response.locations;
+  } catch {
+    return [];
+  }
 }
 
 function readLocalStorage<T>(key: string, fallback: T): T {

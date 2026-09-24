@@ -32,7 +32,7 @@ export class DiscoverService {
           },
           assets: true,
           category: true,
-          location: true,
+          location: { include: { city: true } },
           owner: {
             include: {
               profile: true,
@@ -125,6 +125,26 @@ export class DiscoverService {
             ? publicAssetUrl(this.env, displayAsset.storageKey)
             : null,
           id: photo.id,
+          location: photo.location
+            ? {
+                city: photo.location.city
+                  ? { slug: photo.location.city.slug }
+                  : null,
+                publicLabel: photo.location.publicLabel,
+                publicLatitude:
+                  photo.location.visibility === "HIDDEN" ||
+                  photo.location.publicLatitude === null
+                    ? null
+                    : Number(photo.location.publicLatitude),
+                publicLongitude:
+                  photo.location.visibility === "HIDDEN" ||
+                  photo.location.publicLongitude === null
+                    ? null
+                    : Number(photo.location.publicLongitude),
+                source: photo.location.source,
+                visibility: photo.location.visibility,
+              }
+            : null,
           locationLabel:
             photo.location?.visibility === "HIDDEN"
               ? null

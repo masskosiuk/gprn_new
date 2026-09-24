@@ -2,9 +2,16 @@ import { prisma } from "@gprn/db";
 import { Injectable } from "@nestjs/common";
 
 import { dateToIso } from "./serialization.js";
+import { LocationsService } from "./locations.service.js";
 
 @Injectable()
 export class CatalogService {
+  constructor(private readonly locationsService: LocationsService) {}
+
+  searchLocations(search: string, language: string) {
+    return this.locationsService.search(search, language);
+  }
+
   async listCategories(): Promise<{
     categories: readonly {
       readonly descriptionKey: string | null;

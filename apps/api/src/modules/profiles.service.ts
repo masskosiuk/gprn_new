@@ -8,6 +8,11 @@ import {
 } from "@nestjs/common";
 
 import type { CurrentUser } from "./auth.service.js";
+import {
+  formatStoredCityLabel,
+  LocationsService,
+  parseLocationSelection,
+} from "./locations.service.js";
 import { isPrismaErrorCode, publicAssetUrl } from "./serialization.js";
 import { asRecord, optionalEnum, optionalString } from "./validation.js";
 
@@ -27,7 +32,7 @@ type ProfileRecord = Prisma.ProfileGetPayload<{
           include: {
             assets: true;
             category: true;
-            location: true;
+            location: { include: { city: true } };
             provenance: true;
           };
         };
@@ -40,6 +45,8 @@ type ProfileRecord = Prisma.ProfileGetPayload<{
 @Injectable()
 export class ProfilesService {
   private readonly env = loadRuntimeEnv();
+
+  constructor(private readonly locationsService: LocationsService) {}
 
   async getPublic(username: string) {
     const profile = await prisma.profile.findUnique({
@@ -70,7 +77,7 @@ export class ProfilesService {
               include: {
                 assets: true,
                 category: true,
-                location: true,
+                location: { include: { city: true } },
                 provenance: true,
               },
               orderBy: { publishedAt: "desc" },
@@ -128,7 +135,7 @@ export class ProfilesService {
               include: {
                 assets: true,
                 category: true,
-                location: true,
+                location: { include: { city: true } },
                 provenance: true,
               },
               orderBy: { createdAt: "desc" },
@@ -159,6 +166,7 @@ export class ProfilesService {
     const avatarPhotoId = optionalString(record, "avatarPhotoId");
     const coverPhotoId = optionalString(record, "coverPhotoId");
     const citySlug = optionalString(record, "citySlug")?.toLowerCase();
+    const locationSelection = parseLocationSelection(record.location);
     const availableForHire = record.availableForHire;
 
     if (
@@ -216,12 +224,20 @@ export class ProfilesService {
       coverAssetKey = coverAsset.storageKey;
     }
 
-    const city = citySlug
-      ? await prisma.city.findFirst({
-          include: { country: true },
-          where: { slug: citySlug },
-        })
+    const resolvedLocation = locationSelection
+      ? await this.locationsService.resolveSelection(locationSelection)
       : null;
+    const city = resolvedLocation
+      ? await prisma.city.findUnique({
+          include: { country: true },
+          where: { id: resolvedLocation.cityId },
+        })
+      : citySlug
+        ? await prisma.city.findFirst({
+            include: { country: true },
+            where: { slug: citySlug },
+          })
+        : null;
     if (citySlug && !city) {
       throw new BadRequestException({
         code: "PROFILE_CITY_INVALID",
@@ -312,7 +328,21 @@ export class ProfilesService {
       id: profile.id,
       location: {
         city: profile.city
-          ? { nameKey: profile.city.nameKey, slug: profile.city.slug }
+          ? {
+              label: formatStoredCityLabel(
+                profile.city.nameKey,
+                profile.city.slug,
+                profile.country?.nameKey,
+              ),
+              latitude: profile.city.latitude
+                ? Number(profile.city.latitude)
+                : null,
+              longitude: profile.city.longitude
+                ? Number(profile.city.longitude)
+                : null,
+              nameKey: profile.city.nameKey,
+              slug: profile.city.slug,
+            }
           : null,
         country: profile.country
           ? { iso2: profile.country.iso2, nameKey: profile.country.nameKey }
@@ -332,6 +362,26 @@ export class ProfilesService {
           createdAt: photo.createdAt.toISOString(),
           displayUrl: asset ? publicAssetUrl(this.env, asset.storageKey) : null,
           id: photo.id,
+          location: photo.location
+            ? {
+                city: photo.location.city
+                  ? { slug: photo.location.city.slug }
+                  : null,
+                publicLabel: photo.location.publicLabel,
+                publicLatitude:
+                  photo.location.visibility === "HIDDEN" ||
+                  photo.location.publicLatitude === null
+                    ? null
+                    : Number(photo.location.publicLatitude),
+                publicLongitude:
+                  photo.location.visibility === "HIDDEN" ||
+                  photo.location.publicLongitude === null
+                    ? null
+                    : Number(photo.location.publicLongitude),
+                source: photo.location.source,
+                visibility: photo.location.visibility,
+              }
+            : null,
           locationLabel:
             photo.location?.visibility === "HIDDEN"
               ? null
