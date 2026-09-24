@@ -333,6 +333,8 @@ const baseMessages = {
   "challenges.submitted": "Photo submitted to this challenge.",
   "challenges.submitFailed":
     "The photo could not be submitted to this challenge.",
+  "challenges.notActive": "This challenge is not accepting entries yet.",
+  "challenges.submissions": "Participant entries",
   "challenges.already": "Already submitted",
   "challenges.needPhoto": "Upload and select a photo before submitting.",
   "challenges.needLogin": "Log in before submitting.",
@@ -1205,6 +1207,8 @@ const ruMessages: Partial<MessageMap> = {
   "challenges.submit": "Отправить выбранное фото",
   "challenges.submitted": "Фото отправлено в челлендж.",
   "challenges.submitFailed": "Не удалось отправить фото в этот челлендж.",
+  "challenges.notActive": "Этот челлендж пока не принимает работы.",
+  "challenges.submissions": "Работы участников",
   "challenges.already": "Уже отправлено",
   "challenges.needPhoto": "Загрузите и выберите фото перед отправкой.",
   "challenges.needLogin": "Войдите перед отправкой.",

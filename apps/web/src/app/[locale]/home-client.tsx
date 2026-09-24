@@ -370,6 +370,19 @@ interface ServerChallengePayload {
   readonly descriptionKey: string | null;
   readonly endsAt: string | null;
   readonly entriesCount: number;
+  readonly entries: readonly {
+    readonly id: string;
+    readonly owner: {
+      readonly displayName: string;
+      readonly username: string;
+    };
+    readonly photo: {
+      readonly displayUrl: string;
+      readonly id: string;
+      readonly title: string;
+    };
+    readonly submittedAt: string;
+  }[];
   readonly id: string;
   readonly slug: string;
   readonly startsAt: string | null;
@@ -541,12 +554,20 @@ interface BattleRecord {
 }
 
 interface ChallengeRecord {
+  readonly acceptingEntries?: boolean;
   readonly categoryId: CategoryId;
   readonly copyKey: MessageKey;
   readonly coverUrl: string;
   readonly deadline: string;
   readonly id: string;
   readonly participants: number;
+  readonly submissions?: readonly {
+    readonly authorName: string;
+    readonly id: string;
+    readonly imageUrl: string;
+    readonly photoId: string;
+    readonly title: string;
+  }[];
   readonly statusKey: MessageKey;
   readonly titleKey: MessageKey;
 }
@@ -3937,9 +3958,7 @@ export function HomeClient({
         challenges: readonly ServerChallengePayload[];
       }>("/challenges");
       setChallenges(
-        response.challenges.map((challenge, index) =>
-          mapServerChallenge(challenge, index),
-        ),
+        response.challenges.map((challenge) => mapServerChallenge(challenge)),
       );
     } catch {
       // Demo challenges remain visible only while the public API is unavailable.
@@ -5381,12 +5400,42 @@ export function HomeClient({
       return;
     }
 
-    if (!selectedUploadedPhoto.published) {
-      setGlobalFeedback({ kind: "error", text: t("battles.needPublished") });
+    const challenge = challenges.find(
+      (candidate) => candidate.id === challengeId,
+    );
+    if (!challenge?.acceptingEntries) {
+      setGlobalFeedback({ kind: "error", text: t("challenges.notActive") });
+      return;
+    }
+
+    if (!selectedUploadedPhoto.serverBacked) {
+      setGlobalFeedback({ kind: "error", text: t("challenges.submitFailed") });
       return;
     }
 
     try {
+      if (!selectedUploadedPhoto.published) {
+        const published = await apiRequest<{ photo: ServerPhotoPayload }>(
+          `/photos/${encodeURIComponent(selectedUploadedPhoto.id)}/publish`,
+          {
+            body: JSON.stringify({
+              locationVisibility: selectedUploadedPhoto.locationLabel
+                ? "CITY"
+                : "HIDDEN",
+              visibility: "PUBLIC",
+            }),
+            method: "POST",
+          },
+        );
+        const publishedPhoto = mapServerPhoto(published.photo, serverUser?.id);
+        if (!publishedPhoto) throw new Error("Published photo is unavailable.");
+        setUploadedPhotos((current) =>
+          current.map((photo) =>
+            photo.id === publishedPhoto.id ? publishedPhoto : photo,
+          ),
+        );
+      }
+
       await apiRequest(
         `/challenges/${encodeURIComponent(challengeId)}/submit`,
         {
@@ -5954,6 +6003,34 @@ export function HomeClient({
                       <dd>{formatDate(locale, challenge.deadline)}</dd>
                     </div>
                   </dl>
+                  {challenge.submissions?.length ? (
+                    <div className="challenge-submissions">
+                      <strong>{t("challenges.submissions")}</strong>
+                      <div className="challenge-submission-grid">
+                        {challenge.submissions.slice(0, 6).map((submission) => (
+                          <button
+                            aria-label={`${submission.title}, ${submission.authorName}`}
+                            key={submission.id}
+                            onClick={() => {
+                              setImagePreview({
+                                alt: submission.title,
+                                photoId: submission.photoId,
+                                src: submission.imageUrl,
+                              });
+                            }}
+                            title={`${submission.title} - ${submission.authorName}`}
+                            type="button"
+                          >
+                            <img
+                              alt=""
+                              aria-hidden="true"
+                              src={submission.imageUrl}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </article>
             ))}
@@ -7211,7 +7288,9 @@ export function HomeClient({
                   ) : null}
                   <button
                     className="primary-action full-width"
-                    disabled={Boolean(submittedPhotoId)}
+                    disabled={
+                      Boolean(submittedPhotoId) || !challenge.acceptingEntries
+                    }
                     onClick={() => {
                       submitChallenge(challenge.id);
                     }}
@@ -7220,7 +7299,9 @@ export function HomeClient({
                     <Check aria-hidden="true" size={18} />
                     {submittedPhotoId
                       ? t("challenges.already")
-                      : t("challenges.submit")}
+                      : !challenge.acceptingEntries
+                        ? t("challenges.statusUpcoming")
+                        : t("challenges.submit")}
                   </button>
                 </div>
               </article>
@@ -10775,16 +10856,28 @@ function mapServerBattle(
 
 function mapServerChallenge(
   challenge: ServerChallengePayload,
-  index: number,
 ): ChallengeRecord {
-  const fallback = demoChallenges[index % demoChallenges.length]!;
+  const fallback =
+    demoChallenges.find(
+      (candidate) =>
+        candidate.categoryId ===
+        normalizeServerCategory(challenge.category?.slug),
+    ) ?? demoChallenges[0]!;
 
   return {
     ...fallback,
+    acceptingEntries: challenge.status === "ACTIVE",
     categoryId: normalizeServerCategory(challenge.category?.slug),
     deadline: challenge.endsAt ?? fallback.deadline,
     id: challenge.slug || challenge.id,
     participants: challenge.entriesCount,
+    submissions: challenge.entries.map((entry) => ({
+      authorName: entry.owner.displayName,
+      id: entry.id,
+      imageUrl: entry.photo.displayUrl,
+      photoId: entry.photo.id,
+      title: entry.photo.title,
+    })),
     statusKey:
       challenge.status === "ACTIVE"
         ? "challenges.statusOpen"

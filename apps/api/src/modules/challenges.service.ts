@@ -1,3 +1,4 @@
+import { loadRuntimeEnv } from "@gprn/config";
 import { prisma } from "@gprn/db";
 import {
   ConflictException,
@@ -6,7 +7,7 @@ import {
 } from "@nestjs/common";
 
 import type { CurrentUser } from "./auth.service.js";
-import { dateToIso } from "./serialization.js";
+import { dateToIso, publicAssetUrl } from "./serialization.js";
 import { asRecord, requiredString } from "./validation.js";
 
 const challengeInclude = {
@@ -16,6 +17,27 @@ const challengeInclude = {
     },
   },
   category: true,
+  entries: {
+    include: {
+      photo: {
+        include: {
+          assets: true,
+          owner: { include: { profile: true } },
+        },
+      },
+    },
+    orderBy: { submittedAt: "desc" as const },
+    take: 12,
+    where: {
+      photo: {
+        is: {
+          deletedAt: null,
+          status: "PUBLISHED" as const,
+          visibility: "PUBLIC" as const,
+        },
+      },
+    },
+  },
   season: true,
 } as const;
 
@@ -29,6 +51,24 @@ interface ChallengeRecord {
   } | null;
   readonly descriptionKey: string | null;
   readonly endsAt: Date | null;
+  readonly entries: readonly {
+    readonly id: string;
+    readonly submittedAt: Date;
+    readonly photo: {
+      readonly id: string;
+      readonly title: string;
+      readonly assets: readonly {
+        readonly storageKey: string;
+        readonly type: string;
+      }[];
+      readonly owner: {
+        readonly profile: {
+          readonly displayName: string;
+          readonly username: string;
+        } | null;
+      };
+    };
+  }[];
   readonly id: string;
   readonly season: {
     readonly nameKey: string;
@@ -42,6 +82,8 @@ interface ChallengeRecord {
 
 @Injectable()
 export class ChallengesService {
+  private readonly env = loadRuntimeEnv();
+
   async list(): Promise<{
     challenges: ReturnType<ChallengesService["toChallengeResponse"]>[];
   }> {
@@ -64,9 +106,13 @@ export class ChallengesService {
     });
 
     return {
-      challenges: challenges.map((challenge) =>
-        this.toChallengeResponse(challenge),
-      ),
+      challenges: challenges
+        .sort(
+          (left, right) =>
+            challengeStatusOrder(left.status) -
+            challengeStatusOrder(right.status),
+        )
+        .map((challenge) => this.toChallengeResponse(challenge)),
     };
   }
 
@@ -378,6 +424,29 @@ export class ChallengesService {
       descriptionKey: challenge.descriptionKey,
       endsAt: dateToIso(challenge.endsAt),
       entriesCount: challenge._count.entries,
+      entries: challenge.entries.flatMap((entry) => {
+        const displayAsset =
+          entry.photo.assets.find((asset) => asset.type === "DISPLAY") ??
+          entry.photo.assets.find((asset) => asset.type === "THUMBNAIL");
+        if (!displayAsset) return [];
+
+        return [
+          {
+            id: entry.id,
+            owner: {
+              displayName:
+                entry.photo.owner.profile?.displayName ?? "Photographer",
+              username: entry.photo.owner.profile?.username ?? "photographer",
+            },
+            photo: {
+              displayUrl: publicAssetUrl(this.env, displayAsset.storageKey),
+              id: entry.photo.id,
+              title: entry.photo.title,
+            },
+            submittedAt: entry.submittedAt.toISOString(),
+          },
+        ];
+      }),
       id: challenge.id,
       season: challenge.season
         ? {
@@ -415,4 +484,10 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value,
   );
+}
+
+function challengeStatusOrder(status: string): number {
+  if (status === "ACTIVE") return 0;
+  if (status === "UPCOMING") return 1;
+  return 2;
 }

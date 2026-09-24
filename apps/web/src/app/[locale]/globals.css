@@ -2237,6 +2237,37 @@ img {
   text-align: right;
 }
 
+.challenge-submissions {
+  display: grid;
+  gap: 8px;
+}
+
+.challenge-submissions > strong {
+  font-size: 13px;
+}
+
+.challenge-submission-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.challenge-submission-grid button {
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  padding: 0;
+}
+
+.challenge-submission-grid img {
+  aspect-ratio: 1;
+  display: block;
+  object-fit: cover;
+  width: 100%;
+}
+
 .home-activity-section {
   display: grid;
   gap: 22px;
