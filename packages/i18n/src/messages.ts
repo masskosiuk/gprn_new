@@ -111,7 +111,7 @@ const baseMessages = {
   "auth.loggedInAs": "Signed in as",
   "auth.loggedOut": "You are signed out.",
 
-  "home.headline": "The global competitive network for photographers.",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "Publish real photographs, preserve provenance, compete, build reputation and get discovered.",
   "home.primary": "Add photo",
@@ -1109,7 +1109,7 @@ const ruMessages: Partial<MessageMap> = {
   "auth.googleNotConfigured": "Вход через Google ещё не настроен на сервере.",
   "auth.loggedInAs": "Вы вошли как",
   "auth.loggedOut": "Вы вышли из аккаунта.",
-  "home.headline": "Глобальная соревновательная сеть для фотографов.",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "Публикуйте реальные фотографии, сохраняйте происхождение, соревнуйтесь, развивайте репутацию и находите аудиторию.",
   "home.primary": "Добавить фото",
@@ -1948,7 +1948,7 @@ const ukMessages: Partial<MessageMap> = {
   "auth.submitRegister": "Створити акаунт",
   "auth.note":
     "У MVP дані акаунта зберігаються локально в цьому браузері, доки API не підключено.",
-  "home.headline": "Глобальна змагальна мережа для фотографів.",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "Публікуйте реальні фотографії, зберігайте походження, змагайтеся, будуйте репутацію і знаходьте аудиторію.",
   "home.primary": "Додати фото",
@@ -1993,7 +1993,7 @@ const plMessages: Partial<MessageMap> = {
   "nav.profile": "Profil",
   "auth.join": "Rejestracja",
   "auth.login": "Logowanie",
-  "home.headline": "Globalna sieć rywalizacji dla fotografów.",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "Publikuj prawdziwe zdjęcia, zachowuj pochodzenie i buduj reputację przez rywalizację.",
   "photo.add": "Dodaj zdjęcie",
@@ -2009,7 +2009,7 @@ const deMessages: Partial<MessageMap> = {
   "nav.profile": "Profil",
   "auth.join": "Registrieren",
   "auth.login": "Anmelden",
-  "home.headline": "Das globale Wettbewerbsnetzwerk für Fotografen.",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "Veröffentliche echte Fotos, bewahre Herkunftsnachweise und baue Reputation durch Wettbewerb auf.",
   "photo.add": "Foto hinzufügen",
@@ -2026,7 +2026,7 @@ const frMessages: Partial<MessageMap> = {
   "nav.profile": "Profil",
   "auth.join": "Inscription",
   "auth.login": "Connexion",
-  "home.headline": "Le réseau mondial compétitif pour photographes.",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "Publiez de vraies photos, préservez leur provenance et bâtissez votre réputation.",
   "photo.add": "Ajouter une photo",
@@ -2042,7 +2042,7 @@ const itMessages: Partial<MessageMap> = {
   "nav.profile": "Profilo",
   "auth.join": "Registrati",
   "auth.login": "Accedi",
-  "home.headline": "La rete competitiva globale per fotografi.",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "Pubblica fotografie reali, conserva la provenienza e costruisci reputazione.",
   "photo.add": "Aggiungi foto",
@@ -2060,7 +2060,7 @@ const esMessages: Partial<MessageMap> = {
   "nav.profile": "Perfil",
   "auth.join": "Registro",
   "auth.login": "Iniciar sesión",
-  "home.headline": "La red competitiva global para fotógrafos.",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "Publica fotos reales, conserva procedencia y construye reputación compitiendo.",
   "photo.add": "Añadir foto",
@@ -2078,7 +2078,7 @@ const ptMessages: Partial<MessageMap> = {
   "nav.profile": "Perfil",
   "auth.join": "Registo",
   "auth.login": "Entrar",
-  "home.headline": "A rede competitiva global para fotógrafos.",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "Publique fotos reais, preserve proveniência e construa reputação.",
   "photo.add": "Adicionar foto",
@@ -2094,7 +2094,7 @@ const nlMessages: Partial<MessageMap> = {
   "nav.profile": "Profiel",
   "auth.join": "Registreren",
   "auth.login": "Inloggen",
-  "home.headline": "Het wereldwijde competitieve netwerk voor fotografen.",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "Publiceer echte foto's, bewaar herkomst en bouw reputatie op.",
   "photo.add": "Foto toevoegen",
@@ -2111,7 +2111,7 @@ const trMessages: Partial<MessageMap> = {
   "nav.profile": "Profil",
   "auth.join": "Kaydol",
   "auth.login": "Giriş",
-  "home.headline": "Fotoğrafçılar için küresel rekabet ağı.",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "Gerçek fotoğraflar yayınlayın, kaynak geçmişini koruyun ve itibar oluşturun.",
   "photo.add": "Fotoğraf ekle",
@@ -2131,7 +2131,7 @@ const jaMessages: Partial<MessageMap> = {
   "nav.profile": "プロフィール",
   "auth.join": "新規登録",
   "auth.login": "ログイン",
-  "home.headline": "写真家のためのグローバル競争ネットワーク。",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "本物の写真を公開し、来歴を守り、競いながら評価を築きましょう。",
   "photo.add": "写真を追加",
@@ -2151,7 +2151,7 @@ const zhMessages: Partial<MessageMap> = {
   "nav.profile": "个人资料",
   "auth.join": "注册",
   "auth.login": "登录",
-  "home.headline": "面向摄影师的全球竞技网络。",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead": "发布真实照片，保留来源信息，通过竞赛建立声誉。",
   "photo.add": "添加照片",
   "common.comingSoon": "即将推出",
@@ -2170,7 +2170,7 @@ const koMessages: Partial<MessageMap> = {
   "nav.profile": "프로필",
   "auth.join": "회원가입",
   "auth.login": "로그인",
-  "home.headline": "사진가를 위한 글로벌 경쟁 네트워크.",
+  "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "진짜 사진을 공개하고 출처를 보존하며 경쟁을 통해 평판을 쌓으세요.",
   "photo.add": "사진 추가",
