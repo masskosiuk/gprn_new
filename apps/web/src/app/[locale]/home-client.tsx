@@ -9613,30 +9613,6 @@ export function HomeClient({
     );
   }
 
-  function renderProfileHeadStats(
-    items: readonly {
-      readonly labelKey: MessageKey;
-      readonly value: number | string;
-    }[],
-  ): ReactNode {
-    return (
-      <div
-        className={`profile-head-stats${items.length > 4 ? " is-expanded" : ""}`}
-      >
-        {items.map((item) => (
-          <div key={item.labelKey}>
-            <strong>
-              {typeof item.value === "number"
-                ? numberFormatter.format(item.value)
-                : item.value}
-            </strong>
-            <span>{t(item.labelKey)}</span>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   function renderPublicAuthorProfile(author: PublicAuthorProfile): ReactNode {
     const authorPhotos = publicPhotos.filter(
       (photo) => getPhotoAuthorId(photo) === author.id,
@@ -9644,29 +9620,6 @@ export function HomeClient({
     const authorMoodboard = publicPhotos
       .filter((photo) => getPhotoAuthorId(photo) !== author.id)
       .slice(0, 3);
-    const profileHeadStats: {
-      labelKey: MessageKey;
-      value: number | string;
-    }[] = [
-      { labelKey: "common.rating", value: author.rating },
-      { labelKey: "profile.photos", value: authorPhotos.length },
-      { labelKey: "profile.wins", value: author.wins },
-      { labelKey: "profile.followers", value: author.followers },
-    ];
-
-    if ((author.completedOrders ?? 0) > 0) {
-      profileHeadStats.push(
-        {
-          labelKey: "service.transactionRating",
-          value: author.serviceRating?.toFixed(1) ?? "5.0",
-        },
-        {
-          labelKey: "service.completedOrders",
-          value: author.completedOrders ?? 0,
-        },
-      );
-    }
-
     return (
       <section className="profile-page">
         <div className="profile-cover has-image">
@@ -9678,72 +9631,109 @@ export function HomeClient({
 
         <div className="profile-shell public-profile-shell">
           <section className="profile-main">
-            <div className="profile-head">
-              <div className={`profile-avatar-frame is-tier-${author.tier}`}>
-                <div className="profile-avatar">
-                  <img
-                    alt={getPublicAuthorName(author, locale)}
-                    src={author.avatarUrl}
-                  />
+            <div className="profile-overview">
+              <div className="profile-head">
+                <div className={`profile-avatar-frame is-tier-${author.tier}`}>
+                  <div className="profile-avatar">
+                    <img
+                      alt={getPublicAuthorName(author, locale)}
+                      src={author.avatarUrl}
+                    />
+                  </div>
+                  {renderAccountTierBadge(author.tier)}
                 </div>
-                {renderAccountTierBadge(author.tier)}
+                <div className="profile-head-content">
+                  <span className="eyebrow">{t("profile.publicProfile")}</span>
+                  <h2 className="author-name-line">
+                    {getPublicAuthorName(author, locale)}
+                    {author.verified ? renderVerifiedBadge() : null}
+                  </h2>
+                  <p>{getPublicAuthorBio(author, locale)}</p>
+                  <div className="meta-row">
+                    <span>
+                      <MapPin aria-hidden="true" size={14} />
+                      {getPublicAuthorLocation(author, locale)}
+                    </span>
+                    <span>@{author.username}</span>
+                  </div>
+                  <div className="profile-head-actions-row">
+                    <div className="profile-commerce-actions">
+                      {author.tier !== "viewer" &&
+                      (author.availableForHire ?? true) ? (
+                        <button
+                          className="primary-action compact"
+                          onClick={() => {
+                            openCommerceDialog({ author, kind: "service" });
+                          }}
+                          type="button"
+                        >
+                          <Send aria-hidden="true" size={16} />
+                          {t("service.order")}
+                        </button>
+                      ) : null}
+                      {["experienced", "professional", "star"].includes(
+                        author.tier,
+                      ) ? (
+                        <button
+                          className="secondary-action compact"
+                          onClick={() => {
+                            openCommerceDialog({ author, kind: "review" });
+                          }}
+                          type="button"
+                        >
+                          <Star aria-hidden="true" size={16} />
+                          {t("review.order")}
+                        </button>
+                      ) : null}
+                      {author.tier !== "viewer" ? (
+                        <button
+                          className="secondary-action compact"
+                          onClick={() => {
+                            openCommerceDialog({ author, kind: "donation" });
+                          }}
+                          type="button"
+                        >
+                          <HandCoins aria-hidden="true" size={16} />
+                          {t("donation.support")}
+                        </button>
+                      ) : null}
+                    </div>
+                    {(author.completedOrders ?? 0) > 0 ? (
+                      <div className="profile-service-metrics">
+                        <div>
+                          <Star aria-hidden="true" size={17} />
+                          <strong>
+                            {author.serviceRating?.toFixed(1) ?? "5.0"}
+                          </strong>
+                          <span>{t("service.transactionRating")}</span>
+                        </div>
+                        <div>
+                          <CheckCircle2 aria-hidden="true" size={17} />
+                          <strong>
+                            {numberFormatter.format(
+                              author.completedOrders ?? 0,
+                            )}
+                          </strong>
+                          <span>{t("service.completedOrders")}</span>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
               </div>
-              <div className="profile-head-content">
-                <span className="eyebrow">{t("profile.publicProfile")}</span>
-                <h2 className="author-name-line">
-                  {getPublicAuthorName(author, locale)}
-                  {author.verified ? renderVerifiedBadge() : null}
-                </h2>
-                <p>{getPublicAuthorBio(author, locale)}</p>
-                <div className="meta-row">
-                  <span>
-                    <MapPin aria-hidden="true" size={14} />
-                    {getPublicAuthorLocation(author, locale)}
-                  </span>
-                  <span>@{author.username}</span>
-                </div>
-                <div className="profile-commerce-actions">
-                  {author.tier !== "viewer" &&
-                  (author.availableForHire ?? true) ? (
-                    <button
-                      className="primary-action compact"
-                      onClick={() => {
-                        openCommerceDialog({ author, kind: "service" });
-                      }}
-                      type="button"
-                    >
-                      <Send aria-hidden="true" size={16} />
-                      {t("service.order")}
-                    </button>
-                  ) : null}
-                  {["experienced", "professional", "star"].includes(
-                    author.tier,
-                  ) ? (
-                    <button
-                      className="secondary-action compact"
-                      onClick={() => {
-                        openCommerceDialog({ author, kind: "review" });
-                      }}
-                      type="button"
-                    >
-                      <Star aria-hidden="true" size={16} />
-                      {t("review.order")}
-                    </button>
-                  ) : null}
-                  {author.tier !== "viewer" ? (
-                    <button
-                      className="secondary-action compact"
-                      onClick={() => {
-                        openCommerceDialog({ author, kind: "donation" });
-                      }}
-                      type="button"
-                    >
-                      <HandCoins aria-hidden="true" size={16} />
-                      {t("donation.support")}
-                    </button>
-                  ) : null}
-                </div>
-                {renderProfileHeadStats(profileHeadStats)}
+
+              <div className="profile-stats">
+                {[
+                  [author.rating, "common.rating"],
+                  [authorPhotos.length, "profile.photos"],
+                  [author.wins, "profile.wins"],
+                  [author.followers, "profile.followers"],
+                ].map(([value, key]) => (
+                  <div key={key}>
+                    <strong>{numberFormatter.format(Number(value))}</strong>
+                    <span>{t(key as MessageKey)}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -9904,63 +9894,64 @@ export function HomeClient({
 
         <div className="profile-shell">
           <section className="profile-main">
-            <div className="profile-head">
-              <div className={`profile-avatar-frame is-tier-${currentTier}`}>
-                <div className="profile-avatar">
-                  {currentProfile.avatarUrl ? (
-                    <img
-                      alt={t("profile.avatarAlt")}
-                      src={currentProfile.avatarUrl}
-                    />
-                  ) : (
-                    <span>{getInitials(currentProfile.name)}</span>
-                  )}
-                  <button
-                    aria-label={
-                      currentProfile.avatarUrl
-                        ? t("profile.changeAvatar")
-                        : t("profile.addAvatar")
-                    }
-                    className="avatar-photo-action"
-                    onClick={openAvatarPicker}
-                    title={
-                      currentProfile.avatarUrl
-                        ? t("profile.changeAvatar")
-                        : t("profile.addAvatar")
-                    }
-                    type="button"
-                  >
-                    <Camera aria-hidden="true" size={18} />
-                  </button>
+            <div className="profile-overview">
+              <div className="profile-head">
+                <div className={`profile-avatar-frame is-tier-${currentTier}`}>
+                  <div className="profile-avatar">
+                    {currentProfile.avatarUrl ? (
+                      <img
+                        alt={t("profile.avatarAlt")}
+                        src={currentProfile.avatarUrl}
+                      />
+                    ) : (
+                      <span>{getInitials(currentProfile.name)}</span>
+                    )}
+                    <button
+                      aria-label={
+                        currentProfile.avatarUrl
+                          ? t("profile.changeAvatar")
+                          : t("profile.addAvatar")
+                      }
+                      className="avatar-photo-action"
+                      onClick={openAvatarPicker}
+                      title={
+                        currentProfile.avatarUrl
+                          ? t("profile.changeAvatar")
+                          : t("profile.addAvatar")
+                      }
+                      type="button"
+                    >
+                      <Camera aria-hidden="true" size={18} />
+                    </button>
+                  </div>
+                  {renderAccountTierBadge(currentTier)}
                 </div>
-                {renderAccountTierBadge(currentTier)}
+                <div className="profile-head-content">
+                  <span className="eyebrow">{t("profile.publicProfile")}</span>
+                  <h2>{currentProfile.name}</h2>
+                  <p>{currentProfile.bio}</p>
+                  <div className="meta-row">
+                    <span>
+                      <MapPin aria-hidden="true" size={14} />
+                      {currentProfile.location}
+                    </span>
+                    <span>@{currentProfile.username}</span>
+                  </div>
+                </div>
               </div>
-              <div className="profile-head-content">
-                <span className="eyebrow">{t("profile.publicProfile")}</span>
-                <h2>{currentProfile.name}</h2>
-                <p>{currentProfile.bio}</p>
-                <div className="meta-row">
-                  <span>
-                    <MapPin aria-hidden="true" size={14} />
-                    {currentProfile.location}
-                  </span>
-                  <span>@{currentProfile.username}</span>
-                </div>
-                {renderProfileHeadStats([
-                  {
-                    labelKey: "common.rating",
-                    value: currentProfile.rating,
-                  },
-                  {
-                    labelKey: "profile.photos",
-                    value: profilePhotos.length,
-                  },
-                  { labelKey: "profile.wins", value: currentProfile.wins },
-                  {
-                    labelKey: "profile.followers",
-                    value: currentProfile.followers,
-                  },
-                ])}
+
+              <div className="profile-stats">
+                {[
+                  [currentProfile.rating, "common.rating"],
+                  [profilePhotos.length, "profile.photos"],
+                  [currentProfile.wins, "profile.wins"],
+                  [currentProfile.followers, "profile.followers"],
+                ].map(([value, key]) => (
+                  <div key={key}>
+                    <strong>{numberFormatter.format(Number(value))}</strong>
+                    <span>{t(key as MessageKey)}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
