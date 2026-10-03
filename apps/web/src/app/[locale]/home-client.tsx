@@ -9613,6 +9613,30 @@ export function HomeClient({
     );
   }
 
+  function renderProfileHeadStats(
+    items: readonly {
+      readonly labelKey: MessageKey;
+      readonly value: number | string;
+    }[],
+  ): ReactNode {
+    return (
+      <div
+        className={`profile-head-stats${items.length > 4 ? " is-expanded" : ""}`}
+      >
+        {items.map((item) => (
+          <div key={item.labelKey}>
+            <strong>
+              {typeof item.value === "number"
+                ? numberFormatter.format(item.value)
+                : item.value}
+            </strong>
+            <span>{t(item.labelKey)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   function renderPublicAuthorProfile(author: PublicAuthorProfile): ReactNode {
     const authorPhotos = publicPhotos.filter(
       (photo) => getPhotoAuthorId(photo) === author.id,
@@ -9620,6 +9644,28 @@ export function HomeClient({
     const authorMoodboard = publicPhotos
       .filter((photo) => getPhotoAuthorId(photo) !== author.id)
       .slice(0, 3);
+    const profileHeadStats: {
+      labelKey: MessageKey;
+      value: number | string;
+    }[] = [
+      { labelKey: "common.rating", value: author.rating },
+      { labelKey: "profile.photos", value: authorPhotos.length },
+      { labelKey: "profile.wins", value: author.wins },
+      { labelKey: "profile.followers", value: author.followers },
+    ];
+
+    if ((author.completedOrders ?? 0) > 0) {
+      profileHeadStats.push(
+        {
+          labelKey: "service.transactionRating",
+          value: author.serviceRating?.toFixed(1) ?? "5.0",
+        },
+        {
+          labelKey: "service.completedOrders",
+          value: author.completedOrders ?? 0,
+        },
+      );
+    }
 
     return (
       <section className="profile-page">
@@ -9642,7 +9688,7 @@ export function HomeClient({
                 </div>
                 {renderAccountTierBadge(author.tier)}
               </div>
-              <div>
+              <div className="profile-head-content">
                 <span className="eyebrow">{t("profile.publicProfile")}</span>
                 <h2 className="author-name-line">
                   {getPublicAuthorName(author, locale)}
@@ -9697,39 +9743,9 @@ export function HomeClient({
                     </button>
                   ) : null}
                 </div>
+                {renderProfileHeadStats(profileHeadStats)}
               </div>
             </div>
-
-            <div className="profile-stats">
-              {[
-                [author.rating, "common.rating"],
-                [authorPhotos.length, "profile.photos"],
-                [author.wins, "profile.wins"],
-                [author.followers, "profile.followers"],
-              ].map(([value, key]) => (
-                <div key={key}>
-                  <strong>{numberFormatter.format(Number(value))}</strong>
-                  <span>{t(key as MessageKey)}</span>
-                </div>
-              ))}
-            </div>
-
-            {(author.completedOrders ?? 0) > 0 ? (
-              <div className="service-reputation">
-                <div>
-                  <Star aria-hidden="true" size={17} />
-                  <strong>{author.serviceRating?.toFixed(1) ?? "5.0"}</strong>
-                  <span>{t("service.transactionRating")}</span>
-                </div>
-                <div>
-                  <CheckCircle2 aria-hidden="true" size={17} />
-                  <strong>
-                    {numberFormatter.format(author.completedOrders ?? 0)}
-                  </strong>
-                  <span>{t("service.completedOrders")}</span>
-                </div>
-              </div>
-            ) : null}
 
             {renderDigitalProductSection(
               "preset",
@@ -9919,7 +9935,7 @@ export function HomeClient({
                 </div>
                 {renderAccountTierBadge(currentTier)}
               </div>
-              <div>
+              <div className="profile-head-content">
                 <span className="eyebrow">{t("profile.publicProfile")}</span>
                 <h2>{currentProfile.name}</h2>
                 <p>{currentProfile.bio}</p>
@@ -9930,21 +9946,22 @@ export function HomeClient({
                   </span>
                   <span>@{currentProfile.username}</span>
                 </div>
+                {renderProfileHeadStats([
+                  {
+                    labelKey: "common.rating",
+                    value: currentProfile.rating,
+                  },
+                  {
+                    labelKey: "profile.photos",
+                    value: profilePhotos.length,
+                  },
+                  { labelKey: "profile.wins", value: currentProfile.wins },
+                  {
+                    labelKey: "profile.followers",
+                    value: currentProfile.followers,
+                  },
+                ])}
               </div>
-            </div>
-
-            <div className="profile-stats">
-              {[
-                [currentProfile.rating, "common.rating"],
-                [profilePhotos.length, "profile.photos"],
-                [currentProfile.wins, "profile.wins"],
-                [currentProfile.followers, "profile.followers"],
-              ].map(([value, key]) => (
-                <div key={key}>
-                  <strong>{numberFormatter.format(Number(value))}</strong>
-                  <span>{t(key as MessageKey)}</span>
-                </div>
-              ))}
             </div>
 
             {renderDigitalProductSection(
