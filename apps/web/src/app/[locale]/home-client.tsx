@@ -6665,7 +6665,16 @@ export function HomeClient({
                       {t("sponsors.sponsored")}
                     </span>
                     <strong>{getPhotoTitle(photo, locale)}</strong>
-                    <small>{promotion.authorName}</small>
+                    <Link
+                      className="sponsor-author-link"
+                      href={
+                        photo.isMine
+                          ? getSectionHref(locale, "profile")
+                          : `${getSectionHref(locale, "profile")}?author=${encodeURIComponent(getPhotoAuthorId(photo))}`
+                      }
+                    >
+                      {promotion.authorName}
+                    </Link>
                   </div>
                 </article>
               ))}
@@ -8315,7 +8324,16 @@ export function HomeClient({
               )}
               <div>
                 <strong>{getPhotoTitle(photo, locale)}</strong>
-                <span>{promotion.authorName}</span>
+                <Link
+                  className="promoted-author-link"
+                  href={
+                    photo.isMine
+                      ? getSectionHref(locale, "profile")
+                      : `${getSectionHref(locale, "profile")}?author=${encodeURIComponent(getPhotoAuthorId(photo))}`
+                  }
+                >
+                  {promotion.authorName}
+                </Link>
               </div>
             </article>
           ))}

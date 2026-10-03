@@ -6003,8 +6003,22 @@ img {
   font-size: clamp(16px, 1.4vw, 22px);
 }
 
-.sponsor-card-copy small {
+.sponsor-author-link {
   color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition:
+    color 160ms ease,
+    text-decoration-color 160ms ease;
+  width: fit-content;
+}
+
+.sponsor-author-link:hover,
+.sponsor-author-link:focus-visible {
+  color: #fff;
+  text-decoration-color: currentColor;
 }
 
 .marketplace-promo-strip {
@@ -6084,15 +6098,33 @@ img {
 }
 
 .promoted-placement-item strong,
-.promoted-placement-item span {
+.promoted-placement-item span,
+.promoted-placement-item a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.promoted-placement-item span {
+.promoted-placement-item span,
+.promoted-author-link {
   color: var(--muted);
   font-size: 12px;
+}
+
+.promoted-author-link {
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 2px;
+  transition:
+    color 160ms ease,
+    text-decoration-color 160ms ease;
+  width: fit-content;
+}
+
+.promoted-author-link:hover,
+.promoted-author-link:focus-visible {
+  color: var(--foreground);
+  text-decoration-color: currentColor;
 }
 
 .profile-commerce-actions {
