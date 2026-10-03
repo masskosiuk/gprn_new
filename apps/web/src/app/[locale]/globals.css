@@ -4394,7 +4394,8 @@ img {
   line-height: 1.45;
 }
 
-.preset-settings input:disabled {
+.preset-settings input:disabled,
+.lut-settings input:disabled {
   color: var(--muted);
   cursor: not-allowed;
   opacity: 0.72;
@@ -6158,69 +6159,167 @@ img {
   grid-column: 1 / -1;
 }
 
-.profile-presets-section {
-  margin-top: 28px;
+.profile-products-section {
+  background: color-mix(in srgb, var(--panel-strong) 70%, var(--panel));
+  border-bottom: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  margin-top: 34px;
+  padding: 24px;
 }
 
-.profile-presets-section .section-heading {
-  align-items: flex-end;
-  margin: 0 0 16px;
+.profile-products-section.is-lut {
+  border-top-color: var(--amber);
 }
 
-.profile-presets-section .section-heading p {
+.profile-products-heading {
+  align-items: flex-start;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 44px minmax(0, 1fr);
+  margin-bottom: 18px;
+}
+
+.profile-products-heading h2,
+.profile-products-heading p {
+  margin: 0;
+}
+
+.profile-products-heading h2 {
+  font-size: 22px;
+  margin-top: 4px;
+}
+
+.profile-products-heading p {
   color: var(--muted);
   line-height: 1.5;
-  margin: 7px 0 0;
-  max-width: 680px;
+  margin-top: 7px;
+  max-width: 720px;
 }
 
-.profile-preset-grid {
+.profile-products-icon {
+  align-items: center;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  color: var(--accent);
+  display: flex;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.is-lut .profile-products-icon {
+  background: color-mix(in srgb, var(--amber) 13%, var(--panel));
+  border-color: color-mix(in srgb, var(--amber) 35%, var(--border));
+  color: var(--amber);
+}
+
+.profile-product-grid {
   display: grid;
-  gap: 16px;
+  gap: 14px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.profile-preset-tile {
+.profile-product-tile {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
   display: grid;
   min-width: 0;
   overflow: hidden;
 }
 
-.profile-preset-tile > img {
-  aspect-ratio: 1;
+.is-lut .profile-product-tile {
+  border-left-color: var(--amber);
+}
+
+.profile-product-preview {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  position: relative;
+}
+
+.profile-product-preview > img {
+  height: 100%;
   object-fit: cover;
   width: 100%;
 }
 
-.profile-preset-tile-body {
+.product-file-chip {
+  background: rgba(7, 7, 7, 0.82);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 850;
+  left: 10px;
+  padding: 5px 7px;
+  position: absolute;
+  top: 10px;
+}
+
+.product-swatch-row {
+  bottom: 10px;
+  display: flex;
+  gap: 4px;
+  position: absolute;
+  right: 10px;
+}
+
+.product-swatch-row span {
+  background: #204d58;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  height: 18px;
+  width: 18px;
+}
+
+.product-swatch-row span:nth-child(2) {
+  background: #d08b49;
+}
+
+.product-swatch-row span:nth-child(3) {
+  background: #8575a5;
+}
+
+.product-swatch-row span:nth-child(4) {
+  background: #d8c9a3;
+}
+
+.profile-product-body {
   align-content: start;
   display: grid;
   gap: 9px;
   padding: 14px;
 }
 
-.profile-preset-tile-body .pill {
+.product-kind-label {
+  align-items: center;
+  color: var(--accent);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 850;
+  gap: 6px;
   justify-self: start;
+  text-transform: uppercase;
 }
 
-.profile-preset-tile h3,
-.profile-preset-tile p {
+.is-lut .product-kind-label {
+  color: var(--amber);
+}
+
+.profile-product-tile h3,
+.profile-product-tile p {
   margin: 0;
 }
 
-.profile-preset-tile h3 {
+.profile-product-tile h3 {
   font-size: 17px;
 }
 
-.profile-preset-tile p {
+.profile-product-tile p {
   color: var(--muted);
   font-size: 12px;
 }
 
-.profile-preset-tile-footer {
+.profile-product-footer {
   align-items: center;
   display: flex;
   gap: 10px;
@@ -6228,7 +6327,7 @@ img {
   margin-top: 3px;
 }
 
-.profile-preset-tile-footer strong {
+.profile-product-footer strong {
   font-size: 18px;
 }
 
@@ -6618,7 +6717,7 @@ img {
     gap: 14px;
   }
 
-  .profile-preset-grid {
+  .profile-product-grid {
     grid-template-columns: 1fr;
   }
 

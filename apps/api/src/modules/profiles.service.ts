@@ -168,6 +168,12 @@ export class ProfilesService {
     const citySlug = optionalString(record, "citySlug")?.toLowerCase();
     const locationSelection = parseLocationSelection(record.location);
     const availableForHire = record.availableForHire;
+    const presetSalesEnabled = record.presetSalesEnabled;
+    const presetTitle = optionalString(record, "presetTitle")?.slice(0, 120);
+    const presetPriceMinor = record.presetPriceMinor;
+    const lutSalesEnabled = record.lutSalesEnabled;
+    const lutTitle = optionalString(record, "lutTitle")?.slice(0, 120);
+    const lutPriceMinor = record.lutPriceMinor;
 
     if (
       availableForHire !== undefined &&
@@ -177,6 +183,57 @@ export class ProfilesService {
         code: "INVALID_FIELD",
         field: "availableForHire",
         message: "availableForHire must be a boolean.",
+      });
+    }
+
+    for (const [field, value] of [
+      ["presetSalesEnabled", presetSalesEnabled],
+      ["lutSalesEnabled", lutSalesEnabled],
+    ] as const) {
+      if (value !== undefined && typeof value !== "boolean") {
+        throw new BadRequestException({
+          code: "INVALID_FIELD",
+          field,
+          message: `${field} must be a boolean.`,
+        });
+      }
+    }
+
+    for (const [field, value] of [
+      ["presetPriceMinor", presetPriceMinor],
+      ["lutPriceMinor", lutPriceMinor],
+    ] as const) {
+      if (
+        value !== undefined &&
+        (typeof value !== "number" || !Number.isInteger(value) || value < 0)
+      ) {
+        throw new BadRequestException({
+          code: "INVALID_FIELD",
+          field,
+          message: `${field} must be a non-negative integer.`,
+        });
+      }
+    }
+
+    if (
+      presetSalesEnabled === true &&
+      (!presetTitle ||
+        typeof presetPriceMinor !== "number" ||
+        presetPriceMinor <= 0)
+    ) {
+      throw new BadRequestException({
+        code: "PROFILE_PRESET_OFFER_INVALID",
+        message: "An enabled preset offer requires a title and positive price.",
+      });
+    }
+
+    if (
+      lutSalesEnabled === true &&
+      (!lutTitle || typeof lutPriceMinor !== "number")
+    ) {
+      throw new BadRequestException({
+        code: "PROFILE_LUT_OFFER_INVALID",
+        message: "An enabled LUT offer requires a title and price.",
       });
     }
 
@@ -262,6 +319,22 @@ export class ProfilesService {
             cityId: city?.id,
             countryId: city?.countryId,
             displayName,
+            lutPriceMinor:
+              typeof lutPriceMinor === "number" ? lutPriceMinor : undefined,
+            lutSalesEnabled:
+              typeof lutSalesEnabled === "boolean"
+                ? lutSalesEnabled
+                : undefined,
+            lutTitle,
+            presetPriceMinor:
+              typeof presetPriceMinor === "number"
+                ? presetPriceMinor
+                : undefined,
+            presetSalesEnabled:
+              typeof presetSalesEnabled === "boolean"
+                ? presetSalesEnabled
+                : undefined,
+            presetTitle,
             regionId: city?.regionId,
             username,
             visibility,
@@ -276,12 +349,16 @@ export class ProfilesService {
             next: {
               displayName: saved.displayName,
               availableForHire: saved.availableForHire,
+              lutSalesEnabled: saved.lutSalesEnabled,
+              presetSalesEnabled: saved.presetSalesEnabled,
               username: saved.username,
               visibility: saved.visibility,
             },
             previous: {
               displayName: previous.displayName,
               availableForHire: previous.availableForHire,
+              lutSalesEnabled: previous.lutSalesEnabled,
+              presetSalesEnabled: previous.presetSalesEnabled,
               username: previous.username,
               visibility: previous.visibility,
             },
@@ -326,6 +403,12 @@ export class ProfilesService {
       followers: profile.user._count.followers,
       following: profile.user._count.following,
       id: profile.id,
+      lutOffer: profile.lutSalesEnabled
+        ? {
+            priceMinor: profile.lutPriceMinor ?? 0,
+            title: profile.lutTitle,
+          }
+        : null,
       location: {
         city: profile.city
           ? {
@@ -400,6 +483,12 @@ export class ProfilesService {
             currency: profile.user.expertProfile.services[0].currency,
             priceMinor:
               profile.user.expertProfile.services[0].priceMinor.toString(),
+          }
+        : null,
+      presetOffer: profile.presetSalesEnabled
+        ? {
+            priceMinor: profile.presetPriceMinor,
+            title: profile.presetTitle,
           }
         : null,
       serviceReputation:

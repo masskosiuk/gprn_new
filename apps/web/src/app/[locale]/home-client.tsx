@@ -214,6 +214,9 @@ interface AccountRecord {
   readonly passwordHash: string;
   readonly rating: number;
   readonly detailedReviewPrice?: number;
+  readonly lutPrice?: number;
+  readonly lutSalesEnabled?: boolean;
+  readonly lutTitle?: string;
   readonly presetPrice?: number;
   readonly presetSalesEnabled?: boolean;
   readonly presetTitle?: string;
@@ -302,6 +305,10 @@ interface ServerProfilePayload {
   readonly displayName: string;
   readonly followers: number;
   readonly following: number;
+  readonly lutOffer: {
+    readonly priceMinor: number;
+    readonly title: string | null;
+  } | null;
   readonly location: {
     readonly city: {
       readonly label: string;
@@ -316,6 +323,10 @@ interface ServerProfilePayload {
     } | null;
   };
   readonly photos: readonly ServerPhotoPayload[];
+  readonly presetOffer: {
+    readonly priceMinor: number | null;
+    readonly title: string | null;
+  } | null;
   readonly ratings: readonly {
     readonly battles: number;
     readonly rating: number;
@@ -592,6 +603,10 @@ interface ProfileForm {
   readonly detailedReviewPrice: string;
   readonly displayName: string;
   readonly location: string;
+  readonly lutIsFree: boolean;
+  readonly lutPrice: string;
+  readonly lutSalesEnabled: boolean;
+  readonly lutTitle: string;
   readonly presetPrice: string;
   readonly presetSalesEnabled: boolean;
   readonly presetTitle: string;
@@ -792,11 +807,12 @@ interface ModelRecord {
   readonly reviews: number;
 }
 
-interface PresetOffer {
+interface DigitalProductOffer {
   readonly id: string;
   readonly imageUrl: string;
   readonly priceMinor: number;
-  readonly titleKey: MessageKey;
+  readonly title?: string;
+  readonly titleKey?: MessageKey;
 }
 
 interface PublicAuthorProfile {
@@ -819,7 +835,8 @@ interface PublicAuthorProfile {
   readonly reviewPrice?: number;
   readonly serviceRating?: number;
   readonly completedOrders?: number;
-  readonly presets?: readonly PresetOffer[];
+  readonly luts?: readonly DigitalProductOffer[];
+  readonly presets?: readonly DigitalProductOffer[];
 }
 
 type OrderStatus =
@@ -1003,6 +1020,10 @@ const emptyProfileForm: ProfileForm = {
   detailedReviewPrice: "35",
   displayName: "",
   location: "",
+  lutIsFree: false,
+  lutPrice: "29",
+  lutSalesEnabled: false,
+  lutTitle: "Signature cinema LUT pack",
   presetPrice: "25",
   presetSalesEnabled: false,
   presetTitle: "Signature preset pack",
@@ -1407,7 +1428,9 @@ const sampleImages = {
     "https://images.unsplash.com/photo-1780642208543-7a84b61f13ca?auto=format&fit=crop&w=1400&q=82",
 } as const;
 
-const demoPresetOffers: Readonly<Record<string, readonly PresetOffer[]>> = {
+const demoPresetOffers: Readonly<
+  Record<string, readonly DigitalProductOffer[]>
+> = {
   mika: [
     {
       id: "mika-neon-night",
@@ -1569,6 +1592,80 @@ const demoPresetOffers: Readonly<Record<string, readonly PresetOffer[]>> = {
     },
   ],
 };
+
+const demoLutOffers: Readonly<Record<string, readonly DigitalProductOffer[]>> =
+  {
+    mika: [
+      {
+        id: "mika-cyan-orange",
+        imageUrl: sampleImages.photoTokyoNeon,
+        priceMinor: 3500,
+        titleKey: "lut.style.cyanOrange",
+      },
+      {
+        id: "mika-night-contrast",
+        imageUrl: sampleImages.city,
+        priceMinor: 0,
+        titleKey: "lut.style.nightContrast",
+      },
+    ],
+    elena: [
+      {
+        id: "elena-clean-cinema",
+        imageUrl: sampleImages.photoIcelandGlacier,
+        priceMinor: 3100,
+        titleKey: "lut.style.cleanCinema",
+      },
+      {
+        id: "elena-forest-film",
+        imageUrl: sampleImages.mountain,
+        priceMinor: 2600,
+        titleKey: "lut.style.forestFilm",
+      },
+    ],
+    yusuf: [
+      {
+        id: "yusuf-desert-heat",
+        imageUrl: sampleImages.desert,
+        priceMinor: 2400,
+        titleKey: "lut.style.desertHeat",
+      },
+      {
+        id: "yusuf-skin-tone",
+        imageUrl: sampleImages.photoMarrakechCopper,
+        priceMinor: 0,
+        titleKey: "lut.style.skinTone",
+      },
+    ],
+    anna: [
+      {
+        id: "anna-clean-cinema",
+        imageUrl: sampleImages.architecture,
+        priceMinor: 3300,
+        titleKey: "lut.style.cleanCinema",
+      },
+      {
+        id: "anna-night-contrast",
+        imageUrl: sampleImages.photoKyivConcrete,
+        priceMinor: 2800,
+        titleKey: "lut.style.nightContrast",
+      },
+    ],
+    lucas: [
+      {
+        id: "lucas-cyan-orange",
+        imageUrl: sampleImages.night,
+        priceMinor: 4600,
+        titleKey: "lut.style.cyanOrange",
+      },
+      {
+        id: "lucas-skin-tone",
+        imageUrl: sampleImages.photoParisNight,
+        priceMinor: 3900,
+        titleKey: "lut.style.skinTone",
+      },
+    ],
+  };
 
 const curatedPhotos: readonly PhotoRecord[] = [
   {
@@ -2059,6 +2156,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1532,
     availableForHire: true,
     completedOrders: 42,
+    luts: demoLutOffers.mika,
     presets: demoPresetOffers.mika,
     reviewPrice: 6500,
     serviceRating: 4.9,
@@ -2078,6 +2176,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1608,
     availableForHire: true,
     completedOrders: 65,
+    luts: demoLutOffers.elena,
     presets: demoPresetOffers.elena,
     reviewPrice: 4500,
     serviceRating: 4.8,
@@ -2097,6 +2196,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1496,
     availableForHire: true,
     completedOrders: 18,
+    luts: demoLutOffers.yusuf,
     presets: demoPresetOffers.yusuf,
     reviewPrice: 3200,
     serviceRating: 4.7,
@@ -2116,6 +2216,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1574,
     availableForHire: false,
     completedOrders: 31,
+    luts: demoLutOffers.anna,
     presets: demoPresetOffers.anna,
     reviewPrice: 4200,
     serviceRating: 4.9,
@@ -2150,6 +2251,7 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
     rating: 1612,
     availableForHire: true,
     completedOrders: 77,
+    luts: demoLutOffers.lucas,
     presets: demoPresetOffers.lucas,
     reviewPrice: 7500,
     serviceRating: 5,
@@ -3478,6 +3580,12 @@ export function HomeClient({
       ),
       displayName: currentProfile.name,
       location: currentProfile.location,
+      lutIsFree: (currentProfile.lutPrice ?? 2900) === 0,
+      lutPrice: String((currentProfile.lutPrice ?? 2900) / 100),
+      lutSalesEnabled: currentProfile.lutSalesEnabled ?? false,
+      lutTitle:
+        currentProfile.lutTitle ??
+        getMessage(locale, "profile.lutDefaultTitle"),
       presetPrice: String((currentProfile.presetPrice ?? 2500) / 100),
       presetSalesEnabled: currentProfile.presetSalesEnabled ?? false,
       presetTitle:
@@ -3850,6 +3958,7 @@ export function HomeClient({
       coverUrl: expert.coverUrl,
       followers: expert.reviews * 12,
       id: expert.id,
+      luts: demoLutOffers[expert.id],
       locationId: expert.locationId,
       nameKey: expert.nameKey,
       presets: demoPresetOffers[expert.id],
@@ -4998,6 +5107,9 @@ export function HomeClient({
         email.split("@")[0] ??
         "User",
       passwordHash,
+      lutPrice: localAccount?.lutPrice,
+      lutSalesEnabled: localAccount?.lutSalesEnabled,
+      lutTitle: localAccount?.lutTitle,
       presetPrice: localAccount?.presetPrice,
       presetSalesEnabled: localAccount?.presetSalesEnabled,
       presetTitle: localAccount?.presetTitle,
@@ -5072,6 +5184,9 @@ export function HomeClient({
     const detailedReviewPrice = Math.round(
       Number(profileForm.detailedReviewPrice) * 100,
     );
+    const lutPrice = profileForm.lutIsFree
+      ? 0
+      : Math.round(Number(profileForm.lutPrice) * 100);
     const presetPrice = Math.round(Number(profileForm.presetPrice) * 100);
 
     if (
@@ -5095,6 +5210,17 @@ export function HomeClient({
       return;
     }
 
+    if (
+      profileForm.lutSalesEnabled &&
+      (!profileForm.lutTitle.trim() ||
+        !Number.isFinite(lutPrice) ||
+        lutPrice < 0 ||
+        (!profileForm.lutIsFree && lutPrice === 0))
+    ) {
+      setGlobalFeedback({ kind: "error", text: t("commerce.invalidAmount") });
+      return;
+    }
+
     const nextAccount: AccountRecord = {
       ...currentProfile,
       availableForHire: profileForm.availableForHire,
@@ -5104,6 +5230,11 @@ export function HomeClient({
         : currentProfile.detailedReviewPrice,
       location: profileLocationSelection?.label ?? "",
       locationSelection: profileLocationSelection ?? undefined,
+      lutPrice: profileForm.lutSalesEnabled
+        ? lutPrice
+        : currentProfile.lutPrice,
+      lutSalesEnabled: profileForm.lutSalesEnabled,
+      lutTitle: profileForm.lutTitle.trim() || currentProfile.lutTitle,
       name: profileForm.displayName.trim() || currentProfile.name,
       presetPrice: profileForm.presetSalesEnabled
         ? presetPrice
@@ -5128,6 +5259,20 @@ export function HomeClient({
           bio: nextAccount.bio,
           displayName: nextAccount.name,
           location: profileLocationSelection ?? undefined,
+          lutSalesEnabled: profileForm.lutSalesEnabled,
+          presetSalesEnabled: profileForm.presetSalesEnabled,
+          ...(profileForm.lutSalesEnabled
+            ? {
+                lutPriceMinor: lutPrice,
+                lutTitle: profileForm.lutTitle.trim(),
+              }
+            : {}),
+          ...(profileForm.presetSalesEnabled
+            ? {
+                presetPriceMinor: presetPrice,
+                presetTitle: profileForm.presetTitle.trim(),
+              }
+            : {}),
           username: nextAccount.username,
           visibility: "PUBLIC",
           websiteUrl: nextAccount.website,
@@ -9314,6 +9459,101 @@ export function HomeClient({
     );
   }
 
+  function renderDigitalProductSection(
+    kind: "preset" | "lut",
+    offers: readonly DigitalProductOffer[] | undefined,
+    authorName: string,
+  ): ReactNode {
+    if (!offers?.length) return null;
+
+    const isLut = kind === "lut";
+    const ProductIcon = isLut ? Video : Palette;
+    const eyebrowKey = isLut
+      ? "profile.lutOfferEyebrow"
+      : "profile.presetOfferEyebrow";
+    const titleKey = isLut
+      ? "profile.lutOfferTitle"
+      : "profile.presetOfferTitle";
+    const copyKey = isLut ? "profile.lutOfferCopy" : "profile.presetOfferCopy";
+    const includesKey = isLut
+      ? "profile.lutOfferIncludes"
+      : "profile.presetOfferIncludes";
+
+    return (
+      <section
+        className={`profile-products-section is-${kind}`}
+        aria-labelledby={`profile-${kind}-products`}
+      >
+        <div className="profile-products-heading">
+          <span className="profile-products-icon" aria-hidden="true">
+            <ProductIcon size={22} />
+          </span>
+          <div>
+            <span className="eyebrow">{t(eyebrowKey)}</span>
+            <h2 id={`profile-${kind}-products`}>{t(titleKey)}</h2>
+            <p>{t(copyKey)}</p>
+          </div>
+        </div>
+        <div className="profile-product-grid">
+          {offers.map((offer) => {
+            const offerTitle = getDigitalProductTitle(offer, locale);
+            const isFree = offer.priceMinor === 0;
+
+            return (
+              <article className="profile-product-tile" key={offer.id}>
+                <div className="profile-product-preview">
+                  <img alt={offerTitle} src={offer.imageUrl} />
+                  <span className="product-file-chip">
+                    {isLut ? ".CUBE" : ".XMP"}
+                  </span>
+                  <div className="product-swatch-row" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                </div>
+                <div className="profile-product-body">
+                  <span className="product-kind-label">
+                    <ProductIcon aria-hidden="true" size={14} />
+                    {t(isLut ? "marketplace.lut" : "marketplace.preset")}
+                  </span>
+                  <h3>{offerTitle}</h3>
+                  <p>{t(includesKey)}</p>
+                  <div className="profile-product-footer">
+                    <strong>
+                      {isFree
+                        ? t("marketplace.free")
+                        : formatMoney(offer.priceMinor, locale)}
+                    </strong>
+                    <button
+                      aria-label={`${t(isFree ? "marketplace.getFree" : "marketplace.buy")}: ${offerTitle}`}
+                      className="primary-action compact"
+                      onClick={() => {
+                        buyMarketplaceItem(
+                          `${authorName} · ${offerTitle}`,
+                          offer.priceMinor,
+                        );
+                      }}
+                      type="button"
+                    >
+                      {isFree ? (
+                        <Download aria-hidden="true" size={16} />
+                      ) : (
+                        <ShoppingBag aria-hidden="true" size={16} />
+                      )}
+                      {t(isFree ? "marketplace.download" : "marketplace.buy")}
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
+
   function renderPublicAuthorProfile(author: PublicAuthorProfile): ReactNode {
     const authorPhotos = publicPhotos.filter(
       (photo) => getPhotoAuthorId(photo) === author.id,
@@ -9432,50 +9672,16 @@ export function HomeClient({
               </div>
             ) : null}
 
-            {author.presets?.length ? (
-              <section className="profile-presets-section">
-                <div className="section-heading profile-subsection-heading">
-                  <div>
-                    <span className="eyebrow">
-                      {t("profile.presetOfferEyebrow")}
-                    </span>
-                    <h2>{t("profile.presetOfferTitle")}</h2>
-                    <p>{t("profile.presetOfferCopy")}</p>
-                  </div>
-                </div>
-                <div className="profile-preset-grid">
-                  {author.presets.map((preset) => (
-                    <article className="profile-preset-tile" key={preset.id}>
-                      <img alt={t(preset.titleKey)} src={preset.imageUrl} />
-                      <div className="profile-preset-tile-body">
-                        <span className="pill">{t("marketplace.preset")}</span>
-                        <h3>{t(preset.titleKey)}</h3>
-                        <p>{t("profile.presetOfferIncludes")}</p>
-                        <div className="profile-preset-tile-footer">
-                          <strong>
-                            {formatMoney(preset.priceMinor, locale)}
-                          </strong>
-                          <button
-                            aria-label={`${t("marketplace.buy")}: ${t(preset.titleKey)}`}
-                            className="primary-action compact"
-                            onClick={() => {
-                              buyMarketplaceItem(
-                                `${getPublicAuthorName(author, locale)} · ${t(preset.titleKey)}`,
-                                preset.priceMinor,
-                              );
-                            }}
-                            type="button"
-                          >
-                            <ShoppingBag aria-hidden="true" size={16} />
-                            {t("marketplace.buy")}
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            ) : null}
+            {renderDigitalProductSection(
+              "preset",
+              author.presets,
+              getPublicAuthorName(author, locale),
+            )}
+            {renderDigitalProductSection(
+              "lut",
+              author.luts,
+              getPublicAuthorName(author, locale),
+            )}
 
             <div className="section-heading">
               <div>
@@ -9574,6 +9780,31 @@ export function HomeClient({
       (provider) => provider.connectionId,
     ).length;
     const currentTier = currentProfile.tier ?? "viewer";
+    const productPreviewImage =
+      currentProfile.coverUrl ?? profilePhotos[0]?.src ?? sampleImages.street;
+    const currentPresetOffers: readonly DigitalProductOffer[] | undefined =
+      currentProfile.presetSalesEnabled
+        ? [
+            {
+              id: `${currentProfile.username}-preset`,
+              imageUrl: productPreviewImage,
+              priceMinor: currentProfile.presetPrice ?? 2500,
+              title:
+                currentProfile.presetTitle ?? t("profile.presetDefaultTitle"),
+            },
+          ]
+        : undefined;
+    const currentLutOffers: readonly DigitalProductOffer[] | undefined =
+      currentProfile.lutSalesEnabled
+        ? [
+            {
+              id: `${currentProfile.username}-lut`,
+              imageUrl: productPreviewImage,
+              priceMinor: currentProfile.lutPrice ?? 0,
+              title: currentProfile.lutTitle ?? t("profile.lutDefaultTitle"),
+            },
+          ]
+        : undefined;
 
     return (
       <section className="profile-page">
@@ -9658,6 +9889,17 @@ export function HomeClient({
                 </div>
               ))}
             </div>
+
+            {renderDigitalProductSection(
+              "preset",
+              currentPresetOffers,
+              currentProfile.name,
+            )}
+            {renderDigitalProductSection(
+              "lut",
+              currentLutOffers,
+              currentProfile.name,
+            )}
 
             {currentTier !== "viewer" ? (
               <>
@@ -10212,6 +10454,70 @@ export function HomeClient({
                     </div>
                   </label>
                 </div>
+              </fieldset>
+
+              <fieldset className="master-settings lut-settings">
+                <legend>{t("profile.luts")}</legend>
+                <p>{t("profile.lutsCopy")}</p>
+                <label className="checkbox-field" htmlFor="profile-luts">
+                  <input
+                    checked={profileForm.lutSalesEnabled}
+                    id="profile-luts"
+                    onChange={(event) => {
+                      updateProfileField(
+                        "lutSalesEnabled",
+                        event.target.checked,
+                      );
+                    }}
+                    type="checkbox"
+                  />
+                  <span>{t("profile.lutsEnabled")}</span>
+                </label>
+                <div className="master-price-grid">
+                  <label className="form-field" htmlFor="profile-lut-title">
+                    <span>{t("profile.lutTitle")}</span>
+                    <input
+                      disabled={!profileForm.lutSalesEnabled}
+                      id="profile-lut-title"
+                      onChange={(event) => {
+                        updateProfileField("lutTitle", event.target.value);
+                      }}
+                      type="text"
+                      value={profileForm.lutTitle}
+                    />
+                  </label>
+                  <label className="form-field" htmlFor="profile-lut-price">
+                    <span>{t("profile.lutPrice")}</span>
+                    <div className="review-price-input">
+                      <span aria-hidden="true">$</span>
+                      <input
+                        disabled={
+                          !profileForm.lutSalesEnabled || profileForm.lutIsFree
+                        }
+                        id="profile-lut-price"
+                        min="1"
+                        onChange={(event) => {
+                          updateProfileField("lutPrice", event.target.value);
+                        }}
+                        step="1"
+                        type="number"
+                        value={profileForm.lutPrice}
+                      />
+                    </div>
+                  </label>
+                </div>
+                <label className="checkbox-field" htmlFor="profile-lut-free">
+                  <input
+                    checked={profileForm.lutIsFree}
+                    disabled={!profileForm.lutSalesEnabled}
+                    id="profile-lut-free"
+                    onChange={(event) => {
+                      updateProfileField("lutIsFree", event.target.checked);
+                    }}
+                    type="checkbox"
+                  />
+                  <span>{t("profile.lutFree")}</span>
+                </label>
               </fieldset>
 
               <details className="social-editor">
@@ -12536,11 +12842,14 @@ function mapServerProfileToAccount(
     joinedAt: previous?.joinedAt ?? new Date().toISOString(),
     location: getServerProfileLocation(profile, locale),
     locationSelection: getServerProfileLocationSelection(profile),
+    lutPrice: profile.lutOffer?.priceMinor ?? previous?.lutPrice,
+    lutSalesEnabled: Boolean(profile.lutOffer),
+    lutTitle: profile.lutOffer?.title ?? previous?.lutTitle,
     name: profile.displayName,
     passwordHash: previous?.passwordHash ?? "",
-    presetPrice: previous?.presetPrice,
-    presetSalesEnabled: previous?.presetSalesEnabled,
-    presetTitle: previous?.presetTitle,
+    presetPrice: profile.presetOffer?.priceMinor ?? previous?.presetPrice,
+    presetSalesEnabled: Boolean(profile.presetOffer),
+    presetTitle: profile.presetOffer?.title ?? previous?.presetTitle,
     rating: globalRating?.rating ?? 1500,
     reviewPrice: profile.reviewService
       ? Number(profile.reviewService.priceMinor)
@@ -12572,7 +12881,27 @@ function mapServerPublicProfile(
     id: profile.username,
     locationId: inferLocationId(getServerProfileLocation(profile, locale)),
     locationLabel: getServerProfileLocation(profile, locale),
+    luts: profile.lutOffer?.title
+      ? [
+          {
+            id: `${profile.username}-lut`,
+            imageUrl: profile.coverUrl ?? sampleImages.videoPosterParis,
+            priceMinor: profile.lutOffer.priceMinor,
+            title: profile.lutOffer.title,
+          },
+        ]
+      : undefined,
     name: profile.displayName,
+    presets: profile.presetOffer?.title
+      ? [
+          {
+            id: `${profile.username}-preset`,
+            imageUrl: profile.coverUrl ?? sampleImages.street,
+            priceMinor: profile.presetOffer.priceMinor ?? 0,
+            title: profile.presetOffer.title,
+          },
+        ]
+      : undefined,
     rating: globalRating?.rating ?? 1500,
     reviewPrice: profile.reviewService
       ? Number(profile.reviewService.priceMinor)
@@ -12667,6 +12996,15 @@ function getPublicAuthorBio(
   locale: SupportedLocale,
 ): string {
   return author.bio ?? (author.bioKey ? getMessage(locale, author.bioKey) : "");
+}
+
+function getDigitalProductTitle(
+  offer: DigitalProductOffer,
+  locale: SupportedLocale,
+): string {
+  return (
+    offer.title ?? (offer.titleKey ? getMessage(locale, offer.titleKey) : "")
+  );
 }
 
 function getPublicAuthorLocation(

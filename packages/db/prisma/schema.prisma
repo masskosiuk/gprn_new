@@ -322,6 +322,12 @@ model Profile {
   socialLinks          Json?
   tier                 ProfileTier @default(VIEWER)
   availableForHire     Boolean     @default(true)
+  presetSalesEnabled   Boolean     @default(false)
+  presetTitle          String?
+  presetPriceMinor     Int?
+  lutSalesEnabled      Boolean     @default(false)
+  lutTitle             String?
+  lutPriceMinor        Int?
   serviceRatingAverage Decimal?    @db.Decimal(3, 2)
   serviceRatingsCount  Int         @default(0)
   completedAsProvider  Int         @default(0)
