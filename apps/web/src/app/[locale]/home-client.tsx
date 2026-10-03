@@ -148,6 +148,7 @@ type SocialPlatformId =
 interface HomeClientProps {
   readonly initialAuthorId?: string;
   readonly initialModelId?: string;
+  readonly initialPhotoId?: string;
   readonly initialSection: SectionId;
   readonly initialStudioId?: string;
   readonly locale: SupportedLocale;
@@ -2792,6 +2793,7 @@ const models: readonly ModelRecord[] = [
 export function HomeClient({
   initialAuthorId,
   initialModelId,
+  initialPhotoId,
   initialSection,
   initialStudioId,
   locale,
@@ -2801,6 +2803,7 @@ export function HomeClient({
   const coverInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const languageMenuRef = useRef<HTMLDivElement>(null);
+  const openedInitialPhotoRef = useRef<string | null>(null);
   const [isHydrated, setHydrated] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -3053,6 +3056,34 @@ export function HomeClient({
       ),
     [allPhotos],
   );
+
+  useEffect(() => {
+    if (
+      initialSection !== "profile" ||
+      !initialPhotoId ||
+      openedInitialPhotoRef.current === initialPhotoId
+    ) {
+      return;
+    }
+
+    const photo = allPhotos.find((item) => item.id === initialPhotoId);
+    if (!photo) return;
+
+    openedInitialPhotoRef.current = initialPhotoId;
+    setPhotoReviewOpen(false);
+    setPhotoReviewComment("");
+    setPhotoReviewScores({ ...defaultBattleScores });
+    setImagePreview({
+      alt: getPhotoTitle(photo, locale),
+      photoId: photo.id,
+      src: getLargeImageSource(photo.src),
+    });
+
+    if (photo.serverBacked) {
+      void loadPhotoReviews(photo.id);
+    }
+  }, [allPhotos, initialPhotoId, initialSection, locale]);
+
   const selectedUploadedPhoto =
     uploadedPhotos.find(
       (photo) => photo.id === selectedPhotoId && !photo.profileAsset,
@@ -7849,6 +7880,34 @@ export function HomeClient({
     );
   }
 
+  function renderMoodboardGrid(photos: readonly PhotoRecord[]): ReactNode {
+    return (
+      <div className="moodboard-tile-grid">
+        {photos.map((photo) => {
+          const authorId = getPhotoAuthorId(photo);
+          const profileHref = getSectionHref(locale, "profile");
+          const href = photo.isMine
+            ? `${profileHref}?photo=${encodeURIComponent(photo.id)}`
+            : `${profileHref}?author=${encodeURIComponent(authorId)}&photo=${encodeURIComponent(photo.id)}`;
+          const title = getPhotoTitle(photo, locale);
+
+          return (
+            <Link
+              aria-label={`${title} · ${getPhotoAuthor(photo, locale)}`}
+              className="moodboard-tile"
+              href={href}
+              key={photo.id}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <img alt={title} src={photo.src} />
+            </Link>
+          );
+        })}
+      </div>
+    );
+  }
+
   function renderBattlesPage(): ReactNode {
     return (
       <section className="page-section battles-workspace">
@@ -9704,9 +9763,7 @@ export function HomeClient({
                 <h2>{t("profile.moodboard")}</h2>
               </div>
             </div>
-            <div className="photo-gallery moodboard-gallery">
-              {authorMoodboard.map((photo) => renderPhotoCard(photo))}
-            </div>
+            {renderMoodboardGrid(authorMoodboard)}
           </section>
         </div>
       </section>
@@ -9935,11 +9992,11 @@ export function HomeClient({
               </div>
             </div>
             {moodboardPhotoIds.length > 0 ? (
-              <div className="photo-gallery moodboard-gallery">
-                {publicPhotos
-                  .filter((photo) => moodboardPhotoIds.includes(photo.id))
-                  .map((photo) => renderPhotoCard(photo))}
-              </div>
+              renderMoodboardGrid(
+                publicPhotos.filter((photo) =>
+                  moodboardPhotoIds.includes(photo.id),
+                ),
+              )
             ) : (
               <p className="empty-state">{t("profile.emptyMoodboard")}</p>
             )}

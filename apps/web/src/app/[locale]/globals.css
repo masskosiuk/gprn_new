@@ -1390,6 +1390,44 @@ img {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.moodboard-tile-grid {
+  display: grid;
+  gap: 2px;
+  grid-auto-flow: dense;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
+  overflow: hidden;
+}
+
+.moodboard-tile {
+  aspect-ratio: 1;
+  background: var(--panel-strong);
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.moodboard-tile img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 180ms ease, transform 180ms ease;
+  width: 100%;
+}
+
+.moodboard-tile:hover img,
+.moodboard-tile:focus-visible img {
+  filter: brightness(1.05);
+  transform: scale(1.025);
+}
+
+.moodboard-tile:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+  z-index: 1;
+}
+
 .photo-card {
   overflow: hidden;
 }
@@ -3755,6 +3793,10 @@ img {
   .expert-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .moodboard-tile-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 940px) {
@@ -3957,6 +3999,10 @@ img {
   .expert-grid,
   .achievement-grid {
     grid-template-columns: 1fr;
+  }
+
+  .moodboard-tile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .topbar {

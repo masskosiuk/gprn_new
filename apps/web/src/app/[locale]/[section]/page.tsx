@@ -20,6 +20,7 @@ interface SectionPageProps {
   readonly searchParams: Promise<{
     readonly author?: string | string[];
     readonly model?: string | string[];
+    readonly photo?: string | string[];
     readonly studio?: string | string[];
   }>;
 }
@@ -38,7 +39,7 @@ export default async function SectionPage({
   searchParams,
 }: SectionPageProps): Promise<React.ReactNode> {
   const { locale: requestedLocale, section: requestedSection } = await params;
-  const { author, model, studio } = await searchParams;
+  const { author, model, photo, studio } = await searchParams;
 
   if (!isRoutedSectionId(requestedSection)) {
     notFound();
@@ -54,6 +55,7 @@ export default async function SectionPage({
     <HomeClient
       initialAuthorId={typeof author === "string" ? author : undefined}
       initialModelId={typeof model === "string" ? model : undefined}
+      initialPhotoId={typeof photo === "string" ? photo : undefined}
       initialSection={requestedSection}
       initialStudioId={typeof studio === "string" ? studio : undefined}
       locale={locale}
