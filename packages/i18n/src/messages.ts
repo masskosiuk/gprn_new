@@ -115,8 +115,20 @@ const baseMessages = {
   "auth.validation":
     "Enter a name, a valid email and a password with at least 8 characters.",
   "auth.loginValidation": "Enter a valid email and password.",
-  "auth.accountMissing": "No local account was found for this email.",
-  "auth.badPassword": "The password does not match this local account.",
+  "auth.accountMissing": "Profile not found.",
+  "auth.badPassword": "Invalid email or password.",
+  "auth.invalidCredentials":
+    "Invalid email or password. If you registered with Google, use Continue with Google.",
+  "auth.serverUnavailable":
+    "The sign-in server is temporarily unavailable. Please try again later.",
+  "auth.rateLimited": "Too many sign-in attempts. Please try again later.",
+  "auth.accountInactive": "This account is not active. Please contact support.",
+  "auth.accountExists":
+    "This email is already registered. Sign in to your account.",
+  "auth.loginFailed": "Could not sign in. Please try again later.",
+  "auth.registrationFailed":
+    "Could not create your account. Please try again later.",
+  "auth.googleUnavailable": "Google sign-in is currently unavailable.",
   "auth.success": "Profile created and you are signed in.",
   "auth.loginSuccess": "You are signed in.",
   "auth.registerGoogle": "Register with Google",
@@ -1163,8 +1175,18 @@ const ruMessages: Partial<MessageMap> = {
   "auth.validation":
     "Введите имя, корректный email и пароль минимум из 8 символов.",
   "auth.loginValidation": "Введите корректный email и пароль.",
-  "auth.accountMissing": "Локальный аккаунт для этого email не найден.",
-  "auth.badPassword": "Пароль не совпадает с локальным аккаунтом.",
+  "auth.accountMissing": "Профиль не найден.",
+  "auth.badPassword": "Неверный email или пароль.",
+  "auth.invalidCredentials":
+    "Неверный email или пароль. Если вы регистрировались через Google, нажмите «Продолжить с Google».",
+  "auth.serverUnavailable":
+    "Сервер входа временно недоступен. Попробуйте позже.",
+  "auth.rateLimited": "Слишком много попыток входа. Попробуйте позже.",
+  "auth.accountInactive": "Аккаунт неактивен. Обратитесь в поддержку.",
+  "auth.accountExists": "Этот email уже зарегистрирован. Войдите в аккаунт.",
+  "auth.loginFailed": "Не удалось войти. Попробуйте позже.",
+  "auth.registrationFailed": "Не удалось создать аккаунт. Попробуйте позже.",
+  "auth.googleUnavailable": "Вход через Google сейчас недоступен.",
   "auth.success": "Профиль создан, вы вошли в аккаунт.",
   "auth.loginSuccess": "Вы вошли в аккаунт.",
   "auth.registerGoogle": "Регистрация через Google",
@@ -2025,6 +2047,21 @@ const ruMessages: Partial<MessageMap> = {
 };
 
 const ukMessages: Partial<MessageMap> = {
+  "auth.accountMissing": "Профіль не знайдено.",
+  "auth.badPassword": "Невірний email або пароль.",
+  "auth.invalidCredentials":
+    "Невірний email або пароль. Якщо ви зареєструвалися через Google, натисніть «Продовжити з Google».",
+  "auth.serverUnavailable":
+    "Сервер входу тимчасово недоступний. Спробуйте пізніше.",
+  "auth.rateLimited": "Забагато спроб входу. Спробуйте пізніше.",
+  "auth.accountInactive":
+    "Обліковий запис неактивний. Зверніться до підтримки.",
+  "auth.accountExists":
+    "Цей email уже зареєстрований. Увійдіть в обліковий запис.",
+  "auth.loginFailed": "Не вдалося увійти. Спробуйте пізніше.",
+  "auth.registrationFailed":
+    "Не вдалося створити обліковий запис. Спробуйте пізніше.",
+  "auth.googleUnavailable": "Вхід через Google зараз недоступний.",
   "challenge.cinema.title": "Кіно без бюджету",
   "challenge.cinema.copy":
     "Розкажіть завершену історію за 10–60 секунд: одна локація, природне світло, без дорогої техніки. Нехай фінал змінює сенс першого кадру.",

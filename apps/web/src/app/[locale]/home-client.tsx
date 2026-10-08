@@ -86,10 +86,16 @@ import {
   type PhotoMapMarker,
 } from "./interactive-photo-map";
 import { getSectionHref, type SectionId } from "./sections";
+import {
+  authErrorKey,
+  googleProviderStatus,
+  googleUnavailableKey,
+  requestAuthSession,
+  requestJson,
+  type GoogleAuthStatus,
+} from "../../lib/auth-client";
 
 type AuthMode = "login" | "register";
-type GoogleAuthStatus =
-  "AVAILABLE" | "COMING_SOON" | "LOADING" | "NEEDS_CONFIGURATION";
 type ThemeMode = "dark" | "light";
 type AccountTier =
   "viewer" | "amateur" | "beginner" | "experienced" | "professional" | "star";
@@ -3755,20 +3761,18 @@ export function HomeClient({
 
   useEffect(() => {
     if (!isAuthOpen) return;
+    let cancelled = false;
     setGoogleAuthStatus("LOADING");
-    void apiRequest<{
-      providers: readonly {
-        readonly id: string;
-        readonly status: "AVAILABLE" | "COMING_SOON" | "NEEDS_CONFIGURATION";
-      }[];
-    }>("/auth/providers")
-      .then((response) => {
-        const google = response.providers.find(
-          (provider) => provider.id === "google",
-        );
-        setGoogleAuthStatus(google?.status ?? "COMING_SOON");
+    void loadGoogleAuthStatus()
+      .then((status) => {
+        if (!cancelled) setGoogleAuthStatus(status);
       })
-      .catch(() => setGoogleAuthStatus("NEEDS_CONFIGURATION"));
+      .catch(() => {
+        if (!cancelled) setGoogleAuthStatus("UNAVAILABLE");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthOpen]);
 
   useEffect(() => {
@@ -4156,18 +4160,27 @@ export function HomeClient({
     setAuthOpen(true);
   }
 
-  function startGoogleAuth(): void {
-    if (googleAuthStatus !== "AVAILABLE") {
-      setAuthFeedback({
-        kind: "error",
-        text: t("auth.googleNotConfigured"),
-      });
-      return;
+  async function startGoogleAuth(): Promise<void> {
+    setAuthFeedback(null);
+    setGoogleAuthStatus("LOADING");
+    try {
+      const status = await loadGoogleAuthStatus();
+      setGoogleAuthStatus(status);
+      if (status !== "AVAILABLE") {
+        setAuthFeedback({
+          kind: "error",
+          text: t(googleUnavailableKey(status)),
+        });
+        return;
+      }
+      const returnTo = `${window.location.pathname}${window.location.search}`;
+      window.location.assign(
+        `${getApiRoot()}/auth/google/start?returnTo=${encodeURIComponent(returnTo)}`,
+      );
+    } catch (error) {
+      setGoogleAuthStatus("UNAVAILABLE");
+      setAuthFeedback({ kind: "error", text: t(authErrorKey(error, "login")) });
     }
-    const returnTo = `${window.location.pathname}${window.location.search}`;
-    window.location.assign(
-      `${getApiRoot()}/auth/google/start?returnTo=${encodeURIComponent(returnTo)}`,
-    );
   }
 
   async function refreshSocialConnections(includeMine: boolean): Promise<void> {
@@ -5032,36 +5045,20 @@ export function HomeClient({
     email: string,
     password: string,
     profile?: AccountRecord,
-  ): Promise<ServerSessionUser | null> {
+  ): Promise<ServerSessionUser> {
     const registerBody = {
       displayName: profile?.name ?? email.split("@")[0] ?? "User",
       email,
       password,
       username: profile?.username ?? makeUsername(email, email),
     };
-    const loginBody = { email, password };
-    const attempts =
-      mode === "register"
-        ? ([
-            ["/auth/register", registerBody],
-            ["/auth/login", loginBody],
-          ] as const)
-        : ([["/auth/login", loginBody]] as const);
-
-    for (const [path, body] of attempts) {
-      try {
-        const response = await apiRequest<{ user: ServerSessionUser }>(path, {
-          body: JSON.stringify(body),
-          method: "POST",
-        });
-        setServerUser(response.user);
-        return response.user;
-      } catch {
-        // Registration falls back to login when the server account already exists.
-      }
-    }
-
-    return null;
+    const response = await requestAuthSession<ServerSessionUser>(
+      getApiRoot(),
+      mode,
+      registerBody,
+    );
+    setServerUser(response.user);
+    return response.user;
   }
 
   async function handleAuthSubmit(
@@ -5099,14 +5096,19 @@ export function HomeClient({
         wins: 0,
       };
 
-      const serverReady = await establishServerSession(
-        "register",
-        email,
-        password,
-        newAccount,
-      );
-      if (!serverReady) {
-        setAuthFeedback({ kind: "error", text: t("auth.accountMissing") });
+      let serverReady: ServerSessionUser;
+      try {
+        serverReady = await establishServerSession(
+          "register",
+          email,
+          password,
+          newAccount,
+        );
+      } catch (error) {
+        setAuthFeedback({
+          kind: "error",
+          text: t(authErrorKey(error, "register")),
+        });
         return;
       }
       setAccount(newAccount);
@@ -5127,13 +5129,14 @@ export function HomeClient({
     }
 
     const passwordHash = await hashSecret(email, password);
-    const serverReady = await establishServerSession("login", email, password);
-    const localAccount = account?.email === email ? account : null;
-
-    if (!serverReady) {
-      setAuthFeedback({ kind: "error", text: t("auth.accountMissing") });
+    let serverReady: ServerSessionUser;
+    try {
+      serverReady = await establishServerSession("login", email, password);
+    } catch (error) {
+      setAuthFeedback({ kind: "error", text: t(authErrorKey(error, "login")) });
       return;
     }
+    const localAccount = account?.email === email ? account : null;
 
     const resolvedAccount: AccountRecord = {
       availableForHire: localAccount?.availableForHire ?? true,
@@ -13442,18 +13445,15 @@ async function apiRequest<T = unknown>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const headers = new Headers(init.headers);
-  if (init.body && !headers.has("content-type"))
-    headers.set("content-type", "application/json");
+  return requestJson<T>(`${getApiRoot()}${path}`, init);
+}
 
-  const response = await fetch(`${getApiRoot()}${path}`, {
-    ...init,
-    credentials: "include",
-    headers,
-  });
-  if (!response.ok)
-    throw new Error(`API request failed with ${response.status}.`);
-  return (await response.json()) as T;
+async function loadGoogleAuthStatus(): Promise<GoogleAuthStatus> {
+  return googleProviderStatus(
+    await apiRequest("/auth/providers", {
+      signal: AbortSignal.timeout(15_000),
+    }),
+  );
 }
 
 async function searchLocations(
