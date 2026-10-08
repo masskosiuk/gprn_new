@@ -86,6 +86,7 @@ import {
   type PhotoMapMarker,
 } from "./interactive-photo-map";
 import { getSectionHref, type SectionId } from "./sections";
+import { isVideoWork } from "../../lib/media-kind";
 import {
   authErrorKey,
   googleProviderStatus,
@@ -650,6 +651,7 @@ interface LocationOption {
 }
 
 interface PhotoRecord {
+  readonly mediaType?: "PHOTO" | "VIDEO";
   readonly videoSrc?: string;
   readonly authorId?: string;
   readonly authorKey?: MessageKey;
@@ -3010,6 +3012,7 @@ export function HomeClient({
 
     const samples: PhotoRecord[] = demoChallengeWorks.map((work) => ({
       id: work.id,
+      mediaType: work.mediaType,
       authorId: work.author,
       authorUsername: work.author,
       authorName: demoBattleAuthors.find(
@@ -3046,6 +3049,10 @@ export function HomeClient({
       ),
     [allPhotos],
   );
+  const publicImages = useMemo(
+    () => publicPhotos.filter((photo) => !isVideoWork(photo)),
+    [publicPhotos],
+  );
 
   useEffect(() => {
     if (
@@ -3081,7 +3088,7 @@ export function HomeClient({
     ) ??
     uploadedPhotos.find((photo) => !photo.profileAsset) ??
     null;
-  const visiblePhotos = publicPhotos.filter((photo) => {
+  const visiblePhotos = publicImages.filter((photo) => {
     const query = searchTerm.trim().toLocaleLowerCase(locale);
     const title = getPhotoTitle(photo, locale).toLocaleLowerCase(locale);
     const author = getPhotoAuthor(photo, locale).toLocaleLowerCase(locale);
@@ -3154,7 +3161,7 @@ export function HomeClient({
   );
   const visibleMediaVideos = publicPhotos.filter(
     (photo) =>
-      photo.videoSrc &&
+      isVideoWork(photo) &&
       (videoCategoryFilter === "all" ||
         photo.categoryId === videoCategoryFilter) &&
       (videoLocationFilter === "all" ||
@@ -3203,7 +3210,7 @@ export function HomeClient({
   const mapPhotoMarkers = useMemo<readonly PhotoMapMarker[]>(() => {
     const locationPhotoCounts = new Map<string, number>();
 
-    return publicPhotos
+    return publicImages
       .filter((photo) => {
         if (photo.locationHidden) return false;
         const knownLocation = locationPins.find(
@@ -3240,7 +3247,7 @@ export function HomeClient({
           title: getPhotoTitle(photo, locale),
         };
       });
-  }, [locale, publicPhotos]);
+  }, [locale, publicImages]);
   const mapVideoMarkers = useMemo<readonly PhotoMapMarker[]>(() => {
     const locationVideoCounts = new Map<LocationId, number>();
 
@@ -7298,7 +7305,9 @@ export function HomeClient({
               <h2>{t("section.video.title")}</h2>
             </div>
             <span className="count-pill">
-              {numberFormatter.format(visibleVideos.length)}
+              {numberFormatter.format(
+                visibleVideos.length + visibleMediaVideos.length,
+              )}
             </span>
           </div>
 
@@ -7414,7 +7423,9 @@ export function HomeClient({
               <span>
                 {t("discover.results").replace(
                   "{count}",
-                  numberFormatter.format(visibleVideos.length),
+                  numberFormatter.format(
+                    visibleVideos.length + visibleMediaVideos.length,
+                  ),
                 )}
               </span>
               <button
@@ -12921,6 +12932,7 @@ function mapServerPhoto(
     locationLongitude,
     moodboardCount: photo.counts?.moodboards ?? 0,
     moderationStatus: photo.moderationStatus,
+    mediaType: photo.mediaType,
     originKey: "status.directUpload",
     provenanceKey:
       (photo.provenance?.status ?? photo.provenanceStatus) === "UNVERIFIED"
