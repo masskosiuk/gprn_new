@@ -1,6 +1,11 @@
 "use client";
 
-import { EloRatingEngine } from "@gprn/domain";
+import {
+  demoBattleAuthors,
+  demoBattlePhotos,
+  demoBattles,
+  EloRatingEngine,
+} from "@gprn/domain";
 import { getMessage, type MessageKey, type SupportedLocale } from "@gprn/i18n";
 import {
   Aperture,
@@ -701,6 +706,7 @@ interface BattleEvaluationRecord {
 
 interface BattleRecord {
   readonly categoryId: CategoryId;
+  readonly isDemo?: boolean;
   readonly endsAt: string;
   readonly entries: readonly BattleEntry[];
   readonly id: string;
@@ -2263,92 +2269,34 @@ const publicAuthorProfiles: readonly PublicAuthorProfile[] = [
   },
 ];
 
-const initialBattles: readonly BattleRecord[] = [
-  {
-    categoryId: "street",
-    endsAt: "2026-09-04T18:00:00.000Z",
-    entries: [
-      {
-        id: "battle-rain-a",
-        imageUrl: sampleImages.city,
-        locationId: "tokyo",
-        photographerKey: "data.author.mika",
-        rating: 1532,
-        titleKey: "data.photo.tokyo.title",
-        votes: 51,
-      },
-      {
-        id: "battle-rain-b",
-        imageUrl: sampleImages.tram,
-        locationId: "lisbon",
-        photographerKey: "data.author.joao",
-        rating: 1498,
-        titleKey: "data.photo.lisbon.title",
-        votes: 47,
-      },
-    ],
-    id: "street-rain",
-    scope: "global",
-    statusKey: "battles.open",
-    titleKey: "data.battle.streetRain",
-  },
-  {
-    categoryId: "landscape",
-    endsAt: "2026-09-06T20:00:00.000Z",
-    entries: [
-      {
-        id: "battle-light-a",
-        imageUrl: sampleImages.mountain,
-        locationId: "reykjavik",
-        photographerKey: "data.author.elena",
-        rating: 1601,
-        titleKey: "data.photo.iceland.title",
-        votes: 64,
-      },
-      {
-        id: "battle-light-b",
-        imageUrl: sampleImages.night,
-        locationId: "paris",
-        photographerKey: "data.author.lucas",
-        rating: 1574,
-        titleKey: "data.photo.patagonia.title",
-        votes: 58,
-      },
-    ],
-    id: "landscape-light",
-    scope: "season",
-    statusKey: "battles.open",
-    titleKey: "data.battle.landscapeLight",
-  },
-  {
-    categoryId: "architecture",
-    endsAt: "2026-09-03T16:00:00.000Z",
-    entries: [
-      {
-        id: "battle-geometry-a",
-        imageUrl: sampleImages.architecture,
-        locationId: "kyiv",
-        photographerKey: "data.author.anna",
-        rating: 1510,
-        titleKey: "data.photo.kyiv.title",
-        votes: 33,
-      },
-      {
-        id: "battle-geometry-b",
-        imageUrl: sampleImages.street,
-        locationId: "paris",
-        photographerKey: "data.author.yusuf",
-        rating: 1487,
-        titleKey: "data.photo.marrakech.title",
-        votes: 29,
-      },
-    ],
-    id: "city-geometry",
-    scope: "city",
-    statusKey: "battles.open",
-    titleKey: "data.battle.cityGeometry",
-  },
-];
+const initialBattles: readonly BattleRecord[] = demoBattles.map((battle) => ({
+  categoryId: battle.category,
+  endsAt: "",
+  entries: battle.photoIds.map((photoId, index) => {
+    const demoPhoto = demoBattlePhotos.find((photo) => photo.id === photoId)!;
+    const photo = curatedPhotos.find(
+      (candidate) => candidate.id === demoPhoto.curatedId,
+    )!;
+    const author = demoBattleAuthors.find(
+      (candidate) => candidate.key === demoPhoto.author,
+    )!;
+    return {
+      id: `${battle.id}-${index}`,
+      imageUrl: photo.src,
+      locationId: photo.locationId,
+      photographerName: author.name,
+      photoId: photo.id,
+      rating: author.rating,
+      titleKey: demoPhoto.titleKey,
+      votes: 0,
+    };
+  }),
+  id: battle.id,
+  isDemo: true,
+  scope: "global",
+  statusKey: "battles.open",
+  titleKey: battle.titleKey,
+}));
 
 const demoChallenges: readonly ChallengeRecord[] = [
   {
@@ -6963,7 +6911,11 @@ export function HomeClient({
                 <div className="home-battle-copy">
                   <div>
                     <span className="eyebrow">
-                      {t(getBattleScopeKey(battle.scope))}
+                      {t(
+                        battle.isDemo
+                          ? "battles.demo"
+                          : getBattleScopeKey(battle.scope),
+                      )}
                     </span>
                     <h2>
                       {battle.title ??
@@ -6974,9 +6926,11 @@ export function HomeClient({
                   </div>
                   <div className="home-battle-meta">
                     <span>{t(battle.statusKey)}</span>
-                    <small>
-                      {t("battles.ends")} {formatDate(locale, battle.endsAt)}
-                    </small>
+                    {battle.endsAt ? (
+                      <small>
+                        {t("battles.ends")} {formatDate(locale, battle.endsAt)}
+                      </small>
+                    ) : null}
                   </div>
                 </div>
               </article>
@@ -8007,7 +7961,11 @@ export function HomeClient({
         <div className="battle-head">
           <div>
             <span className="eyebrow">
-              {t(getBattleScopeKey(battle.scope))}
+              {t(
+                battle.isDemo
+                  ? "battles.demo"
+                  : getBattleScopeKey(battle.scope),
+              )}
             </span>
             <h2>
               {battle.title ??
@@ -8018,9 +7976,11 @@ export function HomeClient({
           </div>
           <div className="battle-status">
             <span>{t(battle.statusKey)}</span>
-            <small>
-              {t("battles.ends")} {formatDate(locale, battle.endsAt)}
-            </small>
+            {battle.endsAt ? (
+              <small>
+                {t("battles.ends")} {formatDate(locale, battle.endsAt)}
+              </small>
+            ) : null}
             <button
               aria-label={t("common.share")}
               className="icon-button"
@@ -12799,8 +12759,15 @@ function mapServerBattle(
 ): BattleRecord | null {
   if (battle.entries.length < 1 || battle.entries.length > 2) return null;
 
+  const demoBattle = demoBattles.find(
+    (candidate) => candidate.id === battle.id,
+  );
+
   const mappedEntries = battle.entries.map((entry): BattleEntry | null => {
     if (!entry.photo.displayUrl) return null;
+    const demoPhoto = demoBattlePhotos.find(
+      (candidate) => candidate.id === entry.photo.id,
+    );
 
     return {
       id: entry.id,
@@ -12811,7 +12778,8 @@ function mapServerBattle(
       photoId: entry.photo.id,
       moderationStatus: entry.moderationStatus,
       rating: entry.owner.rating,
-      title: entry.photo.title,
+      title: demoPhoto ? undefined : entry.photo.title,
+      titleKey: demoPhoto?.titleKey,
       votes: entry.votes,
     } satisfies BattleEntry;
   });
@@ -12829,13 +12797,16 @@ function mapServerBattle(
       new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
     entries,
     id: battle.id,
+    isDemo: Boolean(demoBattle),
     scope: battle.season ? "season" : "global",
     serverBacked: true,
     statusKey: battle.status === "DRAFT" ? "battles.waiting" : "battles.open",
-    title:
-      entries.length === 2
+    title: demoBattle
+      ? undefined
+      : entries.length === 2
         ? `${entries[0]!.title} / ${entries[1]!.title}`
         : entries[0]!.title,
+    titleKey: demoBattle?.titleKey,
   };
 }
 

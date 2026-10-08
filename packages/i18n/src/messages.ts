@@ -337,6 +337,7 @@ const baseMessages = {
   "battles.ends": "Ends",
   "battles.local": "Local battle",
   "battles.open": "Open for voting",
+  "battles.demo": "Demo battle",
   "battles.waiting": "Waiting for an opponent",
   "battles.waitingCopy":
     "Your photo is saved online. The battle will open when another photographer joins this category.",
@@ -804,6 +805,11 @@ const baseMessages = {
   "data.battle.landscapeLight": "Landscape light",
   "data.battle.cityGeometry": "City geometry",
   "data.battle.localTitle": "Your local challenge",
+  "data.battle.cityRhythm": "City rhythm",
+  "data.battle.nightPulse": "Night pulse",
+  "data.battle.formAndPattern": "Form vs. pattern",
+  "data.battle.storiesWithoutWords": "Stories without words",
+  "data.battle.mountainBreath": "Breath of the mountains",
 
   "data.challenge.cityNight": "City night",
   "data.challenge.humanScale": "Human scale",
@@ -1357,6 +1363,12 @@ const ruMessages: Partial<MessageMap> = {
   "battles.ends": "Завершение",
   "battles.local": "Локальный батл",
   "battles.open": "Открыт для голосования",
+  "battles.demo": "Демо-батл",
+  "data.battle.cityRhythm": "Ритм города",
+  "data.battle.nightPulse": "Пульс ночи",
+  "data.battle.formAndPattern": "Форма против узора",
+  "data.battle.storiesWithoutWords": "Истории без слов",
+  "data.battle.mountainBreath": "Дыхание гор",
   "battles.waiting": "Ожидает соперника",
   "battles.waitingCopy":
     "Фото сохранено на сервере. Батл откроется, когда другой фотограф добавит работу в эту категорию.",

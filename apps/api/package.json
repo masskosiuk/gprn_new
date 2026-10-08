@@ -6,9 +6,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/main.ts",
+    "demo:seed-battles": "tsx src/scripts/seed-demo-battles.ts",
     "lint": "tsc -p tsconfig.build.json --noEmit",
     "start": "node dist/main.js",
-    "test": "node --test --experimental-strip-types src/**/*.test.ts",
+    "test": "tsx --test src/**/*.test.ts",
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {

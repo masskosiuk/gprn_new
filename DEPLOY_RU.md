@@ -217,3 +217,31 @@ sudo docker compose --env-file .env.production -f docker-compose.production.yml 
 
 Ключ `--remove-orphans` здесь удаляет только контейнеры прежней dev-конфигурации;
 именованные тома PostgreSQL и MinIO он не удаляет.
+
+## 7. Демо-батлы
+
+Отдельная команда создаёт пять батлов из десяти работ шести демо-мастеров.
+Она не запускается автоматически при старте сайта. Перед обновлением сделайте
+резервную копию по разделу 6, затем выполните:
+
+```bash
+cd /opt/gprn
+git pull --ff-only origin master
+sudo docker compose --env-file .env.production -f docker-compose.production.yml build web
+sudo docker compose --env-file .env.production -f docker-compose.production.yml up -d --no-build
+sudo docker compose --env-file .env.production -f docker-compose.production.yml exec -T api pnpm db:seed:demo-battles
+curl -fsS https://photoapp.metarp.top/api/v1/battles/open
+```
+
+API должен иметь исходящий доступ к `images.unsplash.com`: изображения
+скачиваются один раз и сохраняются в публичном бакете MinIO под `demo/battles/v1/`.
+Для демо используются отдельные профили `demo.*` с адресами в домене `.invalid`
+без паролей, предложений услуг и утверждений о подтверждённом авторстве.
+Это образцы, а не реальные авторы. Батлы отмечены как демонстрационные.
+
+В обоих слотах работы одобрены, поэтому батлы сразу доступны всем через API.
+Голоса настоящие: требуется вход, один голос на пользователя, действуют обычные
+правила завершения батла. Начальные голоса и подписчики не накручиваются.
+Повторный запуск не сбрасывает результаты, сроки и решения модерации,
+не открывает завершённые или отменённые батлы. Общий `db:seed` на рабочей базе
+повторно запускать не нужно. Миграция для демо-батлов не требуется.
