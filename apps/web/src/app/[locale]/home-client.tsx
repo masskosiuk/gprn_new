@@ -88,6 +88,10 @@ import {
 import { getSectionHref, type SectionId } from "./sections";
 import { isVideoWork } from "../../lib/media-kind";
 import {
+  competitionPath,
+  sharedCompetitionId,
+} from "../../lib/competition-links";
+import {
   authErrorKey,
   googleProviderStatus,
   googleUnavailableKey,
@@ -161,6 +165,8 @@ type SocialPlatformId =
 
 interface HomeClientProps {
   readonly initialAuthorId?: string;
+  readonly initialBattleId?: string;
+  readonly initialChallengeId?: string;
   readonly initialModelId?: string;
   readonly initialPhotoId?: string;
   readonly initialSection: SectionId;
@@ -2760,6 +2766,8 @@ const models: readonly ModelRecord[] = [
 
 export function HomeClient({
   initialAuthorId,
+  initialBattleId,
+  initialChallengeId,
   initialModelId,
   initialPhotoId,
   initialSection,
@@ -2894,6 +2902,12 @@ export function HomeClient({
   const [challenges, setChallenges] = useState<ChallengeRecord[]>(() => [
     ...demoChallenges,
   ]);
+  const [hasLoadedBattles, setHasLoadedBattles] = useState(false);
+  const [hasLoadedChallenges, setHasLoadedChallenges] = useState(false);
+  const [highlightedCompetitionId, setHighlightedCompetitionId] = useState<
+    string | null
+  >(null);
+  const scrolledCompetitionKey = useRef<string | null>(null);
   const [battleVotes, setBattleVotes] = useState<
     Record<string, BattleEvaluationRecord>
   >({});
@@ -2995,6 +3009,58 @@ export function HomeClient({
       setDiscoverLocationFilter(requestedLocation as LocationFilter);
     }
   }, [initialSection]);
+
+  useEffect(() => {
+    const kind =
+      initialSection === "challenges"
+        ? "challenge"
+        : initialSection === "battles"
+          ? "battle"
+          : null;
+    if (!kind) {
+      setHighlightedCompetitionId(null);
+      scrolledCompetitionKey.current = null;
+      return;
+    }
+    if (kind === "battle" ? !hasLoadedBattles : !hasLoadedChallenges) return;
+    const requested = sharedCompetitionId(
+      (kind === "challenge" ? initialChallengeId : initialBattleId) ??
+        new URLSearchParams(window.location.search).get(kind) ??
+        undefined,
+      kind === "challenge" ? challenges : battles,
+    );
+    setHighlightedCompetitionId(requested);
+    if (!requested) {
+      scrolledCompetitionKey.current = null;
+      return;
+    }
+    const key = `${kind}-${requested}`;
+    if (scrolledCompetitionKey.current === key) return;
+    if (kind === "battle" && battleFilter !== "all") {
+      setBattleFilter("all");
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      const card = document.getElementById(key);
+      if (!card) return;
+      const headerHeight =
+        document.querySelector(".topbar")?.getBoundingClientRect().height ?? 0;
+      card.style.scrollMarginTop = `${headerHeight + 16}px`;
+      card.scrollIntoView({ block: "start", behavior: "instant" });
+      card.focus({ preventScroll: true });
+      scrolledCompetitionKey.current = key;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    battleFilter,
+    battles,
+    challenges,
+    hasLoadedBattles,
+    hasLoadedChallenges,
+    initialBattleId,
+    initialChallengeId,
+    initialSection,
+  ]);
 
   const currentProfile =
     account && sessionEmail === account.email ? account : null;
@@ -4476,6 +4542,8 @@ export function HomeClient({
       );
     } catch {
       // Demo battles remain visible only while the public API is unavailable.
+    } finally {
+      setHasLoadedBattles(true);
     }
   }
 
@@ -4501,6 +4569,8 @@ export function HomeClient({
       setSeasonName(seasonResponse.season?.name ?? null);
     } catch {
       // Demo challenges remain visible only while the public API is unavailable.
+    } finally {
+      setHasLoadedChallenges(true);
     }
   }
 
@@ -6898,7 +6968,10 @@ export function HomeClient({
           </div>
           <div className="home-activity-grid">
             {challenges.slice(0, 2).map((challenge) => (
-              <article className="challenge-card" key={challenge.id}>
+              <article
+                className="challenge-card home-competition-card"
+                key={challenge.id}
+              >
                 <img
                   alt=""
                   aria-hidden="true"
@@ -6908,15 +6981,16 @@ export function HomeClient({
                 <div className="challenge-card-body">
                   <div className="challenge-top">
                     <span className="pill">{t(challenge.statusKey)}</span>
-                    <span>
-                      {t(
-                        challenge.mediaType === "VIDEO"
-                          ? "challenge.video"
-                          : "challenge.photo",
-                      )}
-                    </span>
+                    {renderChallengeActions(challenge)}
                   </div>
-                  <h2>{challenge.title ?? t(challenge.titleKey)}</h2>
+                  <h2>
+                    <Link
+                      className="home-competition-link"
+                      href={competitionPath(locale, "challenge", challenge.id)}
+                    >
+                      {challenge.title ?? t(challenge.titleKey)}
+                    </Link>
+                  </h2>
                   <p>{t(challenge.copyKey)}</p>
                   <dl className="stats-list challenge-stats">
                     <div>
@@ -6979,7 +7053,11 @@ export function HomeClient({
           </div>
           <div className="home-activity-grid">
             {battles.slice(0, 2).map((battle) => (
-              <article className="home-battle-card" key={battle.id}>
+              <Link
+                className="home-battle-card"
+                href={competitionPath(locale, "battle", battle.id)}
+                key={battle.id}
+              >
                 <div className="home-battle-images">
                   {battle.entries.map((entry) => (
                     <img
@@ -7019,7 +7097,7 @@ export function HomeClient({
                     ) : null}
                   </div>
                 </div>
-              </article>
+              </Link>
             ))}
           </div>
         </section>
@@ -8066,7 +8144,12 @@ export function HomeClient({
     const selectedEntryId = submittedEvaluation?.winnerEntryId;
 
     return (
-      <article className="battle-card" key={battle.id}>
+      <article
+        className={`battle-card${highlightedCompetitionId === battle.id ? " is-shared" : ""}`}
+        id={`battle-${battle.id}`}
+        key={battle.id}
+        tabIndex={-1}
+      >
         <div className="battle-head">
           <div>
             <span className="eyebrow">
@@ -8099,7 +8182,7 @@ export function HomeClient({
                     (battle.titleKey
                       ? t(battle.titleKey)
                       : t("section.battles.title")),
-                  `/${locale}/battles?battle=${battle.id}`,
+                  competitionPath(locale, "battle", battle.id),
                 );
               }}
               title={t("common.share")}
@@ -8200,6 +8283,34 @@ export function HomeClient({
     );
   }
 
+  function renderChallengeActions(challenge: ChallengeRecord): ReactNode {
+    return (
+      <div className="challenge-actions">
+        <span>
+          {t(
+            challenge.mediaType === "VIDEO"
+              ? "challenge.video"
+              : "challenge.photo",
+          )}
+        </span>
+        <button
+          aria-label={t("common.share")}
+          className="icon-button"
+          onClick={() => {
+            void shareItem(
+              challenge.title ?? t(challenge.titleKey),
+              competitionPath(locale, "challenge", challenge.id),
+            );
+          }}
+          title={t("common.share")}
+          type="button"
+        >
+          <Share2 aria-hidden="true" size={16} />
+        </button>
+      </div>
+    );
+  }
+
   function renderChallengeExamples(challenge: ChallengeRecord): ReactNode {
     if (!challenge.submissions?.length) return null;
     return (
@@ -8292,7 +8403,12 @@ export function HomeClient({
             );
 
             return (
-              <article className="challenge-card" key={challenge.id}>
+              <article
+                className={`challenge-card${highlightedCompetitionId === challenge.id ? " is-shared" : ""}`}
+                id={`challenge-${challenge.id}`}
+                key={challenge.id}
+                tabIndex={-1}
+              >
                 <img
                   alt=""
                   aria-hidden="true"
@@ -8302,13 +8418,7 @@ export function HomeClient({
                 <div className="challenge-card-body">
                   <div className="challenge-top">
                     <span className="pill">{t(challenge.statusKey)}</span>
-                    <span>
-                      {t(
-                        challenge.mediaType === "VIDEO"
-                          ? "challenge.video"
-                          : "challenge.photo",
-                      )}
-                    </span>
+                    {renderChallengeActions(challenge)}
                   </div>
                   <h2>{challenge.title ?? t(challenge.titleKey)}</h2>
                   <p>{t(challenge.copyKey)}</p>

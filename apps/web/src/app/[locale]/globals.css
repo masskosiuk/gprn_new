@@ -2312,6 +2312,49 @@ img {
   padding: 0;
 }
 
+.battle-card.is-shared,
+.challenge-card.is-shared {
+  border-color: var(--accent);
+}
+
+.challenge-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.challenge-top {
+  gap: 12px;
+}
+
+.home-competition-card {
+  position: relative;
+}
+
+.home-competition-link::after {
+  content: "";
+  inset: 0;
+  position: absolute;
+  z-index: 1;
+}
+
+.home-competition-card .icon-button,
+.home-competition-card .challenge-submission-grid button {
+  position: relative;
+  z-index: 2;
+}
+
+.home-competition-card:has(.home-competition-link:focus-visible),
+.home-battle-card:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.home-competition-link:hover,
+.home-battle-card:hover h2 {
+  color: var(--accent-strong);
+}
+
 .challenge-cover {
   aspect-ratio: 16 / 9;
   object-fit: cover;
