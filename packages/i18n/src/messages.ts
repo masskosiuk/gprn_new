@@ -5,6 +5,24 @@ import {
 } from "./locales.js";
 
 const baseMessages = {
+  "challenge.cinema.title": "Cinema without a budget",
+  "challenge.cinema.copy":
+    "Tell a complete story in 10–60 seconds: one location, natural light, no expensive equipment. Let the ending change the meaning of the opening shot.",
+  "challenge.color.title": "One color",
+  "challenge.color.copy":
+    "Build a photograph around one dominant color. Use its shades, texture and light to create a mood; the subject is up to you.",
+  "challenge.shadow.title": "Shadow: the protagonist",
+  "challenge.shadow.copy":
+    "Tell a story in which the shadow matters more than its source. Keep the source out of frame or let the shadow reveal something unexpected.",
+  "challenge.photo": "Photo challenge",
+  "challenge.video": "Video challenge · 10–60 s",
+  "challenge.stockExample": "Stock demo example",
+  "demo.work.lateScene": "Late for the scene",
+  "demo.work.waiting": "Waiting after dark",
+  "demo.work.green": "Green in detail",
+  "demo.work.warmWall": "Warm wall",
+  "demo.work.diagonal": "Shadow diagonal",
+  "demo.work.between": "Between light and shadow",
   "app.name": "Global Production & Reputation Network",
   "app.shortName": "GPRN",
   "app.tagline":
@@ -164,14 +182,15 @@ const baseMessages = {
   "section.profile.intro":
     "A Behance-style public profile with avatar, bio, reputation, portfolio, battles and achievements.",
 
-  "photo.add": "Add photo",
-  "photo.addTitle": "Choose photo source",
-  "photo.addFirst": "Upload your first photo",
+  "photo.add": "Add file",
+  "photo.addTitle": "Photo or video source",
+  "photo.addFirst": "Upload your first work",
   "photo.change": "Choose another",
   "photo.empty": "No photo selected yet.",
-  "photo.invalid": "Choose an image file.",
+  "photo.invalid":
+    "Choose a photo or MP4/WebM video up to 18 MB. Video: up to 60 seconds.",
   "photo.draft": "Draft",
-  "photo.saved": "Photo saved locally with provenance draft.",
+  "photo.saved": "File saved to your profile.",
   "photo.selected": "Selected photo",
   "photo.saveDraft": "Save draft",
   "photo.uploadDevice": "Upload from device",
@@ -1046,6 +1065,24 @@ export type MessageKey = keyof typeof baseMessages;
 type MessageMap = Record<MessageKey, string>;
 
 const ruMessages: Partial<MessageMap> = {
+  "challenge.cinema.title": "Кино без бюджета",
+  "challenge.cinema.copy":
+    "Расскажите законченную историю за 10–60 секунд: одна локация, естественный свет, без дорогой техники. Пусть финал меняет смысл первого кадра.",
+  "challenge.color.title": "Один цвет",
+  "challenge.color.copy":
+    "Постройте фотографию вокруг одного доминирующего цвета. Его оттенки, фактура и свет должны создавать настроение. Сюжет выбираете вы.",
+  "challenge.shadow.title": "Тень — главный герой",
+  "challenge.shadow.copy":
+    "Расскажите историю, в которой тень важнее её источника. Оставьте источник за кадром или позвольте тени раскрыть что-то неожиданное.",
+  "challenge.photo": "Фоточеллендж",
+  "challenge.video": "Видеочеллендж · 10–60 с",
+  "challenge.stockExample": "Стоковый демо-пример",
+  "demo.work.lateScene": "Опоздание в кадр",
+  "demo.work.waiting": "Ожидание после заката",
+  "demo.work.green": "Зелёный в деталях",
+  "demo.work.warmWall": "Тёплая стена",
+  "demo.work.diagonal": "Диагональ тени",
+  "demo.work.between": "Между светом и тенью",
   "app.tagline":
     "Сеть визуального продакшна для авторов, моделей, студий и проверенной репутации.",
   "language.label": "Язык",
@@ -1195,14 +1232,15 @@ const ruMessages: Partial<MessageMap> = {
     "Управление аккаунтами, балансами, оценками, контентом, рекламой и журналом действий.",
   "section.profile.intro":
     "Публичный профиль в духе Behance: фото, био, репутация, портфолио, батлы и достижения.",
-  "photo.add": "Добавить фото",
-  "photo.addTitle": "Выберите источник фото",
-  "photo.addFirst": "Загрузить первое фото",
+  "photo.add": "Добавить файл",
+  "photo.addTitle": "Источник фото или видео",
+  "photo.addFirst": "Загрузить первую работу",
   "photo.change": "Выбрать другое",
   "photo.empty": "Фото пока не выбрано.",
-  "photo.invalid": "Выберите файл изображения.",
+  "photo.invalid":
+    "Выберите фото или видео MP4/WebM до 18 МБ. Видео: до 60 секунд.",
   "photo.draft": "Черновик",
-  "photo.saved": "Фото сохранено локально с черновиком provenance.",
+  "photo.saved": "Файл сохранён в вашем профиле.",
   "photo.selected": "Выбранное фото",
   "photo.saveDraft": "Сохранить черновик",
   "photo.uploadDevice": "Загрузить с устройства",
@@ -1987,6 +2025,24 @@ const ruMessages: Partial<MessageMap> = {
 };
 
 const ukMessages: Partial<MessageMap> = {
+  "challenge.cinema.title": "Кіно без бюджету",
+  "challenge.cinema.copy":
+    "Розкажіть завершену історію за 10–60 секунд: одна локація, природне світло, без дорогої техніки. Нехай фінал змінює сенс першого кадру.",
+  "challenge.color.title": "Один колір",
+  "challenge.color.copy":
+    "Побудуйте фотографію навколо одного домінантного кольору. Його відтінки, фактура та світло мають створювати настрій. Сюжет обираєте ви.",
+  "challenge.shadow.title": "Тінь — головний герой",
+  "challenge.shadow.copy":
+    "Розкажіть історію, в якій тінь важливіша за її джерело. Залиште джерело поза кадром або дозвольте тіні розкрити щось несподіване.",
+  "challenge.photo": "Фоточелендж",
+  "challenge.video": "Відеочелендж · 10–60 с",
+  "challenge.stockExample": "Стоковий демоприклад",
+  "demo.work.lateScene": "Запізнення в кадр",
+  "demo.work.waiting": "Очікування після заходу сонця",
+  "demo.work.green": "Зелений у деталях",
+  "demo.work.warmWall": "Тепла стіна",
+  "demo.work.diagonal": "Діагональ тіні",
+  "demo.work.between": "Між світлом і тінню",
   "language.label": "Мова",
   "nav.home": "Головна",
   "nav.discover": "Огляд",
@@ -2019,12 +2075,13 @@ const ukMessages: Partial<MessageMap> = {
   "section.marketplace.title": "Маркетплейс",
   "section.experts.title": "Експертні оцінки",
   "section.profile.title": "Профіль майстра",
-  "photo.add": "Додати фото",
+  "photo.add": "Додати файл",
   "photo.uploadDevice": "Завантажити з пристрою",
   "photo.change": "Вибрати інше",
   "photo.empty": "Фото ще не вибрано.",
-  "photo.invalid": "Виберіть файл зображення.",
-  "photo.saved": "Фото збережено локально з чернеткою provenance.",
+  "photo.invalid":
+    "Виберіть фото або відео MP4/WebM до 18 МБ. Відео: до 60 секунд.",
+  "photo.saved": "Файл збережено у вашому профілі.",
   "legal.community.title": "Правила спільноти",
   "legal.cookie.title": "Cookie Policy",
   "legal.copyright.title": "Copyright and Content Policy",

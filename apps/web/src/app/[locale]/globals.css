@@ -2324,6 +2324,43 @@ img {
   padding: 18px;
 }
 
+.challenge-examples {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding-block: 14px;
+  border-block: 1px solid var(--border);
+}
+
+.challenge-submission {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.challenge-submission img,
+.challenge-submission video {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  display: block;
+  object-fit: cover;
+  background: #080808;
+  border-radius: 4px;
+}
+
+.stock-credit {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.photo-stock-credit {
+  display: block;
+  padding: 8px 18px;
+}
+
 .challenge-top {
   align-items: center;
   color: var(--muted);
@@ -3153,7 +3190,8 @@ img {
   width: 100%;
 }
 
-.image-lightbox-dialog > img {
+.image-lightbox-dialog > img,
+.image-lightbox-dialog > video {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
   cursor: zoom-out;
   height: auto;

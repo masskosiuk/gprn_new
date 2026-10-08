@@ -13,7 +13,11 @@ import {
   LocationsService,
   parseLocationSelection,
 } from "./locations.service.js";
-import { isPrismaErrorCode, publicAssetUrl } from "./serialization.js";
+import {
+  isPrismaErrorCode,
+  publicAssetUrl,
+  mediaAssetResponse,
+} from "./serialization.js";
 import { asRecord, optionalEnum, optionalString } from "./validation.js";
 
 const visibilities = ["PUBLIC", "FOLLOWERS", "PRIVATE"] as const;
@@ -252,7 +256,9 @@ export class ProfilesService {
         where: { deletedAt: null, id: avatarPhotoId, ownerId: user.id },
       });
       const avatarAsset = photo?.assets.find(
-        (asset) => asset.type === "THUMBNAIL" || asset.type === "DISPLAY",
+        (asset) =>
+          asset.contentType.startsWith("image/") &&
+          (asset.type === "THUMBNAIL" || asset.type === "DISPLAY"),
       );
       if (!avatarAsset) {
         throw new BadRequestException({
@@ -270,7 +276,9 @@ export class ProfilesService {
         where: { deletedAt: null, id: coverPhotoId, ownerId: user.id },
       });
       const coverAsset = photo?.assets.find(
-        (asset) => asset.type === "DISPLAY" || asset.type === "THUMBNAIL",
+        (asset) =>
+          asset.contentType.startsWith("image/") &&
+          (asset.type === "DISPLAY" || asset.type === "THUMBNAIL"),
       );
       if (!coverAsset) {
         throw new BadRequestException({
@@ -435,15 +443,12 @@ export class ProfilesService {
           : null,
       },
       photos: profile.user.photos.map((photo) => {
-        const asset =
-          photo.assets.find((candidate) => candidate.type === "DISPLAY") ??
-          photo.assets.find((candidate) => candidate.type === "THUMBNAIL");
         return {
           category: photo.category
             ? { nameKey: photo.category.nameKey, slug: photo.category.slug }
             : null,
           createdAt: photo.createdAt.toISOString(),
-          displayUrl: asset ? publicAssetUrl(this.env, asset.storageKey) : null,
+          ...mediaAssetResponse(this.env, photo.assets),
           id: photo.id,
           location: photo.location
             ? {

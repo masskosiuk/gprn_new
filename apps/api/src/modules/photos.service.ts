@@ -19,7 +19,12 @@ import {
   LocationsService,
   parseLocationSelection,
 } from "./locations.service.js";
-import { bigintToString, dateToIso, publicAssetUrl } from "./serialization.js";
+import {
+  bigintToString,
+  dateToIso,
+  mediaAssetResponse,
+} from "./serialization.js";
+import { createVideoRenditions } from "./video-renditions.js";
 import {
   asRecord,
   optionalEnum,
@@ -35,6 +40,8 @@ const allowedMimeTypes = [
   "image/png",
   "image/tiff",
   "image/webp",
+  "video/mp4",
+  "video/webm",
 ] as const;
 
 const allowedVisibility = ["PUBLIC", "FOLLOWERS", "PRIVATE"] as const;
@@ -101,6 +108,7 @@ interface PhotoRecord {
     } | null;
   };
   readonly assets: readonly {
+    readonly contentType: string;
     readonly type: string;
     readonly storageKey: string;
     readonly byteSize: bigint;
@@ -264,7 +272,7 @@ export class PhotosService {
     if (decoded.byteLength > maxUploadBytes) {
       throw new BadRequestException({
         code: "PHOTO_TOO_LARGE",
-        message: "The selected image is too large for the MVP upload limit.",
+        message: "The selected file exceeds the 18 MB upload limit.",
       });
     }
 
@@ -283,7 +291,17 @@ export class PhotosService {
       });
     }
 
-    const renditions = await createImageRenditions(decoded);
+    const isVideo = input.mimeType.startsWith("video/");
+    const displayContentType = isVideo ? "video/mp4" : "image/webp";
+    const renditions: ImageRenditions = isVideo
+      ? await createVideoRenditions(decoded).catch(() => {
+          throw new BadRequestException({
+            code: "VIDEO_PROCESSING_FAILED",
+            message:
+              "Use a valid MP4 or WebM video up to 60 seconds and 18 MB.",
+          });
+        })
+      : await createImageRenditions(decoded);
     const resolvedLocation = await this.resolvePhotoLocation(
       user.id,
       input.location,
@@ -302,6 +320,7 @@ export class PhotosService {
       user.id,
       photoId,
       input.fileName,
+      isVideo,
     );
 
     await Promise.all([
@@ -314,7 +333,7 @@ export class PhotosService {
       this.storage.putObject({
         body: renditions.display.buffer,
         bucket: this.env.S3_BUCKET_PUBLIC,
-        contentType: "image/webp",
+        contentType: displayContentType,
         key: storageKeys.display,
       }),
       this.storage.putObject({
@@ -347,7 +366,7 @@ export class PhotosService {
                 bucket: this.env.S3_BUCKET_PUBLIC,
                 byteSize: BigInt(renditions.display.buffer.byteLength),
                 checksumSha256: sha256(renditions.display.buffer),
-                contentType: "image/webp",
+                contentType: displayContentType,
                 height: renditions.display.height,
                 storageKey: storageKeys.display,
                 storageVisibility: "PUBLIC",
@@ -981,18 +1000,9 @@ export class PhotosService {
     const displayAsset =
       photo.assets.find((asset) => asset.type === "DISPLAY") ??
       photo.assets.find((asset) => asset.type === "THUMBNAIL");
-    const thumbnailAsset =
-      photo.assets.find((asset) => asset.type === "THUMBNAIL") ?? displayAsset;
-
     return {
-      assets: {
-        displayUrl: displayAsset
-          ? publicAssetUrl(this.env, displayAsset.storageKey)
-          : null,
-        thumbnailUrl: thumbnailAsset
-          ? publicAssetUrl(this.env, thumbnailAsset.storageKey)
-          : null,
-      },
+      assets: mediaAssetResponse(this.env, photo.assets),
+      ...mediaAssetResponse(this.env, photo.assets),
       category: photo.category
         ? {
             nameKey: photo.category.nameKey,
@@ -1278,6 +1288,7 @@ function createPhotoStorageKeys(
   userId: string,
   photoId: string,
   fileName: string,
+  isVideo = false,
 ): {
   readonly display: string;
   readonly original: string;
@@ -1287,7 +1298,7 @@ function createPhotoStorageKeys(
     fileName.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 96) || "photo";
 
   return {
-    display: `photos/${userId}/${photoId}/display.webp`,
+    display: `photos/${userId}/${photoId}/display.${isVideo ? "mp4" : "webp"}`,
     original: `photos/${userId}/${photoId}/original/${safeFileName}`,
     thumbnail: `photos/${userId}/${photoId}/thumbnail.webp`,
   };

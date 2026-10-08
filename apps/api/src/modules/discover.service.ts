@@ -2,7 +2,11 @@ import { loadRuntimeEnv } from "@gprn/config";
 import { prisma } from "@gprn/db";
 import { Injectable } from "@nestjs/common";
 
-import { dateToIso, publicAssetUrl } from "./serialization.js";
+import {
+  dateToIso,
+  publicAssetUrl,
+  mediaAssetResponse,
+} from "./serialization.js";
 
 const reviewCriteria = [
   "composition",
@@ -109,10 +113,6 @@ export class DiscoverService {
         username: profile.username,
       })),
       photos: photos.map((photo) => {
-        const displayAsset =
-          photo.assets.find((asset) => asset.type === "DISPLAY") ??
-          photo.assets.find((asset) => asset.type === "THUMBNAIL");
-
         return {
           categorySlug: photo.category?.slug ?? null,
           counts: {
@@ -121,9 +121,7 @@ export class DiscoverService {
             moodboards: photo._count.moodboardItems,
             reviews: photo._count.reviews,
           },
-          displayUrl: displayAsset
-            ? publicAssetUrl(this.env, displayAsset.storageKey)
-            : null,
+          ...mediaAssetResponse(this.env, photo.assets),
           id: photo.id,
           location: photo.location
             ? {

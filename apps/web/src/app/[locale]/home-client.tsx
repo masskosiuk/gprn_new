@@ -4,6 +4,8 @@ import {
   demoBattleAuthors,
   demoBattlePhotos,
   demoBattles,
+  demoChallenges as challengeCatalog,
+  demoChallengeWorks,
   EloRatingEngine,
 } from "@gprn/domain";
 import { getMessage, type MessageKey, type SupportedLocale } from "@gprn/i18n";
@@ -182,6 +184,7 @@ interface Feedback {
 }
 
 interface ImagePreview {
+  readonly videoSrc?: string;
   readonly alt: string;
   readonly photoId?: string;
   readonly src: string;
@@ -256,9 +259,12 @@ interface ServerSessionUser {
 }
 
 interface ServerPhotoPayload {
+  readonly mediaType?: "PHOTO" | "VIDEO";
+  readonly videoUrl?: string | null;
   readonly assets?: {
     readonly displayUrl: string | null;
     readonly thumbnailUrl?: string | null;
+    readonly videoUrl?: string | null;
   };
   readonly category?: {
     readonly nameKey: string;
@@ -400,6 +406,8 @@ interface ServerBattlePayload {
 }
 
 interface ServerChallengePayload {
+  readonly acceptingEntries?: boolean;
+  readonly mediaType?: "PHOTO" | "VIDEO";
   readonly category: {
     readonly nameKey: string;
     readonly slug: string;
@@ -416,6 +424,7 @@ interface ServerChallengePayload {
     };
     readonly photo: {
       readonly displayUrl: string;
+      readonly videoUrl?: string | null;
       readonly id: string;
       readonly title: string;
     };
@@ -477,6 +486,7 @@ interface AdminOverviewRecord {
 }
 
 interface AdminModerationPhoto {
+  readonly videoUrl?: string | null;
   readonly category: { readonly nameKey: string; readonly slug: string } | null;
   readonly contexts: {
     readonly battles: readonly {
@@ -526,6 +536,7 @@ interface AdminCompetitionDraft {
 }
 
 interface AdminCompetitionSubmission {
+  readonly videoUrl?: string | null;
   readonly category: { readonly nameKey: string; readonly slug: string } | null;
   readonly competition: {
     readonly id: string;
@@ -633,6 +644,7 @@ interface LocationOption {
 }
 
 interface PhotoRecord {
+  readonly videoSrc?: string;
   readonly authorId?: string;
   readonly authorKey?: MessageKey;
   readonly authorName?: string;
@@ -718,6 +730,7 @@ interface BattleRecord {
 }
 
 interface ChallengeRecord {
+  readonly mediaType?: "PHOTO" | "VIDEO";
   readonly acceptingEntries?: boolean;
   readonly categoryId: CategoryId;
   readonly copyKey: MessageKey;
@@ -726,6 +739,8 @@ interface ChallengeRecord {
   readonly id: string;
   readonly participants: number;
   readonly submissions?: readonly {
+    readonly authorUsername: string;
+    readonly videoUrl?: string;
     readonly authorName: string;
     readonly id: string;
     readonly imageUrl: string;
@@ -2298,38 +2313,35 @@ const initialBattles: readonly BattleRecord[] = demoBattles.map((battle) => ({
   titleKey: battle.titleKey,
 }));
 
-const demoChallenges: readonly ChallengeRecord[] = [
-  {
-    categoryId: "street",
-    copyKey: "data.challenge.cityNight.copy",
-    coverUrl: "/images/challenges/city-night.png",
-    deadline: "2026-09-18T21:00:00.000Z",
-    id: "city-night",
-    participants: 428,
+const demoChallenges: readonly ChallengeRecord[] = challengeCatalog.map(
+  (challenge) => ({
+    acceptingEntries: false,
+    mediaType: challenge.mediaType,
+    categoryId: challenge.category,
+    copyKey: challenge.descriptionKey,
+    coverUrl: demoChallengeWorks.find(
+      (work) => work.id === challenge.coverWorkId,
+    )!.posterUrl,
+    deadline: "",
+    id: challenge.slug,
+    participants: 2,
     statusKey: "challenges.statusOpen",
-    titleKey: "data.challenge.cityNight",
-  },
-  {
-    categoryId: "architecture",
-    copyKey: "data.challenge.humanScale.copy",
-    coverUrl: "/images/challenges/human-scale.png",
-    deadline: "2026-09-24T21:00:00.000Z",
-    id: "human-scale",
-    participants: 211,
-    statusKey: "challenges.statusOpen",
-    titleKey: "data.challenge.humanScale",
-  },
-  {
-    categoryId: "landscape",
-    copyKey: "data.challenge.wildWeather.copy",
-    coverUrl: "/images/challenges/wild-weather.png",
-    deadline: "2026-10-02T21:00:00.000Z",
-    id: "wild-weather",
-    participants: 96,
-    statusKey: "challenges.statusUpcoming",
-    titleKey: "data.challenge.wildWeather",
-  },
-];
+    titleKey: challenge.titleKey,
+    submissions: demoChallengeWorks
+      .filter((work) => work.challenge === challenge.slug)
+      .map((work) => ({
+        authorName: demoBattleAuthors.find(
+          (author) => author.key === work.author,
+        )!.name,
+        authorUsername: work.author,
+        id: work.id,
+        imageUrl: work.posterUrl,
+        videoUrl: work.mediaType === "VIDEO" ? work.url : undefined,
+        photoId: work.id,
+        title: work.title,
+      })),
+  }),
+);
 
 const leaderboardRows: readonly LeaderboardRow[] = [
   {
@@ -2844,6 +2856,7 @@ export function HomeClient({
   const [socialSessionReady, setSocialSessionReady] = useState(false);
   const [uploadedPhotos, setUploadedPhotos] = useState<PhotoRecord[]>([]);
   const [serverPhotos, setServerPhotos] = useState<PhotoRecord[]>([]);
+  const [hasServerFeed, setHasServerFeed] = useState(false);
   const [serverPublicProfile, setServerPublicProfile] =
     useState<PublicAuthorProfile | null>(null);
   const [serverPublicProfileLoaded, setServerPublicProfileLoaded] =
@@ -2989,14 +3002,37 @@ export function HomeClient({
   const allPhotos = useMemo<readonly PhotoRecord[]>(() => {
     const seen = new Set<string>();
 
-    return [...uploadedPhotos, ...serverPhotos, ...curatedPhotos].filter(
-      (photo) => {
-        if (seen.has(photo.id)) return false;
-        seen.add(photo.id);
-        return true;
-      },
-    );
-  }, [serverPhotos, uploadedPhotos]);
+    const samples: PhotoRecord[] = demoChallengeWorks.map((work) => ({
+      id: work.id,
+      authorId: work.author,
+      authorUsername: work.author,
+      authorName: demoBattleAuthors.find(
+        (author) => author.key === work.author,
+      )!.name,
+      categoryId: work.category,
+      src: work.posterUrl,
+      videoSrc: work.mediaType === "VIDEO" ? work.url : undefined,
+      titleKey: work.titleKey,
+      published: true,
+      isMine: false,
+      score: 0,
+      votes: 0,
+      locationId: "",
+      locationHidden: true,
+      originKey: "status.directUpload",
+      provenanceKey: "status.metadataPending",
+    }));
+    return [
+      ...uploadedPhotos,
+      ...serverPhotos,
+      ...curatedPhotos,
+      ...(hasServerFeed ? [] : samples),
+    ].filter((photo) => {
+      if (seen.has(photo.id)) return false;
+      seen.add(photo.id);
+      return true;
+    });
+  }, [serverPhotos, uploadedPhotos, hasServerFeed]);
   const publicPhotos = useMemo(
     () =>
       allPhotos.filter(
@@ -3025,6 +3061,7 @@ export function HomeClient({
       alt: getPhotoTitle(photo, locale),
       photoId: photo.id,
       src: getLargeImageSource(photo.src),
+      videoSrc: photo.videoSrc,
     });
 
     if (photo.serverBacked) {
@@ -3108,6 +3145,26 @@ export function HomeClient({
   });
   const profilePhotos = uploadedPhotos.filter(
     (photo) => photo.isMine && !photo.profileAsset,
+  );
+  const visibleMediaVideos = publicPhotos.filter(
+    (photo) =>
+      photo.videoSrc &&
+      (videoCategoryFilter === "all" ||
+        photo.categoryId === videoCategoryFilter) &&
+      (videoLocationFilter === "all" ||
+        photo.locationId === videoLocationFilter) &&
+      (!videoDateFrom ||
+        (photo.uploadedAt &&
+          new Date(photo.uploadedAt) >=
+            new Date(`${videoDateFrom}T00:00:00`))) &&
+      (!videoDateTo ||
+        (photo.uploadedAt &&
+          new Date(photo.uploadedAt) <=
+            new Date(`${videoDateTo}T23:59:59.999`))) &&
+      (!videoSearchTerm.trim() ||
+        `${getPhotoTitle(photo, locale)} ${photo.authorName ?? ""}`
+          .toLocaleLowerCase(locale)
+          .includes(videoSearchTerm.trim().toLocaleLowerCase(locale))),
   );
   const mapLocations = useMemo(() => {
     const knownLocations = locationPins.map((location) => ({
@@ -3874,7 +3931,12 @@ export function HomeClient({
       setPhotoReviewOpen(false);
       setPhotoReviewComment("");
       setPhotoReviewScores({ ...defaultBattleScores });
-      setImagePreview({ alt, photoId, src: getLargeImageSource(src) });
+      setImagePreview({
+        alt,
+        photoId,
+        src: getLargeImageSource(src),
+        videoSrc: allPhotos.find((photo) => photo.id === photoId)?.videoSrc,
+      });
       if (
         photoId &&
         allPhotos.some((photo) => photo.id === photoId && photo.serverBacked)
@@ -4192,7 +4254,11 @@ export function HomeClient({
       return;
     }
 
-    if (!file.type.startsWith("image/")) {
+    if (
+      (!file.type.startsWith("image/") &&
+        !["video/mp4", "video/webm"].includes(file.type)) ||
+      file.size > 18 * 1024 * 1024
+    ) {
       setPhotoFeedback({ kind: "error", text: t("photo.invalid") });
       return;
     }
@@ -4348,6 +4414,7 @@ export function HomeClient({
   async function refreshDiscoverPhotos(): Promise<void> {
     try {
       const response = await apiRequest<DiscoverResponse>("/discover");
+      setHasServerFeed(true);
       setServerPhotos(
         response.photos
           .map((photo) => mapServerPhoto(photo, serverUser?.id))
@@ -6556,7 +6623,7 @@ export function HomeClient({
       </header>
 
       <input
-        accept="image/*"
+        accept="image/*,video/mp4,video/webm"
         className="visually-hidden"
         onChange={(event) => {
           void handlePhotoChange(event);
@@ -6831,7 +6898,13 @@ export function HomeClient({
                 <div className="challenge-card-body">
                   <div className="challenge-top">
                     <span className="pill">{t(challenge.statusKey)}</span>
-                    <span>{t(getCategoryKey(challenge.categoryId))}</span>
+                    <span>
+                      {t(
+                        challenge.mediaType === "VIDEO"
+                          ? "challenge.video"
+                          : "challenge.photo",
+                      )}
+                    </span>
                   </div>
                   <h2>{challenge.title ?? t(challenge.titleKey)}</h2>
                   <p>{t(challenge.copyKey)}</p>
@@ -6840,10 +6913,12 @@ export function HomeClient({
                       <dt>{t("challenges.participants")}</dt>
                       <dd>{numberFormatter.format(challenge.participants)}</dd>
                     </div>
-                    <div>
-                      <dt>{t("challenges.deadline")}</dt>
-                      <dd>{formatDate(locale, challenge.deadline)}</dd>
-                    </div>
+                    {challenge.deadline ? (
+                      <div>
+                        <dt>{t("challenges.deadline")}</dt>
+                        <dd>{formatDate(locale, challenge.deadline)}</dd>
+                      </div>
+                    ) : null}
                   </dl>
                   {challenge.submissions?.length ? (
                     <div className="challenge-submissions">
@@ -6858,6 +6933,7 @@ export function HomeClient({
                                 alt: submission.title,
                                 photoId: submission.photoId,
                                 src: submission.imageUrl,
+                                videoSrc: submission.videoUrl,
                               });
                             }}
                             title={`${submission.title} - ${submission.authorName}`}
@@ -7223,8 +7299,9 @@ export function HomeClient({
             </span>
           </div>
 
-          {visibleVideos.length > 0 ? (
+          {visibleVideos.length + visibleMediaVideos.length > 0 ? (
             <div className="photo-gallery video-gallery">
+              {visibleMediaVideos.map((video) => renderPhotoCard(video))}
               {visibleVideos.map((video) => renderVideoCard(video))}
             </div>
           ) : (
@@ -7571,11 +7648,29 @@ export function HomeClient({
 
     return (
       <article className="photo-card" key={photo.id}>
-        {renderPreviewableImage(
-          photo.src,
-          getPhotoTitle(photo, locale),
-          photo.id,
+        {photo.videoSrc ? (
+          <div className="video-card-media">
+            <video
+              aria-label={getPhotoTitle(photo, locale)}
+              controls
+              playsInline
+              preload="none"
+              poster={photo.src}
+              src={photo.videoSrc}
+            />
+          </div>
+        ) : (
+          renderPreviewableImage(
+            photo.src,
+            getPhotoTitle(photo, locale),
+            photo.id,
+          )
         )}
+        {demoChallengeWorks.some((work) => work.id === photo.id) ? (
+          <span className="stock-credit photo-stock-credit">
+            {t("challenge.stockExample")}
+          </span>
+        ) : null}
         <div
           aria-label={t("photo.detailedScores")}
           className="criterion-results photo-card-criteria"
@@ -8091,6 +8186,58 @@ export function HomeClient({
     );
   }
 
+  function renderChallengeExamples(challenge: ChallengeRecord): ReactNode {
+    if (!challenge.submissions?.length) return null;
+    return (
+      <div className="challenge-examples">
+        {challenge.submissions.map((entry) => {
+          const stock = demoChallengeWorks.find(
+            (work) => work.id === entry.photoId,
+          );
+          const title = stock ? t(stock.titleKey) : entry.title;
+          const href = `${getSectionHref(locale, "profile")}?author=${encodeURIComponent(entry.authorUsername)}&photo=${entry.photoId}`;
+          return (
+            <div className="challenge-submission" key={entry.id}>
+              {entry.videoUrl ? (
+                <video
+                  aria-label={title}
+                  controls
+                  playsInline
+                  poster={entry.imageUrl}
+                  preload="none"
+                  src={entry.videoUrl}
+                />
+              ) : (
+                <Link
+                  aria-label={title}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img alt={title} loading="lazy" src={entry.imageUrl} />
+                </Link>
+              )}
+              <strong>{title}</strong>
+              <Link className="photo-author-link" href={href}>
+                {entry.authorName}
+              </Link>
+              {stock ? (
+                <a
+                  className="stock-credit"
+                  href={stock.sourcePage}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t("challenge.stockExample")} · {stock.credit}
+                </a>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   function renderChallengesPage(): ReactNode {
     return (
       <section className="page-section">
@@ -8141,7 +8288,13 @@ export function HomeClient({
                 <div className="challenge-card-body">
                   <div className="challenge-top">
                     <span className="pill">{t(challenge.statusKey)}</span>
-                    <span>{t(getCategoryKey(challenge.categoryId))}</span>
+                    <span>
+                      {t(
+                        challenge.mediaType === "VIDEO"
+                          ? "challenge.video"
+                          : "challenge.photo",
+                      )}
+                    </span>
                   </div>
                   <h2>{challenge.title ?? t(challenge.titleKey)}</h2>
                   <p>{t(challenge.copyKey)}</p>
@@ -8150,11 +8303,14 @@ export function HomeClient({
                       <dt>{t("challenges.participants")}</dt>
                       <dd>{numberFormatter.format(challenge.participants)}</dd>
                     </div>
-                    <div>
-                      <dt>{t("challenges.deadline")}</dt>
-                      <dd>{formatDate(locale, challenge.deadline)}</dd>
-                    </div>
+                    {challenge.deadline ? (
+                      <div>
+                        <dt>{t("challenges.deadline")}</dt>
+                        <dd>{formatDate(locale, challenge.deadline)}</dd>
+                      </div>
+                    ) : null}
                   </dl>
+                  {renderChallengeExamples(challenge)}
                   {submittedPhoto ? (
                     <div className="selected-file compact-file">
                       {renderPreviewableImage(
@@ -10854,6 +11010,7 @@ export function HomeClient({
                       setImagePreview({
                         alt: submission.title,
                         src: submission.displayUrl,
+                        videoSrc: submission.videoUrl ?? undefined,
                       });
                     }}
                     type="button"
@@ -10992,6 +11149,7 @@ export function HomeClient({
                       setImagePreview({
                         alt: photo.title,
                         src: photo.displayUrl,
+                        videoSrc: photo.videoUrl ?? undefined,
                       });
                     }}
                     type="button"
@@ -11754,7 +11912,18 @@ export function HomeClient({
           >
             <X aria-hidden="true" size={22} />
           </button>
-          <img alt={imagePreview.alt} src={imagePreview.src} />
+          {imagePreview.videoSrc ? (
+            <video
+              aria-label={imagePreview.alt}
+              controls
+              playsInline
+              poster={imagePreview.src}
+              preload="metadata"
+              src={imagePreview.videoSrc}
+            />
+          ) : (
+            <img alt={imagePreview.alt} src={imagePreview.src} />
+          )}
           <figcaption className="image-lightbox-caption">
             <strong>{imagePreview.alt}</strong>
             {imagePreview.photoId && canSubmitDetailedReview ? (
@@ -12186,7 +12355,17 @@ export function HomeClient({
 
   function renderWorkPickerDialog(): ReactNode {
     if (!workPickerTarget) return null;
-    const works = uploadedPhotos.filter((photo) => !photo.profileAsset);
+    const mediaType =
+      workPickerTarget.kind === "challenge"
+        ? (challenges.find(
+            (challenge) => challenge.id === workPickerTarget.challengeId,
+          )?.mediaType ?? "PHOTO")
+        : "PHOTO";
+    const works = uploadedPhotos.filter(
+      (photo) =>
+        !photo.profileAsset &&
+        (photo.videoSrc ? "VIDEO" : "PHOTO") === mediaType,
+    );
 
     return (
       <div
@@ -12206,6 +12385,11 @@ export function HomeClient({
               <span className="eyebrow">{t("common.submitFile")}</span>
               <h2 id="work-picker-title">{t("submission.chooseWork")}</h2>
               <p>{t("submission.chooseWorkCopy")}</p>
+              <small>
+                {t(
+                  mediaType === "VIDEO" ? "challenge.video" : "challenge.photo",
+                )}
+              </small>
             </div>
             <button
               aria-label={t("auth.close")}
@@ -12747,6 +12931,7 @@ function mapServerPhoto(
     score,
     serverBacked: true,
     src,
+    videoSrc: photo.videoUrl ?? photo.assets?.videoUrl ?? undefined,
     title: photo.title,
     uploadedAt: photo.publishedAt ?? photo.createdAt ?? undefined,
     votes: photo.counts?.likes ?? 0,
@@ -12814,15 +12999,19 @@ function mapServerChallenge(
   challenge: ServerChallengePayload,
 ): ChallengeRecord {
   const fallback =
+    demoChallenges.find((candidate) => candidate.id === challenge.slug) ??
     demoChallenges.find(
       (candidate) =>
         candidate.categoryId ===
         normalizeServerCategory(challenge.category?.slug),
-    ) ?? demoChallenges[0]!;
+    ) ??
+    demoChallenges[0]!;
 
   return {
     ...fallback,
-    acceptingEntries: challenge.status === "ACTIVE",
+    acceptingEntries:
+      challenge.acceptingEntries ?? challenge.status === "ACTIVE",
+    mediaType: challenge.mediaType ?? "PHOTO",
     categoryId: normalizeServerCategory(challenge.category?.slug),
     copyKey: (challenge.descriptionKey ?? fallback.copyKey) as MessageKey,
     coverUrl: challenge.coverUrl ?? fallback.coverUrl,
@@ -12831,6 +13020,8 @@ function mapServerChallenge(
     participants: challenge.entriesCount,
     submissions: challenge.entries.map((entry) => ({
       authorName: entry.owner.displayName,
+      authorUsername: entry.owner.username,
+      videoUrl: entry.photo.videoUrl ?? undefined,
       id: entry.id,
       imageUrl: entry.photo.displayUrl,
       photoId: entry.photo.id,

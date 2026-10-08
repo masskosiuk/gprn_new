@@ -7,7 +7,7 @@ import {
 } from "@nestjs/common";
 
 import type { CurrentUser } from "./auth.service.js";
-import { publicAssetUrl } from "./serialization.js";
+import { publicAssetUrl, mediaAssetResponse } from "./serialization.js";
 import { asRecord, optionalString, requiredString } from "./validation.js";
 
 type PrismaTx = Omit<
@@ -638,10 +638,6 @@ export class AdminService {
     return {
       disputes,
       photos: photos.map((photo) => {
-        const displayAsset =
-          photo.assets.find((asset) => asset.type === "DISPLAY") ??
-          photo.assets.find((asset) => asset.type === "THUMBNAIL");
-
         return {
           category: photo.category
             ? { nameKey: photo.category.nameKey, slug: photo.category.slug }
@@ -658,9 +654,7 @@ export class AdminService {
             })),
           },
           createdAt: photo.createdAt.toISOString(),
-          displayUrl: displayAsset
-            ? publicAssetUrl(this.env, displayAsset.storageKey)
-            : null,
+          ...mediaAssetResponse(this.env, photo.assets),
           id: photo.id,
           moderationStatus: photo.moderationStatus,
           owner: {
@@ -715,6 +709,7 @@ export class AdminService {
     createdAt: Date,
     photo: {
       readonly assets: readonly {
+        readonly contentType: string;
         readonly storageKey: string;
         readonly type: string;
       }[];
@@ -739,18 +734,13 @@ export class AdminService {
       readonly status: string;
     },
   ) {
-    const displayAsset =
-      photo.assets.find((asset) => asset.type === "DISPLAY") ??
-      photo.assets.find((asset) => asset.type === "THUMBNAIL");
     return {
       category: photo.category
         ? { nameKey: photo.category.nameKey, slug: photo.category.slug }
         : null,
       competition,
       createdAt: createdAt.toISOString(),
-      displayUrl: displayAsset
-        ? publicAssetUrl(this.env, displayAsset.storageKey)
-        : null,
+      ...mediaAssetResponse(this.env, photo.assets),
       entryId,
       kind,
       moderationStatus,

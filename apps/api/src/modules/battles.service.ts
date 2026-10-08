@@ -156,6 +156,7 @@ export class BattlesService {
       const photo = await tx.photo.findFirst({
         select: {
           categoryId: true,
+          assets: { select: { type: true, contentType: true } },
           id: true,
           moderationStatus: true,
           status: true,
@@ -171,7 +172,11 @@ export class BattlesService {
       if (
         !photo ||
         !["READY", "UNDER_REVIEW", "PUBLISHED"].includes(photo.status) ||
-        photo.moderationStatus === "REJECTED"
+        photo.moderationStatus === "REJECTED" ||
+        photo.assets.some(
+          (asset) =>
+            asset.type === "DISPLAY" && asset.contentType.startsWith("video/"),
+        )
       ) {
         throw new ConflictException({
           code: "BATTLE_PHOTO_NOT_ELIGIBLE",

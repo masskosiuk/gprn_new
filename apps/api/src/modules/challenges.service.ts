@@ -1,5 +1,6 @@
 import { loadRuntimeEnv } from "@gprn/config";
 import { prisma } from "@gprn/db";
+import { challengeMediaError, challengeMediaType } from "@gprn/domain";
 import {
   ConflictException,
   Injectable,
@@ -7,13 +8,25 @@ import {
 } from "@nestjs/common";
 
 import type { CurrentUser } from "./auth.service.js";
-import { dateToIso, publicAssetUrl } from "./serialization.js";
+import { dateToIso, mediaAssetResponse } from "./serialization.js";
 import { asRecord, requiredString } from "./validation.js";
 
 const challengeInclude = {
   _count: {
     select: {
-      entries: { where: { moderationStatus: "APPROVED" as const } },
+      entries: {
+        where: {
+          moderationStatus: "APPROVED" as const,
+          photo: {
+            is: {
+              deletedAt: null,
+              status: "PUBLISHED" as const,
+              visibility: "PUBLIC" as const,
+              moderationStatus: "APPROVED" as const,
+            },
+          },
+        },
+      },
     },
   },
   category: true,
@@ -34,6 +47,7 @@ const challengeInclude = {
         is: {
           deletedAt: null,
           status: "PUBLISHED" as const,
+          moderationStatus: "APPROVED" as const,
           visibility: "PUBLIC" as const,
         },
       },
@@ -43,6 +57,7 @@ const challengeInclude = {
 } as const;
 
 interface ChallengeRecord {
+  readonly rules: unknown;
   readonly _count: {
     readonly entries: number;
   };
@@ -60,6 +75,7 @@ interface ChallengeRecord {
       readonly id: string;
       readonly title: string;
       readonly assets: readonly {
+        readonly contentType: string;
         readonly storageKey: string;
         readonly type: string;
       }[];
@@ -289,7 +305,12 @@ export class ChallengesService {
         });
       }
 
-      if (challenge.status !== "ACTIVE") {
+      const now = new Date();
+      if (
+        challenge.status !== "ACTIVE" ||
+        (challenge.startsAt && challenge.startsAt > now) ||
+        (challenge.endsAt && challenge.endsAt <= now)
+      ) {
         throw new ConflictException({
           code: "CHALLENGE_NOT_ACTIVE",
           message: "This challenge is not accepting submissions.",
@@ -298,6 +319,8 @@ export class ChallengesService {
 
       const photo = await tx.photo.findUnique({
         select: {
+          assets: { select: { type: true, contentType: true } },
+          metadata: { select: { exifJson: true } },
           deletedAt: true,
           id: true,
           moderationStatus: true,
@@ -325,6 +348,24 @@ export class ChallengesService {
         throw new ConflictException({
           code: "CHALLENGE_PHOTO_NOT_ELIGIBLE",
           message: "This work cannot be submitted to a challenge.",
+        });
+      }
+
+      const mediaError = challengeMediaError(
+        challenge.rules,
+        photo.assets,
+        photo.metadata?.exifJson,
+      );
+      if (mediaError === "TYPE") {
+        throw new ConflictException({
+          code: "CHALLENGE_MEDIA_TYPE_MISMATCH",
+          message: "Select the media type required by this challenge.",
+        });
+      }
+      if (mediaError === "DURATION") {
+        throw new ConflictException({
+          code: "CHALLENGE_VIDEO_DURATION",
+          message: "The video duration does not meet the challenge rules.",
         });
       }
 
@@ -474,6 +515,11 @@ export class ChallengesService {
 
   private toChallengeResponse(challenge: ChallengeRecord) {
     return {
+      mediaType: challengeMediaType(challenge.rules),
+      acceptingEntries:
+        challenge.status === "ACTIVE" &&
+        (!challenge.startsAt || challenge.startsAt <= new Date()) &&
+        (!challenge.endsAt || challenge.endsAt > new Date()),
       category: challenge.category
         ? {
             nameKey: challenge.category.nameKey,
@@ -485,10 +531,8 @@ export class ChallengesService {
       endsAt: dateToIso(challenge.endsAt),
       entriesCount: challenge._count.entries,
       entries: challenge.entries.flatMap((entry) => {
-        const displayAsset =
-          entry.photo.assets.find((asset) => asset.type === "DISPLAY") ??
-          entry.photo.assets.find((asset) => asset.type === "THUMBNAIL");
-        if (!displayAsset) return [];
+        const media = mediaAssetResponse(this.env, entry.photo.assets);
+        if (!media.displayUrl) return [];
 
         return [
           {
@@ -499,7 +543,7 @@ export class ChallengesService {
               username: entry.photo.owner.profile?.username ?? "photographer",
             },
             photo: {
-              displayUrl: publicAssetUrl(this.env, displayAsset.storageKey),
+              ...media,
               id: entry.photo.id,
               title: entry.photo.title,
             },

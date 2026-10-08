@@ -5,7 +5,7 @@ WORKDIR /app
 ENV CI=true NEXT_TELEMETRY_DISABLED=1
 
 # Prisma's native engine requires OpenSSL on Alpine images.
-RUN apk add --no-cache openssl libc6-compat && corepack enable
+RUN apk add --no-cache openssl libc6-compat ffmpeg && corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
 COPY apps ./apps
