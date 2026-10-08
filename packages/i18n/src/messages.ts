@@ -73,7 +73,6 @@ const baseMessages = {
   "common.edit": "Edit",
   "common.filter": "Filter",
   "common.guest": "Guest photographer",
-  "common.localOnly": "Local MVP mode",
   "common.no": "No",
   "common.open": "Open",
   "common.rating": "Rating",
@@ -217,7 +216,7 @@ const baseMessages = {
   "photo.importBehance": "Import from Behance",
   "photo.importConnected": "Import from connected source",
   "photo.connectWhenAvailable": "Coming soon",
-  "photo.deviceWorks": "Device upload is working in this MVP.",
+  "photo.deviceWorks": "Upload photos and videos from your device.",
   "photo.public": "Published",
   "photo.publish": "Submit for moderation",
   "photo.published": "Photo sent for moderation.",
@@ -275,7 +274,7 @@ const baseMessages = {
   "discover.myUploads": "My uploads",
   "discover.empty": "No photographs match this filter.",
   "discover.save": "Save photo",
-  "discover.saved": "Photo saved to your local collection.",
+  "discover.saved": "Photo saved to your collection.",
   "discover.unsave": "Remove saved photo",
 
   "video.searchPlaceholder": "Search by title, creator or location",
@@ -444,7 +443,7 @@ const baseMessages = {
   "marketplace.free": "Free",
   "marketplace.getFree": "Get free",
   "marketplace.download": "Download",
-  "marketplace.checkoutDisabled": "Checkout disabled for MVP.",
+  "marketplace.checkoutDisabled": "Checkout is not available yet.",
   "marketplace.addWishlist": "Add to wishlist",
   "marketplace.removeWishlist": "Remove from wishlist",
   "marketplace.saved": "Saved to wishlist.",
@@ -467,7 +466,7 @@ const baseMessages = {
   "experts.requestDisabled":
     "Professional and superstar reviewers set their own price for a detailed photo assessment.",
   "experts.waitlist": "Join waitlist",
-  "experts.onWaitlist": "You are on the local waitlist.",
+  "experts.onWaitlist": "You are on the waitlist.",
   "experts.verifiedDisabled": "Verified reviewers",
   "experts.empty": "No experts match the selected filters.",
 
@@ -592,20 +591,19 @@ const baseMessages = {
     "Upload only work you created or are authorized to publish. Buying or selling high or low ratings, coordinated voting, biased ratings intended to harm a creator, and artificial boosts for friends are prohibited. Violations may reduce reputation or lead to account suspension and removal of affected ratings. The GPRN team continuously audits rating quality, correlation and anomalies; attempts to manipulate the system are investigated and stopped.",
   "legal.community.title": "Community Guidelines",
   "legal.cookie.body":
-    "Cookie information is a draft placeholder for the MVP. It will describe essential cookies, session security and future consent controls.",
+    "Cookie information is a draft pending review. It will describe essential cookies, session security and consent controls.",
   "legal.cookie.title": "Cookie Policy",
   "legal.copyright.body":
-    "Copyright policy is a draft placeholder for the MVP. Provenance records preserve evidence signals and do not automatically decide legal ownership.",
+    "Copyright policy is a draft pending review. Provenance records preserve evidence signals and do not automatically decide legal ownership.",
   "legal.copyright.title": "Copyright and Content Policy",
   "legal.dispute.body":
-    "Dispute procedure is a draft placeholder for the MVP. Copyright conflicts require evidence collection and human moderation review.",
+    "Dispute procedure is a draft pending review. Copyright conflicts require evidence collection and human moderation review.",
   "legal.dispute.title": "Copyright Dispute Procedure",
   "legal.draft": "Legal draft placeholder",
   "legal.privacy.body":
-    "Privacy policy text is a draft placeholder for the MVP. It must be reviewed before production launch, especially for photos, EXIF, GPS and account data.",
+    "Privacy policy text is a draft pending legal review, especially for photos, EXIF, GPS and account data.",
   "legal.privacy.title": "Privacy Policy",
-  "legal.terms.body":
-    "Terms of service text is a draft placeholder for the MVP. It must be replaced with reviewed legal terms before production launch.",
+  "legal.terms.body": "Terms of service text is a draft pending legal review.",
   "legal.terms.title": "Terms of Service",
 
   "footer.legal": "Legal",
@@ -629,7 +627,7 @@ const baseMessages = {
   "profile.inspiration": "Inspiration",
   "profile.moodboard": "Moodboard",
   "profile.emptyMoodboard": "Add photographs to build your public moodboard.",
-  "profile.editProfile": "Edit profile",
+  "profile.editProfile": "Profile settings",
   "profile.displayName": "Display name",
   "profile.username": "Username",
   "profile.bio": "Bio",
@@ -641,7 +639,8 @@ const baseMessages = {
     "Leave empty to use photo metadata, then your profile location.",
   "location.chooseFromList": "Choose a location from the suggestions.",
   "location.dataBy": "Location data by",
-  "profile.website": "Website",
+  "location.loading": "Searching cities...",
+  "location.empty": "No cities found.",
   "profile.availableForHire": "Available for hire",
   "profile.masterSettings": "Master services",
   "profile.masterSettingsCopy":
@@ -795,7 +794,7 @@ const baseMessages = {
 
   "privacy.title": "Privacy and account",
   "privacy.copy":
-    "Export your local MVP data or request account deletion. Imported photos remain in your portfolio when a source is disconnected.",
+    "Export your account data or request account deletion. Imported photos remain in your portfolio when a source is disconnected.",
   "privacy.export": "Export my data",
   "privacy.exported": "Your data export was downloaded.",
   "privacy.deleteRequest": "Request account deletion",
@@ -835,7 +834,7 @@ const baseMessages = {
   "data.battle.streetRain": "Street rain duel",
   "data.battle.landscapeLight": "Landscape light",
   "data.battle.cityGeometry": "City geometry",
-  "data.battle.localTitle": "Your local challenge",
+  "data.battle.localTitle": "Your challenge",
   "data.battle.cityRhythm": "City rhythm",
   "data.battle.nightPulse": "Night pulse",
   "data.battle.formAndPattern": "Form vs. pattern",
@@ -1057,7 +1056,7 @@ const baseMessages = {
   "admin.contentCopy":
     "Remove photos from profiles, battles, marketplace and advertising.",
   "admin.deletePhoto": "Delete photo",
-  "admin.emptyContent": "No uploaded content in this local account.",
+  "admin.emptyContent": "No uploaded content in this account.",
   "admin.promotionCopy": "Moderate active advertising slots.",
   "admin.remove": "Remove",
   "admin.emptyPromotions": "No active promotions.",
@@ -1138,7 +1137,6 @@ const ruMessages: Partial<MessageMap> = {
   "common.edit": "Редактировать",
   "common.filter": "Фильтр",
   "common.guest": "Гость-фотограф",
-  "common.localOnly": "Локальный MVP-режим",
   "common.rating": "Рейтинг",
   "common.save": "Сохранить",
   "common.saved": "Сохранено",
@@ -1277,7 +1275,7 @@ const ruMessages: Partial<MessageMap> = {
   "photo.importBehance": "Импорт из Behance",
   "photo.importConnected": "Импорт из подключённого источника",
   "photo.connectWhenAvailable": "Скоро будет доступно",
-  "photo.deviceWorks": "Загрузка с устройства работает в этом MVP.",
+  "photo.deviceWorks": "Загружайте фото и видео со своего устройства.",
   "photo.public": "Опубликовано",
   "photo.publish": "Отправить на модерацию",
   "photo.published": "Фото отправлено на модерацию.",
@@ -1334,7 +1332,7 @@ const ruMessages: Partial<MessageMap> = {
   "discover.myUploads": "Мои загрузки",
   "discover.empty": "По этому фильтру фотографий нет.",
   "discover.save": "Сохранить фото",
-  "discover.saved": "Фото сохранено в локальную коллекцию.",
+  "discover.saved": "Фото сохранено в вашу коллекцию.",
   "discover.unsave": "Убрать из сохранённых",
   "video.searchPlaceholder": "Искать по названию, автору или месту",
   "video.featured": "Рекомендуемые видео",
@@ -1496,7 +1494,7 @@ const ruMessages: Partial<MessageMap> = {
   "marketplace.free": "Бесплатно",
   "marketplace.getFree": "Получить бесплатно",
   "marketplace.download": "Скачать",
-  "marketplace.checkoutDisabled": "Оплата отключена в MVP.",
+  "marketplace.checkoutDisabled": "Оплата пока недоступна.",
   "marketplace.addWishlist": "В избранное",
   "marketplace.removeWishlist": "Убрать из избранного",
   "marketplace.saved": "Сохранено в избранное.",
@@ -1518,7 +1516,7 @@ const ruMessages: Partial<MessageMap> = {
   "experts.requestDisabled":
     "Профессионалы и суперстары сами назначают стоимость развёрнутой оценки фотографии.",
   "experts.waitlist": "В лист ожидания",
-  "experts.onWaitlist": "Вы в локальном листе ожидания.",
+  "experts.onWaitlist": "Вы в листе ожидания.",
   "experts.verifiedDisabled": "Подтверждённые рецензенты",
   "experts.empty": "По выбранным фильтрам эксперты не найдены.",
   "filters.title": "Фильтры поиска",
@@ -1641,20 +1639,20 @@ const ruMessages: Partial<MessageMap> = {
     "Загружать можно только собственные работы или материалы, на публикацию которых у вас есть право. Запрещены покупка и продажа высоких или низких оценок, сговор при голосовании, предвзятые оценки с целью навредить автору и искусственное завышение оценок друзьям. Нарушения могут привести к снижению репутации, блокировке аккаунта и удалению связанных оценок. Команда GPRN постоянно проверяет качество и корреляцию оценок, выявляет аномалии и пресекает попытки манипулировать системой.",
   "legal.community.title": "Правила сообщества",
   "legal.cookie.body":
-    "Политика cookie является черновым placeholder-текстом для MVP. Позже здесь будут описаны обязательные cookie, безопасность сессии и настройки согласия.",
+    "Черновая политика cookie требует проверки. Здесь будут описаны обязательные cookie, безопасность сессии и настройки согласия.",
   "legal.cookie.title": "Политика cookie",
   "legal.copyright.body":
-    "Политика авторских прав является черновым placeholder-текстом для MVP. Provenance сохраняет доказательные сигналы, но не решает юридическое авторство автоматически.",
+    "Черновая политика авторских прав требует проверки. Данные о происхождении сохраняют доказательные сигналы, но не определяют юридическое авторство автоматически.",
   "legal.copyright.title": "Авторские права и контент",
   "legal.dispute.body":
-    "Процедура споров является черновым placeholder-текстом для MVP. Конфликты авторских прав требуют сбора доказательств и человеческой модерации.",
+    "Черновая процедура споров требует проверки. Конфликты авторских прав требуют сбора доказательств и рассмотрения модератором.",
   "legal.dispute.title": "Процедура споров об авторских правах",
   "legal.draft": "Черновик юридического текста",
   "legal.privacy.body":
-    "Политика конфиденциальности является черновым placeholder-текстом для MVP. Перед production запуском текст нужно проверить, особенно для фото, EXIF, GPS и аккаунтов.",
+    "Черновая политика конфиденциальности требует юридической проверки, особенно в части фото, EXIF, GPS и данных аккаунтов.",
   "legal.privacy.title": "Политика конфиденциальности",
   "legal.terms.body":
-    "Условия использования являются черновым placeholder-текстом для MVP. Перед production запуском текст нужно заменить на проверенные юридические условия.",
+    "Черновые условия использования требуют юридической проверки.",
   "legal.terms.title": "Условия использования",
   "footer.legal": "Юридическая информация",
   "profile.coverAlt": "Обложка профиля",
@@ -1677,7 +1675,7 @@ const ruMessages: Partial<MessageMap> = {
   "profile.moodboard": "Мудборд",
   "profile.emptyMoodboard":
     "Добавляйте фотографии, чтобы собрать публичный мудборд.",
-  "profile.editProfile": "Редактировать профиль",
+  "profile.editProfile": "Настройки профиля",
   "profile.displayName": "Отображаемое имя",
   "profile.username": "Username",
   "profile.bio": "Био",
@@ -1690,7 +1688,8 @@ const ruMessages: Partial<MessageMap> = {
     "Оставьте пустым: сначала проверим метаданные фото, затем локацию профиля.",
   "location.chooseFromList": "Выберите локацию из предложенного списка.",
   "location.dataBy": "Данные о городах:",
-  "profile.website": "Сайт",
+  "location.loading": "Поиск городов...",
+  "location.empty": "Города не найдены.",
   "profile.availableForHire": "Доступен для заказов",
   "profile.masterSettings": "Услуги мастера",
   "profile.masterSettingsCopy":
@@ -1841,7 +1840,7 @@ const ruMessages: Partial<MessageMap> = {
     "Заявка «{title}» в челлендж оставлена на проверке.",
   "privacy.title": "Приватность и аккаунт",
   "privacy.copy":
-    "Экспортируйте локальные данные MVP или запросите удаление аккаунта. При отключении источника импортированные фото остаются в портфолио.",
+    "Экспортируйте данные аккаунта или запросите его удаление. При отключении источника импортированные фото остаются в портфолио.",
   "privacy.export": "Экспортировать мои данные",
   "privacy.exported": "Экспорт данных загружен.",
   "privacy.deleteRequest": "Запросить удаление аккаунта",
@@ -2032,7 +2031,7 @@ const ruMessages: Partial<MessageMap> = {
   "admin.contentCopy":
     "Удаление фото из профилей, батлов, маркетплейса и рекламы.",
   "admin.deletePhoto": "Удалить фото",
-  "admin.emptyContent": "В локальном аккаунте нет загруженного контента.",
+  "admin.emptyContent": "В аккаунте нет загруженного контента.",
   "admin.promotionCopy": "Модерация активных рекламных слотов.",
   "admin.remove": "Убрать",
   "admin.emptyPromotions": "Активных продвижений нет.",
@@ -2098,7 +2097,10 @@ const ukMessages: Partial<MessageMap> = {
   "auth.submitLogin": "Увійти",
   "auth.submitRegister": "Створити акаунт",
   "auth.note":
-    "У MVP дані акаунта зберігаються локально в цьому браузері, доки API не підключено.",
+    "Дані акаунта зберігаються на сервері та доступні на всіх ваших пристроях.",
+  "profile.editProfile": "Налаштування профілю",
+  "location.loading": "Пошук міст...",
+  "location.empty": "Міста не знайдені.",
   "home.headline": "Global Production & Reputation Network",
   "home.subhead":
     "Публікуйте реальні фотографії, зберігайте походження, змагайтеся, будуйте репутацію і знаходьте аудиторію.",

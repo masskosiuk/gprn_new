@@ -86,6 +86,11 @@ import {
   type PhotoMapMarker,
 } from "./interactive-photo-map";
 import { getSectionHref, type SectionId } from "./sections";
+import { ProfileStats } from "./profile-stats";
+import {
+  ProfileLocationPicker,
+  type LocationOption,
+} from "./profile-location-picker";
 import { isVideoWork } from "../../lib/media-kind";
 import {
   competitionPath,
@@ -642,18 +647,6 @@ interface ProfileForm {
   readonly presetTitle: string;
   readonly simpleReviewPrice: string;
   readonly username: string;
-  readonly website: string;
-}
-
-interface LocationOption {
-  readonly admin1?: string;
-  readonly country: string;
-  readonly countryCode: string;
-  readonly externalId: string;
-  readonly label: string;
-  readonly latitude: number;
-  readonly longitude: number;
-  readonly name: string;
 }
 
 interface PhotoRecord {
@@ -1065,7 +1058,6 @@ const emptyProfileForm: ProfileForm = {
   presetTitle: "Signature preset pack",
   simpleReviewPrice: "10",
   username: "",
-  website: "",
 };
 
 const emptyCommerceForm: CommerceForm = {
@@ -2861,9 +2853,6 @@ export function HomeClient({
   >(null);
   const [adminFeedback, setAdminFeedback] = useState<Feedback | null>(null);
   const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfileForm);
-  const [profileLocationOptions, setProfileLocationOptions] = useState<
-    readonly LocationOption[]
-  >([]);
   const [profileLocationSelection, setProfileLocationSelection] =
     useState<LocationOption | null>(null);
   const [socialProviders, setSocialProviders] = useState<
@@ -3710,32 +3699,9 @@ export function HomeClient({
         (currentProfile.simpleReviewPrice ?? 1000) / 100,
       ),
       username: currentProfile.username,
-      website: currentProfile.website,
     });
     setProfileLocationSelection(currentProfile.locationSelection ?? null);
   }, [currentProfile?.email, locale]);
-
-  useEffect(() => {
-    const query = profileForm.location.trim();
-    if (
-      query.length < 2 ||
-      profileLocationSelection?.label === profileForm.location
-    ) {
-      setProfileLocationOptions([]);
-      return;
-    }
-
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      void searchLocations(query, locale).then((locations) => {
-        if (!cancelled) setProfileLocationOptions(locations);
-      });
-    }, 300);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [locale, profileForm.location, profileLocationSelection?.label]);
 
   useEffect(() => {
     const query = photoLocationQuery.trim();
@@ -5375,7 +5341,6 @@ export function HomeClient({
         : currentProfile.simpleReviewPrice,
       username:
         normalizeUsername(profileForm.username) || currentProfile.username,
-      website: profileForm.website.trim(),
     };
 
     try {
@@ -5401,7 +5366,6 @@ export function HomeClient({
             : {}),
           username: nextAccount.username,
           visibility: "PUBLIC",
-          websiteUrl: nextAccount.website,
         }),
         method: "PATCH",
       });
@@ -6830,7 +6794,6 @@ export function HomeClient({
 
         <section className="home-band">
           <div>
-            <span className="eyebrow">{t("common.localOnly")}</span>
             <h2>{t("home.sectionTitle")}</h2>
             <p>{t("home.sectionCopy")}</p>
           </div>
@@ -7122,7 +7085,8 @@ export function HomeClient({
             {sectionId !== "admin" &&
             sectionId !== "studios" &&
             sectionId !== "video" &&
-            sectionId !== "models" ? (
+            sectionId !== "models" &&
+            sectionId !== "profile" ? (
               <div className="intro-actions">
                 <button
                   className="primary-action"
@@ -9940,13 +9904,13 @@ export function HomeClient({
                     </div>
                     {(author.completedOrders ?? 0) > 0 ? (
                       <div className="profile-service-metrics">
-                        <div>
-                          <Star aria-hidden="true" size={17} />
-                          <strong>
-                            {author.serviceRating?.toFixed(1) ?? "5.0"}
-                          </strong>
-                          <span>{t("service.transactionRating")}</span>
-                        </div>
+                        {(author.serviceRating ?? 0) > 0 ? (
+                          <div>
+                            <Star aria-hidden="true" size={17} />
+                            <strong>{author.serviceRating?.toFixed(1)}</strong>
+                            <span>{t("service.transactionRating")}</span>
+                          </div>
+                        ) : null}
                         <div>
                           <CheckCircle2 aria-hidden="true" size={17} />
                           <strong>
@@ -9962,19 +9926,13 @@ export function HomeClient({
                 </div>
               </div>
 
-              <div className="profile-stats">
-                {[
-                  [author.rating, "common.rating"],
-                  [authorPhotos.length, "profile.photos"],
-                  [author.wins, "profile.wins"],
-                  [author.followers, "profile.followers"],
-                ].map(([value, key]) => (
-                  <div key={key}>
-                    <strong>{numberFormatter.format(Number(value))}</strong>
-                    <span>{t(key as MessageKey)}</span>
-                  </div>
-                ))}
-              </div>
+              <ProfileStats
+                locale={locale}
+                rating={author.rating}
+                photos={authorPhotos.length}
+                wins={author.wins}
+                followers={author.followers}
+              />
             </div>
 
             {renderDigitalProductSection(
@@ -10180,19 +10138,13 @@ export function HomeClient({
                 </div>
               </div>
 
-              <div className="profile-stats">
-                {[
-                  [currentProfile.rating, "common.rating"],
-                  [profilePhotos.length, "profile.photos"],
-                  [currentProfile.wins, "profile.wins"],
-                  [currentProfile.followers, "profile.followers"],
-                ].map(([value, key]) => (
-                  <div key={key}>
-                    <strong>{numberFormatter.format(Number(value))}</strong>
-                    <span>{t(key as MessageKey)}</span>
-                  </div>
-                ))}
-              </div>
+              <ProfileStats
+                locale={locale}
+                rating={currentProfile.rating}
+                photos={profilePhotos.length}
+                wins={currentProfile.wins}
+                followers={currentProfile.followers}
+              />
             </div>
 
             {renderDigitalProductSection(
@@ -10535,7 +10487,6 @@ export function HomeClient({
                 <CircleUserRound aria-hidden="true" size={20} />
                 <div>
                   <h2>{t("profile.editProfile")}</h2>
-                  <p>{t("common.localOnly")}</p>
                 </div>
               </div>
 
@@ -10575,61 +10526,20 @@ export function HomeClient({
                 />
               </label>
 
-              <label className="form-field" htmlFor="profile-location">
-                <span>{t("profile.location")}</span>
-                <input
-                  autoComplete="off"
-                  id="profile-location"
-                  onChange={(event) => {
-                    updateProfileField("location", event.target.value);
-                    setProfileLocationSelection(null);
-                  }}
-                  placeholder={t("location.searchPlaceholder")}
-                  type="text"
-                  value={profileForm.location}
-                />
-                {profileLocationOptions.length > 0 ? (
-                  <div className="location-options" role="listbox">
-                    {profileLocationOptions.map((location) => (
-                      <button
-                        key={location.externalId}
-                        onClick={() => {
-                          setProfileLocationSelection(location);
-                          updateProfileField("location", location.label);
-                          setProfileLocationOptions([]);
-                        }}
-                        role="option"
-                        type="button"
-                      >
-                        <MapPin aria-hidden="true" size={15} />
-                        <span>{location.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                <small>
-                  {t("location.profileHint")} {t("location.dataBy")}{" "}
-                  <a
-                    href="https://open-meteo.com/"
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    Open-Meteo
-                  </a>
-                </small>
-              </label>
-
-              <label className="form-field" htmlFor="profile-website">
-                <span>{t("profile.website")}</span>
-                <input
-                  id="profile-website"
-                  onChange={(event) => {
-                    updateProfileField("website", event.target.value);
-                  }}
-                  type="url"
-                  value={profileForm.website}
-                />
-              </label>
+              <ProfileLocationPicker
+                locale={locale}
+                value={profileForm.location}
+                selection={profileLocationSelection}
+                search={searchLocations}
+                onChange={(value) => {
+                  updateProfileField("location", value);
+                  setProfileLocationSelection(null);
+                }}
+                onSelect={(location) => {
+                  setProfileLocationSelection(location);
+                  updateProfileField("location", location.label);
+                }}
+              />
 
               <fieldset className="master-settings">
                 <legend>{t("profile.masterSettings")}</legend>
@@ -10905,59 +10815,6 @@ export function HomeClient({
                 {t("profile.saveProfile")}
               </button>
             </form>
-
-            <section
-              className="account-panel"
-              aria-labelledby="notifications-title"
-            >
-              <div className="panel-title">
-                <Bell aria-hidden="true" size={20} />
-                <div>
-                  <h2 id="notifications-title">{t("notifications.title")}</h2>
-                  <p>
-                    {
-                      notifications.filter((notification) => !notification.read)
-                        .length
-                    }
-                  </p>
-                </div>
-              </div>
-              {notifications.length > 0 ? (
-                <>
-                  <div className="notification-list">
-                    {notifications.slice(0, 6).map((notification) => (
-                      <div
-                        className={
-                          notification.read
-                            ? "notification-item"
-                            : "notification-item is-unread"
-                        }
-                        key={notification.id}
-                      >
-                        <span>
-                          {notification.message ?? t(notification.messageKey)}
-                        </span>
-                        <time dateTime={notification.createdAt}>
-                          {formatDate(locale, notification.createdAt)}
-                        </time>
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    className="secondary-action full-width"
-                    onClick={() => {
-                      void markAllNotificationsRead();
-                    }}
-                    type="button"
-                  >
-                    <Check aria-hidden="true" size={16} />
-                    {t("notifications.markRead")}
-                  </button>
-                </>
-              ) : (
-                <p>{t("notifications.empty")}</p>
-              )}
-            </section>
 
             <section className="account-panel" aria-labelledby="privacy-title">
               <div className="panel-title">
