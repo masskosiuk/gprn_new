@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Req,
 } from "@nestjs/common";
@@ -61,5 +62,15 @@ export class PhotosController {
     requirePermission(user, "photo:delete_own");
 
     return this.photosService.remove(user, photoId);
+  }
+
+  @Patch(":photoId/title")
+  async rename(
+    @Req() request: CookieRequest,
+    @Param("photoId") photoId: string,
+    @Body() body: unknown,
+  ) {
+    const user = await this.authService.requireUserFromRequest(request);
+    return this.photosService.rename(user, photoId, body);
   }
 }

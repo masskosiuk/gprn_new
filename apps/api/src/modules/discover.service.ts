@@ -1,6 +1,7 @@
 import { loadRuntimeEnv } from "@gprn/config";
 import { prisma } from "@gprn/db";
 import { Injectable } from "@nestjs/common";
+import { mediaCatalogFilter } from "./media-catalog.js";
 
 import {
   dateToIso,
@@ -22,7 +23,8 @@ const reviewCriteria = [
 export class DiscoverService {
   private readonly env = loadRuntimeEnv();
 
-  async getOverview() {
+  async getOverview(mediaType?: string) {
+    const mediaFilter = mediaCatalogFilter(mediaType);
     const [photos, photographers] = await Promise.all([
       prisma.photo.findMany({
         include: {
@@ -60,6 +62,7 @@ export class DiscoverService {
         },
         take: 48,
         where: {
+          ...mediaFilter,
           deletedAt: null,
           moderationStatus: "APPROVED",
           status: "PUBLISHED",

@@ -14,7 +14,8 @@ export function assetMediaType(
 ): ChallengeMediaType {
   return assets.some(
     (asset) =>
-      asset.type === "DISPLAY" && asset.contentType?.startsWith("video/"),
+      ["DISPLAY", "ORIGINAL"].includes(asset.type) &&
+      asset.contentType?.toLowerCase().startsWith("video/"),
   )
     ? "VIDEO"
     : "PHOTO";

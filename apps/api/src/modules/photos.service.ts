@@ -1,5 +1,6 @@
 import { loadRuntimeEnv } from "@gprn/config";
 import { prisma } from "@gprn/db";
+import { generateMediaTitle, isTechnicalMediaTitle } from "@gprn/domain";
 import { S3ObjectStorage } from "@gprn/storage";
 import {
   BadRequestException,
@@ -13,6 +14,7 @@ import exifr from "exifr";
 import sharp, { type Metadata } from "sharp";
 
 import type { CurrentUser } from "./auth.service.js";
+import { parsePhotoTitle, requirePhotoTitleAccess } from "./photo-title.js";
 import {
   formatStoredCityLabel,
   type LocationSelection,
@@ -67,7 +69,8 @@ interface AddPhotoInput {
   readonly location?: LocationSelection;
   readonly locationVisibility: (typeof allowedLocationVisibility)[number];
   readonly mimeType: (typeof allowedMimeTypes)[number];
-  readonly title: string;
+  readonly title?: string;
+  readonly locale: string;
   readonly visibility: (typeof allowedVisibility)[number];
 }
 
@@ -346,6 +349,21 @@ export class PhotosService {
 
     const photo = await prisma.$transaction(async (tx) => {
       await this.ensurePhotographerFoundation(tx, user.id);
+      // Serialize title selection for simultaneous uploads by the same author.
+      await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${`media-title:${user.id}`}))`;
+      const title =
+        input.title && !isTechnicalMediaTitle(input.title)
+          ? input.title
+          : generateMediaTitle(
+              input.locale,
+              isVideo ? "VIDEO" : "PHOTO",
+              await tx.photo.count({
+                where: {
+                  ownerId: user.id,
+                  NOT: { title: { startsWith: "__profile_" } },
+                },
+              }),
+            );
 
       const createdPhoto = await tx.photo.create({
         data: {
@@ -459,7 +477,7 @@ export class PhotosService {
             ],
           },
           status: duplicateStatus === "EXACT_MATCH" ? "UNDER_REVIEW" : "READY",
-          title: input.title,
+          title,
           versions: {
             create: {
               changeSummary:
@@ -821,6 +839,39 @@ export class PhotosService {
     };
   }
 
+  async rename(user: CurrentUser, photoId: string, body: unknown) {
+    const title = parsePhotoTitle(body);
+    const photo = await prisma.$transaction(async (tx) => {
+      const existing = await tx.photo.findUnique({ where: { id: photoId } });
+      if (!existing || existing.deletedAt) {
+        throw new NotFoundException({
+          code: "PHOTO_NOT_FOUND",
+          message: "Photo does not exist.",
+        });
+      }
+      requirePhotoTitleAccess(user, existing);
+      const updated = await tx.photo.update({
+        where: { id: photoId },
+        data: { title },
+        include: photoInclude,
+      });
+      if (existing.title !== title) {
+        await tx.auditLog.create({
+          data: {
+            actorUserId: user.id,
+            action: "photo.renamed",
+            targetType: "Photo",
+            targetId: photoId,
+            previous: { title: existing.title },
+            next: { title },
+          },
+        });
+      }
+      return updated;
+    });
+    return { photo: this.toPhotoResponse(photo) };
+  }
+
   private async ensurePhotographerFoundation(
     tx: PrismaTx,
     userId: string,
@@ -1150,7 +1201,8 @@ function parseAddPhotoInput(body: unknown): AddPhotoInput {
       optionalEnum(record, "locationVisibility", allowedLocationVisibility) ??
       "HIDDEN",
     mimeType,
-    title: requiredString(record, "title").slice(0, 140),
+    title: optionalString(record, "title")?.slice(0, 140),
+    locale: optionalString(record, "locale") ?? "en",
     visibility:
       optionalEnum(record, "visibility", allowedVisibility) ?? "PUBLIC",
   };

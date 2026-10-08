@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isVideoWork } from "./media-kind.ts";
+import { isVideoWork, mergeMediaWorks } from "./media-kind.ts";
 
 test("explicit video metadata is not mistaken for a photograph when playback is unavailable", () => {
   assert.equal(isVideoWork({ mediaType: "VIDEO" }), true);
@@ -53,4 +53,49 @@ test("photo and video galleries partition mixed server data without losing profi
   );
   assert.equal(photos.length + videos.length, works.length);
   assert.equal(works.length, 5);
+});
+
+test("legacy playback URLs and case-insensitive MIME types cannot leak into photos", () => {
+  assert(isVideoWork({ src: "https://cdn.invalid/clip.MP4?token=example" }));
+  assert(isVideoWork({ src: "data:video/webm;base64,AA==" }));
+  assert(isVideoWork({ contentType: "VIDEO/MP4" }));
+  assert(
+    !isVideoWork({ src: "https://cdn.invalid/preview.webp?name=clip.mp4" }),
+  );
+});
+
+test("old cached photo metadata cannot mask a newer server video record with the same id", () => {
+  const works = mergeMediaWorks([
+    {
+      id: "old",
+      mediaType: "PHOTO" as const,
+      src: "poster.webp",
+      isMine: true,
+      title: "My title",
+    },
+    {
+      id: "old",
+      mediaType: "VIDEO" as const,
+      videoSrc: "clip.mp4",
+      isMine: false,
+      title: "My title",
+    },
+    {
+      id: "image",
+      mediaType: "PHOTO" as const,
+      src: "image.webp",
+      isMine: false,
+      title: "An image",
+    },
+  ]);
+  assert.equal(works.length, 2);
+  assert.equal(works[0]?.isMine, true);
+  assert.deepEqual(
+    works.filter(isVideoWork).map((work) => work.id),
+    ["old"],
+  );
+  assert.deepEqual(
+    works.filter((work) => !isVideoWork(work)).map((work) => work.id),
+    ["image"],
+  );
 });

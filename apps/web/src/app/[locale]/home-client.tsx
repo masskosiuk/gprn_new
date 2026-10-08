@@ -91,7 +91,8 @@ import {
   ProfileLocationPicker,
   type LocationOption,
 } from "./profile-location-picker";
-import { isVideoWork } from "../../lib/media-kind";
+import { isVideoWork, mergeMediaWorks } from "../../lib/media-kind";
+import { PhotoTitleEditor } from "./photo-title-editor";
 import {
   competitionPath,
   sharedCompetitionId,
@@ -280,6 +281,7 @@ interface ServerPhotoPayload {
   readonly mediaType?: "PHOTO" | "VIDEO";
   readonly videoUrl?: string | null;
   readonly assets?: {
+    readonly mediaType?: "PHOTO" | "VIDEO";
     readonly displayUrl: string | null;
     readonly thumbnailUrl?: string | null;
     readonly videoUrl?: string | null;
@@ -3063,8 +3065,6 @@ export function HomeClient({
     [locale],
   );
   const allPhotos = useMemo<readonly PhotoRecord[]>(() => {
-    const seen = new Set<string>();
-
     const samples: PhotoRecord[] = demoChallengeWorks.map((work) => ({
       id: work.id,
       mediaType: work.mediaType,
@@ -3086,16 +3086,12 @@ export function HomeClient({
       originKey: "status.directUpload",
       provenanceKey: "status.metadataPending",
     }));
-    return [
+    return mergeMediaWorks([
       ...uploadedPhotos,
       ...serverPhotos,
       ...curatedPhotos,
       ...(hasServerFeed ? [] : samples),
-    ].filter((photo) => {
-      if (seen.has(photo.id)) return false;
-      seen.add(photo.id);
-      return true;
-    });
+    ]);
   }, [serverPhotos, uploadedPhotos, hasServerFeed]);
   const publicPhotos = useMemo(
     () =>
@@ -4338,7 +4334,7 @@ export function HomeClient({
             location: photoLocationSelection ?? undefined,
             locationVisibility: "APPROXIMATE",
             mimeType: file.type,
-            title: makePhotoTitle(file.name),
+            locale,
             visibility: "PUBLIC",
           }),
           method: "POST",
@@ -4465,7 +4461,15 @@ export function HomeClient({
 
   async function refreshDiscoverPhotos(): Promise<void> {
     try {
-      const response = await apiRequest<DiscoverResponse>("/discover");
+      const kind =
+        initialSection === "discover"
+          ? "PHOTO"
+          : initialSection === "video"
+            ? "VIDEO"
+            : null;
+      const response = await apiRequest<DiscoverResponse>(
+        `/discover${kind ? `?mediaType=${kind}` : ""}`,
+      );
       setHasServerFeed(true);
       setServerPhotos(
         response.photos
@@ -5499,6 +5503,35 @@ export function HomeClient({
     } finally {
       setPhotoDeleteBusy(false);
     }
+  }
+
+  async function renameWork(photoId: string, title: string): Promise<void> {
+    const response = await apiRequest<{ photo: ServerPhotoPayload }>(
+      `/photos/${encodeURIComponent(photoId)}/title`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+      },
+    );
+    const update = (photo: PhotoRecord): PhotoRecord =>
+      photo.id === photoId
+        ? { ...photo, title: response.photo.title, titleKey: undefined }
+        : photo;
+    setUploadedPhotos((current) => current.map(update));
+    setServerPhotos((current) => current.map(update));
+    setAdminModerationPhotos((current) =>
+      current.map((photo) =>
+        photo.id === photoId
+          ? { ...photo, title: response.photo.title }
+          : photo,
+      ),
+    );
+    setImagePreview((current) =>
+      current?.photoId === photoId
+        ? { ...current, alt: response.photo.title }
+        : current,
+    );
+    await Promise.all([refreshServerChallenges(), refreshServerBattles()]);
   }
 
   function toggleSavePhoto(photoId: string): void {
@@ -7673,6 +7706,9 @@ export function HomeClient({
   }
 
   function renderPhotoCard(photo: PhotoRecord): ReactNode {
+    const gallerySection = isVideoWork(photo) ? "video" : "discover";
+    const showCommerce =
+      initialSection !== "discover" && initialSection !== "video";
     const isSaved = savedPhotoIds.includes(photo.id);
     const isLiked = likedPhotoIds.includes(photo.id);
     const isInMoodboard = moodboardPhotoIds.includes(photo.id);
@@ -7682,28 +7718,35 @@ export function HomeClient({
     const criterionScores = getPhotoCriterionScores(photo);
 
     const openDiscoverWithCategory = (): void => {
-      setCategoryFilter(photo.categoryId);
+      if (gallerySection === "video") setVideoCategoryFilter(photo.categoryId);
+      else setCategoryFilter(photo.categoryId);
 
-      if (initialSection !== "discover") {
+      if (initialSection !== gallerySection) {
         router.push(
-          `${getSectionHref(locale, "discover")}?category=${photo.categoryId}`,
+          `${getSectionHref(locale, gallerySection)}?category=${photo.categoryId}`,
         );
       }
     };
 
     const openDiscoverWithLocation = (): void => {
       if (photo.locationHidden || !photo.locationId) return;
-      setDiscoverLocationFilter(photo.locationId);
+      if (gallerySection === "video") setVideoLocationFilter(photo.locationId);
+      else setDiscoverLocationFilter(photo.locationId);
 
-      if (initialSection !== "discover") {
+      if (initialSection !== gallerySection) {
         router.push(
-          `${getSectionHref(locale, "discover")}?location=${photo.locationId}`,
+          `${getSectionHref(locale, gallerySection)}?location=${photo.locationId}`,
         );
       }
     };
 
     return (
-      <article className="photo-card" key={photo.id}>
+      <article
+        className="photo-card"
+        data-photo-id={photo.id}
+        data-media-type={isVideoWork(photo) ? "VIDEO" : "PHOTO"}
+        key={photo.id}
+      >
         {photo.videoSrc ? (
           <div className="video-card-media">
             <video
@@ -7773,7 +7816,14 @@ export function HomeClient({
         <div className="photo-card-body">
           <div className="photo-card-heading">
             <div className="photo-card-heading-copy">
-              <strong>{getPhotoTitle(photo, locale)}</strong>
+              <PhotoTitleEditor
+                locale={locale}
+                title={getPhotoTitle(photo, locale)}
+                editable={Boolean(
+                  photo.serverBacked && (photo.isMine || isAdministrator),
+                )}
+                onSave={(title) => renameWork(photo.id, title)}
+              />
               <Link
                 className="photo-author-link"
                 href={
@@ -7793,8 +7843,10 @@ export function HomeClient({
             <div className="photo-card-heading-tags">
               <button
                 aria-pressed={
-                  initialSection === "discover" &&
-                  discoverLocationFilter === photo.locationId
+                  initialSection === gallerySection &&
+                  (gallerySection === "video"
+                    ? videoLocationFilter
+                    : discoverLocationFilter) === photo.locationId
                 }
                 className="photo-meta-tag"
                 disabled={photo.locationHidden || !photo.locationId}
@@ -7810,8 +7862,10 @@ export function HomeClient({
               </button>
               <button
                 aria-pressed={
-                  initialSection === "discover" &&
-                  categoryFilter === photo.categoryId
+                  initialSection === gallerySection &&
+                  (gallerySection === "video"
+                    ? videoCategoryFilter
+                    : categoryFilter) === photo.categoryId
                 }
                 className="photo-meta-tag"
                 onClick={openDiscoverWithCategory}
@@ -7836,6 +7890,15 @@ export function HomeClient({
                         ? t("submission.pending")
                         : t("photo.draft")}
               </span>
+              <button
+                aria-label={t("photo.delete")}
+                className="icon-button photo-delete-action"
+                onClick={() => setPhotoPendingDeletion(photo)}
+                title={t("photo.delete")}
+                type="button"
+              >
+                <Trash2 aria-hidden="true" size={17} />
+              </button>
             </div>
           ) : null}
           <div className="photo-actions">
@@ -7916,7 +7979,7 @@ export function HomeClient({
               onClick={() => {
                 void shareItem(
                   getPhotoTitle(photo, locale),
-                  `/${locale}/discover?photo=${photo.id}`,
+                  `/${locale}/${gallerySection}?photo=${photo.id}`,
                 );
               }}
               title={t("common.share")}
@@ -7926,7 +7989,7 @@ export function HomeClient({
             </button>
             {photo.isMine ? (
               <>
-                {photo.published ? (
+                {photo.published && showCommerce ? (
                   <>
                     <button
                       className="secondary-action compact"
@@ -7953,7 +8016,8 @@ export function HomeClient({
                       {t("promotion.promote")}
                     </button>
                   </>
-                ) : photo.moderationStatus !== "UNDER_REVIEW" &&
+                ) : !photo.published &&
+                  photo.moderationStatus !== "UNDER_REVIEW" &&
                   photo.moderationStatus !== "REJECTED" ? (
                   <button
                     className="primary-action compact"
@@ -7966,17 +8030,6 @@ export function HomeClient({
                     {t("photo.publish")}
                   </button>
                 ) : null}
-                <button
-                  aria-label={t("photo.delete")}
-                  className="icon-button photo-delete-action"
-                  onClick={() => {
-                    setPhotoPendingDeletion(photo);
-                  }}
-                  title={t("photo.delete")}
-                  type="button"
-                >
-                  <Trash2 aria-hidden="true" size={17} />
-                </button>
               </>
             ) : null}
           </div>
@@ -11145,7 +11198,12 @@ export function HomeClient({
                   <div className="admin-moderation-body">
                     <div className="admin-moderation-head">
                       <div>
-                        <strong>{photo.title}</strong>
+                        <PhotoTitleEditor
+                          locale={locale}
+                          title={photo.title}
+                          editable={isAdministrator}
+                          onSave={(title) => renameWork(photo.id, title)}
+                        />
                         <span>
                           {photo.owner.displayName} · {photo.owner.email}
                         </span>
@@ -12899,7 +12957,7 @@ function mapServerPhoto(
     locationLongitude,
     moodboardCount: photo.counts?.moodboards ?? 0,
     moderationStatus: photo.moderationStatus,
-    mediaType: photo.mediaType,
+    mediaType: photo.mediaType ?? photo.assets?.mediaType,
     originKey: "status.directUpload",
     provenanceKey:
       (photo.provenance?.status ?? photo.provenanceStatus) === "UNVERIFIED"
@@ -13348,15 +13406,6 @@ function getBattleVoteWeight(tier: AccountTier): number {
   if (tier === "star") return 10;
   if (tier === "professional") return 4;
   return 1;
-}
-
-function makePhotoTitle(fileName: string): string {
-  return (
-    fileName
-      .replace(/\.[^.]+$/, "")
-      .replace(/[-_]+/g, " ")
-      .trim() || fileName
-  );
 }
 
 function normalizeUsername(value: string): string {

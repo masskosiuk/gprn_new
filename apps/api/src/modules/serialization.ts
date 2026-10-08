@@ -1,4 +1,5 @@
 import type { RuntimeEnv } from "@gprn/config";
+import { assetMediaType } from "@gprn/domain";
 
 export interface AssetLike {
   readonly storageKey: string;
@@ -12,18 +13,25 @@ export function mediaAssetResponse(
     assets.find((asset) => asset.type === "DISPLAY") ??
     assets.find((asset) => asset.type === "THUMBNAIL");
   const thumbnail = assets.find((asset) => asset.type === "THUMBNAIL");
-  const isVideo = display?.contentType?.startsWith("video/") ?? false;
-  const preview = isVideo ? thumbnail : display;
+  const mediaType = assetMediaType(assets);
+  const isVideo = mediaType === "VIDEO";
+  const playback = assets.find(
+    (asset) =>
+      asset.type === "DISPLAY" &&
+      asset.contentType?.toLowerCase().startsWith("video/"),
+  );
+  const preview = isVideo
+    ? (thumbnail ?? (playback ? undefined : display))
+    : display;
   return {
-    mediaType: isVideo ? ("VIDEO" as const) : ("PHOTO" as const),
+    mediaType,
     displayUrl: preview ? publicAssetUrl(env, preview.storageKey) : null,
     thumbnailUrl: thumbnail
       ? publicAssetUrl(env, thumbnail.storageKey)
       : preview
         ? publicAssetUrl(env, preview.storageKey)
         : null,
-    videoUrl:
-      isVideo && display ? publicAssetUrl(env, display.storageKey) : null,
+    videoUrl: playback ? publicAssetUrl(env, playback.storageKey) : null,
   };
 }
 export function publicAssetUrl(env: RuntimeEnv, storageKey: string): string {

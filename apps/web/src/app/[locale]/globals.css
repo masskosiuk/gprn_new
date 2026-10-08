@@ -1555,6 +1555,56 @@ img {
   min-width: 0;
 }
 
+.photo-title-line {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.photo-title-line > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.photo-title-controls {
+  display: flex;
+  gap: 4px;
+}
+.photo-rename-action {
+  flex: 0 0 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 4px;
+  width: 28px;
+}
+.photo-title-editor {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.photo-title-editor input {
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--foreground);
+  min-width: 0;
+  padding: 8px;
+  width: 100%;
+}
+.photo-title-error {
+  color: var(--danger);
+  grid-column: 1 / -1;
+}
+.photo-card-heading:has(.photo-title-editor) {
+  align-items: stretch;
+  flex-direction: column;
+}
+.photo-card-heading:has(.photo-title-editor) .photo-card-heading-tags {
+  justify-content: flex-start;
+  max-width: 100%;
+}
+
 .photo-card-heading-tags {
   align-items: flex-end;
   display: flex;
@@ -1771,7 +1821,13 @@ img {
 }
 
 .photo-status-row {
+  align-items: center;
   display: flex;
+  gap: 8px;
+}
+
+.photo-status-row .photo-delete-action {
+  margin-left: 0;
 }
 
 .photo-status {
