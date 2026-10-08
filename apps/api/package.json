@@ -10,7 +10,8 @@
     "demo:seed-challenges": "tsx src/scripts/seed-demo-challenges.ts",
     "lint": "tsc -p tsconfig.build.json --noEmit",
     "start": "node dist/main.js",
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "pnpm build && tsx --test src/**/*.test.ts && pnpm test:runtime",
+    "test:runtime": "node --test test/*.test.mjs",
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {

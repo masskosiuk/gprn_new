@@ -9,7 +9,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
-import { gps as readGps } from "exifr";
+import exifr from "exifr";
 import sharp, { type Metadata } from "sharp";
 
 import type { CurrentUser } from "./auth.service.js";
@@ -1211,7 +1211,7 @@ async function createImageRenditions(buffer: Buffer): Promise<ImageRenditions> {
       .webp({ quality: 78 })
       .toBuffer({ resolveWithObject: true });
 
-    const gps = await readGps(buffer).catch(() => undefined);
+    const gps = await exifr.gps(buffer).catch(() => undefined);
 
     return {
       display: {
