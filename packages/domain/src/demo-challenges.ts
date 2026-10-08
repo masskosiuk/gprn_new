@@ -70,14 +70,15 @@ export const demoChallengeWorks = [
     author: "lucas",
     challenge: "cinema-without-budget",
     mediaType: "VIDEO",
-    title: "Waiting after dark",
-    titleKey: "demo.work.waiting",
+    title: "A soundtrack of his own",
+    titleKey: "demo.work.soundtrack",
     category: "documentary",
-    url: "https://assets.mixkit.co/videos/2399/2399-720.mp4",
-    posterUrl: "https://assets.mixkit.co/videos/2399/2399-thumb-720-0.jpg",
+    url: "https://assets.mixkit.co/active_storage/video_items/99905/1717707004/99905-video-720.mp4",
+    posterUrl:
+      "https://assets.mixkit.co/active_storage/video_items/99905/1717707004/99905-video-thumb-720-0.jpg",
     sourcePage:
-      "https://mixkit.co/free-stock-video/elegant-woman-waiting-in-a-kiosk-2399/",
-    credit: "Edgar Fernandez / Mixkit",
+      "https://mixkit.co/free-stock-video/a-young-man-sitting-at-the-terrace-of-a-cozy-99905/",
+    credit: "Mixkit",
     license: "Mixkit Stock Video Free License",
   },
   {

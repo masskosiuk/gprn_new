@@ -15,6 +15,13 @@ import {
   seedDemoChallenges,
   type DemoWorkAsset,
 } from "./demo-challenge-seed.js";
+import {
+  demoVideoRefreshStatus,
+  refreshDemoChallengeVideo,
+  replacementVideo,
+  replacementVideoInclude,
+  replacementVideoRevision,
+} from "./demo-challenge-refresh.js";
 
 async function download(url: string, isVideo = false): Promise<Buffer> {
   const response = await fetch(url, { signal: AbortSignal.timeout(60_000) });
@@ -44,14 +51,29 @@ async function download(url: string, isVideo = false): Promise<Buffer> {
 
 async function main() {
   const env = loadRuntimeEnv();
-  const present = await prisma.challenge.count({
-    where: { id: { in: demoChallenges.map((challenge) => challenge.id) } },
-  });
-  if (present === demoChallenges.length) {
-    console.log(
-      "All three demo challenges already exist. Administrative changes and moderation were preserved.",
-    );
-    return;
+  const refreshVideo = process.argv.includes("--refresh-lucas-video");
+  if (refreshVideo) {
+    const photo = await prisma.photo.findUnique({
+      where: { id: replacementVideo.id },
+      include: replacementVideoInclude,
+    });
+    const status = demoVideoRefreshStatus(photo);
+    if (status !== "READY") {
+      console.log(
+        `Demo video: ${status}. Existing content and moderation were preserved.`,
+      );
+      return;
+    }
+  } else {
+    const present = await prisma.challenge.count({
+      where: { id: { in: demoChallenges.map((challenge) => challenge.id) } },
+    });
+    if (present === demoChallenges.length) {
+      console.log(
+        "All three demo challenges already exist. Administrative changes and moderation were preserved.",
+      );
+      return;
+    }
   }
   const storage = new S3ObjectStorage({
     accessKeyId: env.S3_ACCESS_KEY,
@@ -71,7 +93,9 @@ async function main() {
     durationSeconds?: number,
   ) {
     const extension = contentType === "video/mp4" ? "mp4" : "webp";
-    const storageKey = `demo/challenges/v1/${sourceId}/${type.toLowerCase()}.${extension}`;
+    const revision =
+      sourceId === replacementVideo.id ? replacementVideoRevision : "v1";
+    const storageKey = `demo/challenges/${revision}/${sourceId}/${type.toLowerCase()}.${extension}`;
     await storage.putObject({
       body: buffer,
       bucket: env.S3_BUCKET_PUBLIC,
@@ -92,7 +116,7 @@ async function main() {
       durationSeconds,
     });
   }
-  for (const work of demoChallengeWorks) {
+  for (const work of refreshVideo ? [replacementVideo] : demoChallengeWorks) {
     const original = await download(work.url, work.mediaType === "VIDEO");
     if (work.mediaType === "VIDEO") {
       const media = await createVideoRenditions(original);
@@ -136,6 +160,13 @@ async function main() {
       );
     }
     console.log(`Prepared stock example: ${work.title}.`);
+  }
+  if (refreshVideo) {
+    const result = await refreshDemoChallengeVideo(prisma, assets);
+    console.log(
+      `Lucas's demo video: ${result}. Challenge entries, moderation, votes and profiles were preserved.`,
+    );
+    return;
   }
   for (const author of demoBattleAuthors) {
     const { data, info } = await sharp(await download(author.avatarUrl))

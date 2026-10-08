@@ -8,6 +8,7 @@
     "dev": "tsx watch src/main.ts",
     "demo:seed-battles": "tsx src/scripts/seed-demo-battles.ts",
     "demo:seed-challenges": "tsx src/scripts/seed-demo-challenges.ts",
+    "demo:refresh-challenge-video": "tsx src/scripts/seed-demo-challenges.ts --refresh-lucas-video",
     "lint": "tsc -p tsconfig.build.json --noEmit",
     "start": "node dist/main.js",
     "test": "pnpm build && tsx --test src/**/*.test.ts && pnpm test:runtime",
