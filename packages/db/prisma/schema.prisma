@@ -1109,6 +1109,9 @@ model MarketplaceProduct {
   status          ProductStatus          @default(DRAFT)
   previewAssetKey String?
   filesJson       Json?
+  digitalKind     String?
+  palette         String[]               @default([])
+  isDemo          Boolean                @default(false)
   salesCount      Int                    @default(0)
   ratingAverage   Decimal?               @db.Decimal(3, 2)
   createdAt       DateTime               @default(now())

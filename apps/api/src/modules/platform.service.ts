@@ -119,45 +119,15 @@ export class PlatformService {
     };
   }
 
-  async topUp(user: CurrentUser, body: unknown) {
+  async topUp(_user: CurrentUser, body: unknown) {
     const record = asRecord(body);
-    const amountMinor = requiredPositiveMinor(
-      record.amountMinor,
-      "amountMinor",
-    );
-    const method = optionalEnum(record, "method", paymentMethods) ?? "card";
-
-    const result = await prisma.$transaction(async (tx) => {
-      const wallet = await tx.wallet.upsert({
-        create: { balanceMinor: 0, currency: "USD", userId: user.id },
-        update: {},
-        where: { userId: user.id },
-      });
-      const updated = await tx.wallet.update({
-        data: { balanceMinor: { increment: amountMinor } },
-        where: { id: wallet.id },
-      });
-      const transaction = await tx.walletTransaction.create({
-        data: {
-          amountMinor,
-          currency: wallet.currency,
-          metadata: { adapter: "sandbox", method },
-          note: `Top up via ${method}`,
-          status: "COMPLETED",
-          type: "DEPOSIT",
-          walletId: wallet.id,
-        },
-      });
-      return { transaction, wallet: updated };
+    requiredPositiveMinor(record.amountMinor, "amountMinor");
+    optionalEnum(record, "method", paymentMethods);
+    // Never mint wallet funds without a verified provider payment.
+    throw new ConflictException({
+      code: "PAYMENT_PROVIDER_UNAVAILABLE",
+      message: "Wallet top-up requires a verified payment provider.",
     });
-
-    return {
-      transaction: serializeMoneyRecord(result.transaction),
-      wallet: {
-        balanceMinor: result.wallet.balanceMinor.toString(),
-        currency: result.wallet.currency,
-      },
-    };
   }
 
   async createServiceRequest(user: CurrentUser, body: unknown) {
@@ -497,6 +467,7 @@ export class PlatformService {
       orderBy: { createdAt: "desc" },
       take: 60,
       where: {
+        digitalKind: null,
         photo: { deletedAt: null },
         seller: { status: "ACTIVE", user: { status: "ACTIVE" } },
         status: "PUBLISHED",
@@ -659,7 +630,7 @@ export class PlatformService {
       });
     const product = await prisma.marketplaceProduct.findFirst({
       include: { seller: true },
-      where: { id: productId, seller: { userId: user.id } },
+      where: { id: productId, digitalKind: null, seller: { userId: user.id } },
     });
     if (!product)
       throw new NotFoundException({
@@ -678,6 +649,7 @@ export class PlatformService {
       include: { seller: true },
       where: {
         id: productId,
+        digitalKind: null,
         photo: { deletedAt: null },
         seller: { status: "ACTIVE" },
         status: "PUBLISHED",

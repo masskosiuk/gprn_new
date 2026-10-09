@@ -1,10 +1,12 @@
 import {
   GetObjectCommand,
+  DeleteObjectCommand,
   PutObjectCommand,
   S3Client,
-  type PutObjectCommandInput
+  type PutObjectCommandInput,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { Readable } from "node:stream";
 
 export interface StoredObjectInput {
   readonly body: PutObjectCommandInput["Body"];
@@ -39,11 +41,11 @@ export class S3ObjectStorage implements ObjectStorage {
     this.client = new S3Client({
       credentials: {
         accessKeyId: options.accessKeyId,
-        secretAccessKey: options.secretAccessKey
+        secretAccessKey: options.secretAccessKey,
       },
       endpoint: options.endpoint,
       forcePathStyle: options.forcePathStyle,
-      region: options.region
+      region: options.region,
     });
   }
 
@@ -52,9 +54,9 @@ export class S3ObjectStorage implements ObjectStorage {
       this.client,
       new GetObjectCommand({
         Bucket: input.bucket,
-        Key: input.key
+        Key: input.key,
       }),
-      { expiresIn: input.expiresInSeconds }
+      { expiresIn: input.expiresInSeconds },
     );
   }
 
@@ -64,9 +66,52 @@ export class S3ObjectStorage implements ObjectStorage {
         Body: input.body,
         Bucket: input.bucket,
         ContentType: input.contentType,
-        Key: input.key
-      })
+        Key: input.key,
+      }),
+    );
+  }
+
+  async readObject(
+    bucket: string,
+    key: string,
+    maxBytes: number,
+  ): Promise<Buffer> {
+    const signal = AbortSignal.timeout(15_000);
+    const result = await this.client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+      { abortSignal: signal },
+    );
+    const body = result.Body;
+    if (!(body instanceof Readable))
+      throw new Error("Unsupported storage stream.");
+    if ((result.ContentLength ?? 0) > maxBytes) {
+      body.destroy();
+      throw new Error("Stored file exceeds the size limit.");
+    }
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    const abort = () => body.destroy(new Error("Storage read timed out."));
+    signal.addEventListener("abort", abort, { once: true });
+    try {
+      if (signal.aborted) abort();
+      for await (const chunk of body as AsyncIterable<Uint8Array>) {
+        size += chunk.byteLength;
+        if (size > maxBytes) {
+          body.destroy();
+          throw new Error("Stored file exceeds the size limit.");
+        }
+        chunks.push(chunk);
+      }
+    } finally {
+      signal.removeEventListener("abort", abort);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  async deleteObject(bucket: string, key: string): Promise<void> {
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: bucket, Key: key }),
+      { abortSignal: AbortSignal.timeout(15_000) },
     );
   }
 }
-

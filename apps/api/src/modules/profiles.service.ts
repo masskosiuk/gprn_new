@@ -19,6 +19,8 @@ import {
   mediaAssetResponse,
 } from "./serialization.js";
 import { asRecord, optionalEnum, optionalString } from "./validation.js";
+import { productInclude } from "./digital-product-assets.js";
+import { serializeDigitalProduct } from "./digital-products.service.js";
 
 const visibilities = ["PUBLIC", "FOLLOWERS", "PRIVATE"] as const;
 
@@ -111,7 +113,7 @@ export class ProfilesService {
       });
     }
 
-    return { profile: this.serializeProfile(profile, false) };
+    return { profile: await this.serializeProfile(profile, false) };
   }
 
   async getMine(user: CurrentUser) {
@@ -157,7 +159,7 @@ export class ProfilesService {
         code: "PROFILE_NOT_FOUND",
         message: "Profile does not exist.",
       });
-    return { profile: this.serializeProfile(profile, true) };
+    return { profile: await this.serializeProfile(profile, true) };
   }
 
   async updateMine(user: CurrentUser, body: unknown) {
@@ -217,28 +219,6 @@ export class ProfilesService {
           message: `${field} must be a non-negative integer.`,
         });
       }
-    }
-
-    if (
-      presetSalesEnabled === true &&
-      (!presetTitle ||
-        typeof presetPriceMinor !== "number" ||
-        presetPriceMinor <= 0)
-    ) {
-      throw new BadRequestException({
-        code: "PROFILE_PRESET_OFFER_INVALID",
-        message: "An enabled preset offer requires a title and positive price.",
-      });
-    }
-
-    if (
-      lutSalesEnabled === true &&
-      (!lutTitle || typeof lutPriceMinor !== "number")
-    ) {
-      throw new BadRequestException({
-        code: "PROFILE_LUT_OFFER_INVALID",
-        message: "An enabled LUT offer requires a title and price.",
-      });
     }
 
     if (username && !/^[a-z0-9][a-z0-9-]{2,31}$/.test(username)) {
@@ -389,11 +369,53 @@ export class ProfilesService {
     }
   }
 
-  private serializeProfile(
+  private async serializeProfile(
     profile: ProfileRecord,
     includePrivateConnections: boolean,
   ) {
+    const products = await prisma.marketplaceProduct.findMany({
+      include: productInclude,
+      orderBy: { createdAt: "asc" },
+      where: {
+        seller: { userId: profile.userId, status: "ACTIVE" },
+        status: includePrivateConnections
+          ? { in: ["PUBLISHED", "HIDDEN", "DRAFT"] }
+          : "PUBLISHED",
+        digitalKind: includePrivateConnections
+          ? { in: ["LUT", "PRESET"] }
+          : {
+              in: [
+                ...(profile.lutSalesEnabled ? ["LUT"] : []),
+                ...(profile.presetSalesEnabled ? ["PRESET"] : []),
+              ],
+            },
+      },
+    });
     return {
+      digitalProducts: products.map((product) =>
+        serializeDigitalProduct(product, this.env),
+      ),
+      digitalPurchases: includePrivateConnections
+        ? (
+            await prisma.marketplaceProduct.findMany({
+              include: productInclude,
+              orderBy: { createdAt: "desc" },
+              where: {
+                digitalKind: { not: null },
+                orderItems: {
+                  some: {
+                    order: { customerId: profile.userId, status: "COMPLETED" },
+                  },
+                },
+              },
+            })
+          ).map((product) => ({
+            ...serializeDigitalProduct(product, this.env),
+            owned: true,
+          }))
+        : [],
+      lutSalesEnabled: profile.lutSalesEnabled,
+      presetSalesEnabled: profile.presetSalesEnabled,
       achievements: profile.user.achievements.map((item) => ({
         key: item.achievement.key,
         nameKey: item.achievement.nameKey,

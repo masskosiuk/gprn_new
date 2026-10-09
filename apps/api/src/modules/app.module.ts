@@ -30,6 +30,8 @@ import { PlatformController } from "./platform.controller.js";
 import { PlatformService } from "./platform.service.js";
 import { ProfilesController } from "./profiles.controller.js";
 import { ProfilesService } from "./profiles.service.js";
+import { DigitalProductsController } from "./digital-products.controller.js";
+import { DigitalProductsService } from "./digital-products.service.js";
 import { ReportsController } from "./reports.controller.js";
 import { ReportsService } from "./reports.service.js";
 import { SeasonsController } from "./seasons.controller.js";
@@ -38,6 +40,7 @@ import { SocialConnectionsService } from "./social-connections.service.js";
 
 @Module({
   controllers: [
+    DigitalProductsController,
     AdminController,
     AnalyticsController,
     AuthController,
@@ -59,6 +62,7 @@ import { SocialConnectionsService } from "./social-connections.service.js";
     SocialConnectionsController,
   ],
   providers: [
+    DigitalProductsService,
     AdminService,
     AnalyticsService,
     AuthService,

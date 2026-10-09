@@ -5,6 +5,38 @@ import {
 } from "./locales.js";
 
 const baseMessages = {
+  "product.add": "Create product",
+  "product.edit": "Edit product",
+  "product.name": "Product name",
+  "product.description": "Description",
+  "product.cover": "Cover",
+  "product.files": "Files",
+  "product.price": "Price, USD",
+  "product.free": "Free",
+  "product.active": "Published",
+  "product.hidden": "Hidden",
+  "product.save": "Save product",
+  "product.saving": "Saving…",
+  "product.cancel": "Cancel",
+  "product.remove": "Remove product",
+  "product.removeConfirm":
+    "Remove this product? Existing buyers will keep access to their files.",
+  "product.empty": "No products yet",
+  "product.fileCount": "Files",
+  "product.fileLimits": "Up to 20 files, 8 MB each and 12 MB total",
+  "product.coverLimit": "JPG, PNG, WebP or AVIF · up to 5 MB",
+  "product.invalid":
+    "Check the name, price and files. A cover and at least one supported file are required.",
+  "product.failed": "Could not save the product. Please try again.",
+  "product.download": "Product files",
+  "product.myPurchases": "My purchases",
+  "product.purchased": "Purchased",
+  "product.purchasedPresets": "Purchased presets",
+  "product.purchasedLuts": "Purchased LUTs",
+  "product.purchase": "Confirm purchase",
+  "product.colors": "Cover palette",
+  "product.demo": "Demo product",
+  "product.demoDownload": "Download demo",
   "challenge.cinema.title": "Cinema without a budget",
   "challenge.cinema.copy":
     "Tell a complete story in 10–60 seconds: one location, natural light, no expensive equipment. Let the ending change the meaning of the opening shot.",
@@ -651,7 +683,7 @@ const baseMessages = {
   "profile.presets": "Preset sales",
   "profile.presetsCopy":
     "Offer your own preset pack in the marketplace and set its price.",
-  "profile.presetsEnabled": "Sell presets",
+  "profile.presetsEnabled": "Show preset collection",
   "profile.presetTitle": "Preset pack name",
   "profile.presetPrice": "Price",
   "profile.presetDefaultTitle": "Signature preset pack",
@@ -888,6 +920,9 @@ const baseMessages = {
   "wallet.cardTopUp": "Card top-up",
   "wallet.cryptoTopUp": "Crypto top-up",
   "wallet.toppedUp": "Wallet topped up.",
+  "wallet.transaction": "Wallet transaction",
+  "wallet.unavailable":
+    "Top-up is unavailable: a payment provider has not been connected.",
   "wallet.insufficient":
     "Insufficient wallet balance. Top up your account first.",
   "service.order": "Order a service",
@@ -1083,6 +1118,38 @@ export type MessageKey = keyof typeof baseMessages;
 type MessageMap = Record<MessageKey, string>;
 
 const ruMessages: Partial<MessageMap> = {
+  "product.add": "Создать товар",
+  "product.edit": "Редактировать товар",
+  "product.name": "Название товара",
+  "product.description": "Описание",
+  "product.cover": "Обложка",
+  "product.files": "Файлы",
+  "product.price": "Цена, USD",
+  "product.free": "Бесплатно",
+  "product.active": "Опубликован",
+  "product.hidden": "Скрыт",
+  "product.save": "Сохранить товар",
+  "product.saving": "Сохранение…",
+  "product.cancel": "Отмена",
+  "product.remove": "Удалить товар",
+  "product.removeConfirm":
+    "Удалить товар? У покупателей сохранится доступ к приобретённым файлам.",
+  "product.empty": "Пока нет товаров",
+  "product.fileCount": "Файлов",
+  "product.fileLimits": "До 20 файлов, до 8 МБ каждый и до 12 МБ всего",
+  "product.coverLimit": "JPG, PNG, WebP или AVIF · до 5 МБ",
+  "product.invalid":
+    "Проверьте название, цену и файлы. Нужны обложка и хотя бы один файл поддерживаемого формата.",
+  "product.failed": "Не удалось сохранить товар. Попробуйте ещё раз.",
+  "product.download": "Файлы товара",
+  "product.myPurchases": "Мои покупки",
+  "product.purchased": "Приобретено",
+  "product.purchasedPresets": "Приобретённые пресеты",
+  "product.purchasedLuts": "Приобретённые LUT",
+  "product.purchase": "Подтвердить покупку",
+  "product.colors": "Палитра обложки",
+  "product.demo": "Демо-товар",
+  "product.demoDownload": "Скачать демо",
   "challenge.cinema.title": "Кино без бюджета",
   "challenge.cinema.copy":
     "Расскажите законченную историю за 10–60 секунд: одна локация, естественный свет, без дорогой техники. Пусть финал меняет смысл первого кадра.",
@@ -1707,7 +1774,7 @@ const ruMessages: Partial<MessageMap> = {
   "profile.presets": "Продажа пресетов",
   "profile.presetsCopy":
     "Разместите собственный набор пресетов в маркетплейсе и назначьте его стоимость.",
-  "profile.presetsEnabled": "Продавать пресеты",
+  "profile.presetsEnabled": "Показывать коллекцию пресетов",
   "profile.presetTitle": "Название набора",
   "profile.presetPrice": "Стоимость",
   "profile.presetDefaultTitle": "Авторский набор пресетов",
@@ -1871,6 +1938,9 @@ const ruMessages: Partial<MessageMap> = {
   "wallet.cardTopUp": "Пополнение картой",
   "wallet.cryptoTopUp": "Пополнение криптовалютой",
   "wallet.toppedUp": "Счёт пополнен.",
+  "wallet.transaction": "Операция по счёту",
+  "wallet.unavailable":
+    "Пополнение недоступно: платёжный провайдер не подключён.",
   "wallet.insufficient": "Недостаточно средств. Сначала пополните счёт.",
   "service.order": "Заказать услугу",
   "service.workspace": "Работа и платежи",
@@ -2060,6 +2130,41 @@ const ruMessages: Partial<MessageMap> = {
 };
 
 const ukMessages: Partial<MessageMap> = {
+  "wallet.transaction": "Операція за рахунком",
+  "wallet.unavailable":
+    "Поповнення недоступне: платіжний провайдер не підключений.",
+  "product.add": "Створити товар",
+  "product.edit": "Редагувати товар",
+  "product.name": "Назва товару",
+  "product.description": "Опис",
+  "product.cover": "Обкладинка",
+  "product.files": "Файли",
+  "product.price": "Ціна, USD",
+  "product.free": "Безкоштовно",
+  "product.active": "Опублікований",
+  "product.hidden": "Прихований",
+  "product.save": "Зберегти товар",
+  "product.saving": "Збереження…",
+  "product.cancel": "Скасувати",
+  "product.remove": "Видалити товар",
+  "product.removeConfirm":
+    "Видалити товар? Покупці збережуть доступ до придбаних файлів.",
+  "product.empty": "Поки немає товарів",
+  "product.fileCount": "Файлів",
+  "product.fileLimits": "До 20 файлів, до 8 МБ кожен і до 12 МБ загалом",
+  "product.coverLimit": "JPG, PNG, WebP або AVIF · до 5 МБ",
+  "product.invalid":
+    "Перевірте назву, ціну та файли. Потрібні обкладинка й хоча б один файл підтримуваного формату.",
+  "product.failed": "Не вдалося зберегти товар. Спробуйте ще раз.",
+  "product.download": "Файли товару",
+  "product.myPurchases": "Мої покупки",
+  "product.purchased": "Придбано",
+  "product.purchasedPresets": "Придбані пресети",
+  "product.purchasedLuts": "Придбані LUT",
+  "product.purchase": "Підтвердити покупку",
+  "product.colors": "Палітра обкладинки",
+  "product.demo": "Демо-товар",
+  "product.demoDownload": "Завантажити демо",
   "auth.accountMissing": "Профіль не знайдено.",
   "auth.badPassword": "Невірний email або пароль.",
   "auth.invalidCredentials":

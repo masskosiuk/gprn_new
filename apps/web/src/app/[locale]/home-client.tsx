@@ -4,6 +4,7 @@ import {
   demoBattleAuthors,
   demoBattlePhotos,
   demoBattles,
+  demoDigitalProducts,
   demoChallenges as challengeCatalog,
   demoChallengeWorks,
   EloRatingEngine,
@@ -93,6 +94,10 @@ import {
 } from "./profile-location-picker";
 import { isVideoWork, mergeMediaWorks } from "../../lib/media-kind";
 import { PhotoTitleEditor } from "./photo-title-editor";
+import {
+  DigitalProductSection,
+  type DigitalProductOffer,
+} from "./digital-products";
 import {
   competitionPath,
   sharedCompetitionId,
@@ -227,6 +232,8 @@ interface LocalNotification {
 }
 
 interface AccountRecord {
+  readonly digitalProducts?: readonly DigitalProductOffer[];
+  readonly digitalPurchases?: readonly DigitalProductOffer[];
   readonly availableForHire: boolean;
   readonly avatarUrl?: string;
   readonly battles: number;
@@ -330,6 +337,10 @@ interface ServerPhotoPayload {
 }
 
 interface ServerProfilePayload {
+  readonly digitalProducts?: readonly DigitalProductOffer[];
+  readonly digitalPurchases?: readonly DigitalProductOffer[];
+  readonly lutSalesEnabled?: boolean;
+  readonly presetSalesEnabled?: boolean;
   readonly avatarUrl: string | null;
   readonly availableForHire: boolean;
   readonly bio: string | null;
@@ -846,14 +857,6 @@ interface ModelRecord {
   readonly reviews: number;
 }
 
-interface DigitalProductOffer {
-  readonly id: string;
-  readonly imageUrl: string;
-  readonly priceMinor: number;
-  readonly title?: string;
-  readonly titleKey?: MessageKey;
-}
-
 interface PublicAuthorProfile {
   readonly avatarUrl: string;
   readonly bio?: string;
@@ -964,8 +967,6 @@ const wishlistStorageKey = "gprn.marketWishlist.v2";
 const notificationsStorageKey = "gprn.notifications.v2";
 const photoReviewsStorageKey = "gprn.photoReviews.v2";
 const studioReviewsStorageKey = "gprn.studioReviews.v1";
-const walletStorageKey = "gprn.wallet.v1";
-const walletTransactionsStorageKey = "gprn.walletTransactions.v1";
 const serviceOrdersStorageKey = "gprn.serviceOrders.v1";
 const promotionsStorageKey = "gprn.promotions.v1";
 const marketplaceListingsStorageKey = "gprn.marketplaceListings.v1";
@@ -1466,244 +1467,26 @@ const sampleImages = {
     "https://images.unsplash.com/photo-1780642208543-7a84b61f13ca?auto=format&fit=crop&w=1400&q=82",
 } as const;
 
-const demoPresetOffers: Readonly<
-  Record<string, readonly DigitalProductOffer[]>
-> = {
-  mika: [
-    {
-      id: "mika-neon-night",
-      imageUrl: sampleImages.city,
-      priceMinor: 3900,
-      titleKey: "preset.style.neonNight",
-    },
-    {
-      id: "mika-rain-cinema",
-      imageUrl: sampleImages.photoTokyoNeon,
-      priceMinor: 3200,
-      titleKey: "preset.style.rainCinema",
-    },
-    {
-      id: "mika-soft-film",
-      imageUrl: sampleImages.photoTokyoUmbrellas,
-      priceMinor: 2900,
-      titleKey: "preset.style.softFilm",
-    },
-  ],
-  elena: [
-    {
-      id: "elena-nordic-matte",
-      imageUrl: sampleImages.mountain,
-      priceMinor: 3200,
-      titleKey: "preset.style.nordicMatte",
-    },
-    {
-      id: "elena-coastal-air",
-      imageUrl: sampleImages.photoIcelandShore,
-      priceMinor: 2800,
-      titleKey: "preset.style.coastalAir",
-    },
-    {
-      id: "elena-deep-contrast",
-      imageUrl: sampleImages.photoIcelandGlacier,
-      priceMinor: 3600,
-      titleKey: "preset.style.deepContrast",
-    },
-  ],
-  yusuf: [
-    {
-      id: "yusuf-desert-gold",
-      imageUrl: sampleImages.desert,
-      priceMinor: 2700,
-      titleKey: "preset.style.desertGold",
-    },
-    {
-      id: "yusuf-copper-film",
-      imageUrl: sampleImages.photoMarrakechCopper,
-      priceMinor: 3100,
-      titleKey: "preset.style.copperFilm",
-    },
-    {
-      id: "yusuf-market-warmth",
-      imageUrl: sampleImages.photoMarrakechMarket,
-      priceMinor: 2400,
-      titleKey: "preset.style.marketWarmth",
-    },
-  ],
-  anna: [
-    {
-      id: "anna-concrete-minimal",
-      imageUrl: sampleImages.architecture,
-      priceMinor: 3600,
-      titleKey: "preset.style.concreteMinimal",
-    },
-    {
-      id: "anna-urban-chrome",
-      imageUrl: sampleImages.photoKyivConcrete,
-      priceMinor: 3300,
-      titleKey: "preset.style.urbanChrome",
-    },
-    {
-      id: "anna-studio-neutral",
-      imageUrl: sampleImages.photoKyivStudio,
-      priceMinor: 2900,
-      titleKey: "preset.style.studioNeutral",
-    },
-  ],
-  lucas: [
-    {
-      id: "lucas-paris-night",
-      imageUrl: sampleImages.night,
-      priceMinor: 4900,
-      titleKey: "preset.style.parisNight",
-    },
-    {
-      id: "lucas-motion-teal",
-      imageUrl: sampleImages.photoParisNight,
-      priceMinor: 4400,
-      titleKey: "preset.style.motionTeal",
-    },
-    {
-      id: "lucas-forest-analog",
-      imageUrl: sampleImages.photoParisGarden,
-      priceMinor: 3700,
-      titleKey: "preset.style.forestAnalog",
-    },
-  ],
-  iryna: [
-    {
-      id: "iryna-kyiv-grain",
-      imageUrl: sampleImages.videoPosterKyiv,
-      priceMinor: 3500,
-      titleKey: "preset.style.kyivGrain",
-    },
-    {
-      id: "iryna-storm-story",
-      imageUrl: sampleImages.videoPosterIcelandStorm,
-      priceMinor: 3900,
-      titleKey: "preset.style.stormStory",
-    },
-    {
-      id: "iryna-editorial-skin",
-      imageUrl: sampleImages.videoPosterMarrakechPortrait,
-      priceMinor: 3200,
-      titleKey: "preset.style.editorialSkin",
-    },
-  ],
-  marcus: [
-    {
-      id: "marcus-clean-portrait",
-      imageUrl: sampleImages.street,
-      priceMinor: 4200,
-      titleKey: "preset.style.cleanPortrait",
-    },
-    {
-      id: "marcus-lisbon-blue",
-      imageUrl: sampleImages.videoPosterLisbon,
-      priceMinor: 3600,
-      titleKey: "preset.style.lisbonBlue",
-    },
-    {
-      id: "marcus-motion-teal",
-      imageUrl: sampleImages.videoPosterParisMotion,
-      priceMinor: 3900,
-      titleKey: "preset.style.motionTeal",
-    },
-  ],
-  sofia: [
-    {
-      id: "sofia-vintage-transit",
-      imageUrl: sampleImages.tram,
-      priceMinor: 4600,
-      titleKey: "preset.style.vintageTransit",
-    },
-    {
-      id: "sofia-coastal-air",
-      imageUrl: sampleImages.videoPosterLisbonCoast,
-      priceMinor: 3800,
-      titleKey: "preset.style.coastalAir",
-    },
-    {
-      id: "sofia-fine-art-light",
-      imageUrl: sampleImages.videoPosterParis,
-      priceMinor: 4100,
-      titleKey: "preset.style.fineArtLight",
-    },
-  ],
-};
+function getDemoProductOffers(
+  kind: "PRESET" | "LUT",
+): Readonly<Record<string, readonly DigitalProductOffer[]>> {
+  const groups: Record<string, DigitalProductOffer[]> = {};
+  for (const offer of demoDigitalProducts) {
+    if (offer.kind !== kind) continue;
+    (groups[offer.author] ??= []).push({
+      id: offer.id,
+      kind: offer.kind,
+      imageUrl: offer.imageUrl,
+      priceMinor: offer.priceMinor,
+      titleKey: offer.titleKey,
+      isDemo: true,
+    });
+  }
+  return groups;
+}
 
-const demoLutOffers: Readonly<Record<string, readonly DigitalProductOffer[]>> =
-  {
-    mika: [
-      {
-        id: "mika-cyan-orange",
-        imageUrl: sampleImages.photoTokyoNeon,
-        priceMinor: 3500,
-        titleKey: "lut.style.cyanOrange",
-      },
-      {
-        id: "mika-night-contrast",
-        imageUrl: sampleImages.city,
-        priceMinor: 0,
-        titleKey: "lut.style.nightContrast",
-      },
-    ],
-    elena: [
-      {
-        id: "elena-clean-cinema",
-        imageUrl: sampleImages.photoIcelandGlacier,
-        priceMinor: 3100,
-        titleKey: "lut.style.cleanCinema",
-      },
-      {
-        id: "elena-forest-film",
-        imageUrl: sampleImages.mountain,
-        priceMinor: 2600,
-        titleKey: "lut.style.forestFilm",
-      },
-    ],
-    yusuf: [
-      {
-        id: "yusuf-desert-heat",
-        imageUrl: sampleImages.desert,
-        priceMinor: 2400,
-        titleKey: "lut.style.desertHeat",
-      },
-      {
-        id: "yusuf-skin-tone",
-        imageUrl: sampleImages.photoMarrakechCopper,
-        priceMinor: 0,
-        titleKey: "lut.style.skinTone",
-      },
-    ],
-    anna: [
-      {
-        id: "anna-clean-cinema",
-        imageUrl: sampleImages.architecture,
-        priceMinor: 3300,
-        titleKey: "lut.style.cleanCinema",
-      },
-      {
-        id: "anna-night-contrast",
-        imageUrl: sampleImages.photoKyivConcrete,
-        priceMinor: 2800,
-        titleKey: "lut.style.nightContrast",
-      },
-    ],
-    lucas: [
-      {
-        id: "lucas-cyan-orange",
-        imageUrl: sampleImages.night,
-        priceMinor: 4600,
-        titleKey: "lut.style.cyanOrange",
-      },
-      {
-        id: "lucas-skin-tone",
-        imageUrl: sampleImages.photoParisNight,
-        priceMinor: 3900,
-        titleKey: "lut.style.skinTone",
-      },
-    ],
-  };
+const demoPresetOffers = getDemoProductOffers("PRESET");
+const demoLutOffers = getDemoProductOffers("LUT");
 
 const curatedPhotos: readonly PhotoRecord[] = [
   {
@@ -2877,6 +2660,8 @@ export function HomeClient({
     useState<PublicAuthorProfile | null>(null);
   const [serverPublicProfileLoaded, setServerPublicProfileLoaded] =
     useState(false);
+  const [serverDemoProducts, setServerDemoProducts] =
+    useState<readonly DigitalProductOffer[]>();
   const [selectedPhotoId, setSelectedPhotoId] = useState<string>("");
   const [photoFeedback, setPhotoFeedback] = useState<Feedback | null>(null);
   const [photoPendingDeletion, setPhotoPendingDeletion] =
@@ -3505,13 +3290,6 @@ export function HomeClient({
         {},
       ),
     );
-    setWalletBalanceMinor(readLocalStorage<number>(walletStorageKey, 0));
-    setWalletTransactions(
-      readLocalStorage<LocalWalletTransaction[]>(
-        walletTransactionsStorageKey,
-        [],
-      ),
-    );
     setServiceOrders(
       readLocalStorage<LocalOrder[]>(serviceOrdersStorageKey, []),
     );
@@ -3640,16 +3418,6 @@ export function HomeClient({
 
   useEffect(() => {
     if (!isHydrated) return;
-    writeLocalStorage(walletStorageKey, walletBalanceMinor);
-  }, [isHydrated, walletBalanceMinor]);
-
-  useEffect(() => {
-    if (!isHydrated) return;
-    writeLocalStorage(walletTransactionsStorageKey, walletTransactions);
-  }, [isHydrated, walletTransactions]);
-
-  useEffect(() => {
-    if (!isHydrated) return;
     writeLocalStorage(serviceOrdersStorageKey, serviceOrders);
   }, [isHydrated, serviceOrders]);
 
@@ -3764,6 +3532,29 @@ export function HomeClient({
       setServerPublicProfileLoaded(false);
       void loadServerPublicProfile(initialAuthorId);
     }
+  }, [initialAuthorId, initialSection, isHydrated]);
+
+  useEffect(() => {
+    setServerDemoProducts(undefined);
+    if (
+      !isHydrated ||
+      initialSection !== "profile" ||
+      !initialAuthorId ||
+      !demoDigitalProducts.some((offer) => offer.author === initialAuthorId)
+    )
+      return;
+    let cancelled = false;
+    void apiRequest<{ products: readonly DigitalProductOffer[] }>(
+      `/digital-products/demo/${encodeURIComponent(initialAuthorId)}`,
+      { signal: AbortSignal.timeout(15_000) },
+    )
+      .then((response) => {
+        if (!cancelled) setServerDemoProducts(response.products);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, [initialAuthorId, initialSection, isHydrated]);
 
   useEffect(() => {
@@ -4603,6 +4394,16 @@ export function HomeClient({
           moodboards: readonly {
             readonly items: readonly { photoId: string }[];
           }[];
+          wallet: {
+            balanceMinor: string;
+            transactions: readonly {
+              id: string;
+              amountMinor: string;
+              createdAt: string;
+              type: string;
+              note?: string | null;
+            }[];
+          };
         }>("/platform/dashboard"),
         apiRequest<{
           notifications: ServerNotificationPayload[];
@@ -4622,6 +4423,15 @@ export function HomeClient({
           .filter((photo): photo is PhotoRecord => Boolean(photo)),
       );
       setSavedPhotoIds(dashboardResponse.bookmarks);
+      setWalletBalanceMinor(Number(dashboardResponse.wallet.balanceMinor));
+      setWalletTransactions(
+        dashboardResponse.wallet.transactions.map((transaction) => ({
+          id: transaction.id,
+          amountMinor: Number(transaction.amountMinor),
+          createdAt: transaction.createdAt,
+          label: transaction.note || t("wallet.transaction"),
+        })),
+      );
       setMoodboardPhotoIds(
         dashboardResponse.moodboards.flatMap((board) =>
           board.items.map((item) => item.photoId),
@@ -5250,6 +5060,8 @@ export function HomeClient({
     void apiRequest("/auth/logout", { method: "POST" }).catch(() => undefined);
     setSessionEmail(null);
     setServerUser(null);
+    setWalletBalanceMinor(0);
+    setWalletTransactions([]);
     setSocialSessionReady(false);
     setGlobalFeedback({ kind: "success", text: t("auth.loggedOut") });
   }
@@ -5289,10 +5101,6 @@ export function HomeClient({
     const detailedReviewPrice = Math.round(
       Number(profileForm.detailedReviewPrice) * 100,
     );
-    const lutPrice = profileForm.lutIsFree
-      ? 0
-      : Math.round(Number(profileForm.lutPrice) * 100);
-    const presetPrice = Math.round(Number(profileForm.presetPrice) * 100);
 
     if (
       canOfferReviews &&
@@ -5300,27 +5108,6 @@ export function HomeClient({
         simpleReviewPrice <= 0 ||
         !Number.isFinite(detailedReviewPrice) ||
         detailedReviewPrice <= 0)
-    ) {
-      setGlobalFeedback({ kind: "error", text: t("commerce.invalidAmount") });
-      return;
-    }
-
-    if (
-      profileForm.presetSalesEnabled &&
-      (!profileForm.presetTitle.trim() ||
-        !Number.isFinite(presetPrice) ||
-        presetPrice <= 0)
-    ) {
-      setGlobalFeedback({ kind: "error", text: t("commerce.invalidAmount") });
-      return;
-    }
-
-    if (
-      profileForm.lutSalesEnabled &&
-      (!profileForm.lutTitle.trim() ||
-        !Number.isFinite(lutPrice) ||
-        lutPrice < 0 ||
-        (!profileForm.lutIsFree && lutPrice === 0))
     ) {
       setGlobalFeedback({ kind: "error", text: t("commerce.invalidAmount") });
       return;
@@ -5335,17 +5122,9 @@ export function HomeClient({
         : currentProfile.detailedReviewPrice,
       location: profileLocationSelection?.label ?? "",
       locationSelection: profileLocationSelection ?? undefined,
-      lutPrice: profileForm.lutSalesEnabled
-        ? lutPrice
-        : currentProfile.lutPrice,
       lutSalesEnabled: profileForm.lutSalesEnabled,
-      lutTitle: profileForm.lutTitle.trim() || currentProfile.lutTitle,
       name: profileForm.displayName.trim() || currentProfile.name,
-      presetPrice: profileForm.presetSalesEnabled
-        ? presetPrice
-        : currentProfile.presetPrice,
       presetSalesEnabled: profileForm.presetSalesEnabled,
-      presetTitle: profileForm.presetTitle.trim() || currentProfile.presetTitle,
       reviewPrice: canOfferReviews
         ? detailedReviewPrice
         : currentProfile.reviewPrice,
@@ -5365,18 +5144,6 @@ export function HomeClient({
           location: profileLocationSelection ?? undefined,
           lutSalesEnabled: profileForm.lutSalesEnabled,
           presetSalesEnabled: profileForm.presetSalesEnabled,
-          ...(profileForm.lutSalesEnabled
-            ? {
-                lutPriceMinor: lutPrice,
-                lutTitle: profileForm.lutTitle.trim(),
-              }
-            : {}),
-          ...(profileForm.presetSalesEnabled
-            ? {
-                presetPriceMinor: presetPrice,
-                presetTitle: profileForm.presetTitle.trim(),
-              }
-            : {}),
           username: nextAccount.username,
           visibility: "PUBLIC",
         }),
@@ -5699,7 +5466,9 @@ export function HomeClient({
     setCommerceForm((current) => ({ ...current, [field]: value }));
   }
 
-  function submitCommerce(event: FormEvent<HTMLFormElement>): void {
+  async function submitCommerce(
+    event: FormEvent<HTMLFormElement>,
+  ): Promise<void> {
     event.preventDefault();
     if (!commerceDialog || !currentProfile) return;
 
@@ -5711,21 +5480,21 @@ export function HomeClient({
     }
 
     if (commerceDialog.kind === "wallet") {
-      setWalletBalanceMinor((current) => current + amountMinor);
-      setWalletTransactions((current) => [
-        {
-          amountMinor,
-          createdAt: now,
-          id: `wallet-${Date.now()}`,
-          label:
-            commerceForm.paymentMethod === "card"
-              ? t("wallet.cardTopUp")
-              : t("wallet.cryptoTopUp"),
-        },
-        ...current,
-      ]);
-      setGlobalFeedback({ kind: "success", text: t("wallet.toppedUp") });
-      setCommerceDialog(null);
+      try {
+        await apiRequest("/platform/wallet/top-up", {
+          method: "POST",
+          body: JSON.stringify({
+            amountMinor,
+            method: commerceForm.paymentMethod,
+          }),
+        });
+        await refreshServerSession();
+        setGlobalFeedback({ kind: "success", text: t("wallet.toppedUp") });
+      } catch {
+        setGlobalFeedback({ kind: "error", text: t("wallet.unavailable") });
+      } finally {
+        setCommerceDialog(null);
+      }
       return;
     }
 
@@ -9790,95 +9559,69 @@ export function HomeClient({
   function renderDigitalProductSection(
     kind: "preset" | "lut",
     offers: readonly DigitalProductOffer[] | undefined,
-    authorName: string,
+    _authorName: string,
+    canManage = false,
+    purchased = false,
   ): ReactNode {
-    if (!offers?.length) return null;
-
-    const isLut = kind === "lut";
-    const ProductIcon = isLut ? Video : Palette;
-    const eyebrowKey = isLut
-      ? "profile.lutOfferEyebrow"
-      : "profile.presetOfferEyebrow";
-    const titleKey = isLut
-      ? "profile.lutOfferTitle"
-      : "profile.presetOfferTitle";
-    const copyKey = isLut ? "profile.lutOfferCopy" : "profile.presetOfferCopy";
-    const includesKey = isLut
-      ? "profile.lutOfferIncludes"
-      : "profile.presetOfferIncludes";
-
-    return (
-      <section
-        className={`profile-products-section is-${kind}`}
-        aria-labelledby={`profile-${kind}-products`}
-      >
-        <div className="profile-products-heading">
-          <span className="profile-products-icon" aria-hidden="true">
-            <ProductIcon size={22} />
-          </span>
-          <div>
-            <span className="eyebrow">{t(eyebrowKey)}</span>
-            <h2 id={`profile-${kind}-products`}>{t(titleKey)}</h2>
-            <p>{t(copyKey)}</p>
-          </div>
-        </div>
-        <div className="profile-product-grid">
-          {offers.map((offer) => {
-            const offerTitle = getDigitalProductTitle(offer, locale);
-            const isFree = offer.priceMinor === 0;
-
-            return (
-              <article className="profile-product-tile" key={offer.id}>
-                <div className="profile-product-preview">
-                  <img alt={offerTitle} src={offer.imageUrl} />
-                  <span className="product-file-chip">
-                    {isLut ? ".CUBE" : ".XMP"}
-                  </span>
-                  <div className="product-swatch-row" aria-hidden="true">
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                </div>
-                <div className="profile-product-body">
-                  <span className="product-kind-label">
-                    <ProductIcon aria-hidden="true" size={14} />
-                    {t(isLut ? "marketplace.lut" : "marketplace.preset")}
-                  </span>
-                  <h3>{offerTitle}</h3>
-                  <p>{t(includesKey)}</p>
-                  <div className="profile-product-footer">
-                    <strong>
-                      {isFree
-                        ? t("marketplace.free")
-                        : formatMoney(offer.priceMinor, locale)}
-                    </strong>
-                    <button
-                      aria-label={`${t(isFree ? "marketplace.getFree" : "marketplace.buy")}: ${offerTitle}`}
-                      className="primary-action compact"
-                      onClick={() => {
-                        buyMarketplaceItem(
-                          `${authorName} · ${offerTitle}`,
-                          offer.priceMinor,
-                        );
-                      }}
-                      type="button"
-                    >
-                      {isFree ? (
-                        <Download aria-hidden="true" size={16} />
-                      ) : (
-                        <ShoppingBag aria-hidden="true" size={16} />
-                      )}
-                      {t(isFree ? "marketplace.download" : "marketplace.buy")}
-                    </button>
-                  </div>
-                </div>
-              </article>
+    const isDemo = offers?.some((offer) =>
+      demoDigitalProducts.some((demo) => demo.id === offer.id),
+    );
+    const displayed =
+      isDemo && serverDemoProducts !== undefined
+        ? serverDemoProducts.filter(
+            (offer) => offer.kind === (kind === "lut" ? "LUT" : "PRESET"),
+          )
+        : offers?.map((offer) => {
+            const demo = demoDigitalProducts.find(
+              (candidate) => candidate.id === offer.id,
             );
-          })}
-        </div>
-      </section>
+            return demo
+              ? { ...offer, imageUrl: demo.imageUrl, isDemo: true }
+              : {
+                  ...offer,
+                  owned:
+                    offer.owned ||
+                    currentProfile?.digitalPurchases?.some(
+                      (purchase) => purchase.id === offer.id,
+                    ),
+                };
+          });
+    return (
+      <DigitalProductSection
+        kind={kind}
+        offers={displayed}
+        locale={locale}
+        apiRoot={getApiRoot()}
+        canManage={canManage && Boolean(serverUser)}
+        purchased={purchased}
+        save={async (input, id) => {
+          await apiRequest(
+            id ? `/digital-products/${id}` : "/digital-products",
+            {
+              method: id ? "PATCH" : "POST",
+              body: JSON.stringify(input),
+              signal: AbortSignal.timeout(60_000),
+            },
+          );
+          await refreshServerSession();
+        }}
+        archive={async (id) => {
+          await apiRequest(`/digital-products/${id}`, { method: "DELETE" });
+          await refreshServerSession();
+        }}
+        purchase={async (offer) => {
+          if (!serverUser) {
+            openAuth("login");
+            return false;
+          }
+          if (offer.isDemo || offer.priceMinor === 0) return true;
+          await apiRequest(`/digital-products/${offer.id}/purchase`, {
+            method: "POST",
+          });
+          await refreshServerSession();
+          return true;
+        }}
+      />
     );
   }
 
@@ -10106,31 +9849,16 @@ export function HomeClient({
       (provider) => provider.connectionId,
     ).length;
     const currentTier = currentProfile.tier ?? "viewer";
-    const productPreviewImage =
-      currentProfile.coverUrl ?? profilePhotos[0]?.src ?? sampleImages.street;
-    const currentPresetOffers: readonly DigitalProductOffer[] | undefined =
-      currentProfile.presetSalesEnabled
-        ? [
-            {
-              id: `${currentProfile.username}-preset`,
-              imageUrl: productPreviewImage,
-              priceMinor: currentProfile.presetPrice ?? 2500,
-              title:
-                currentProfile.presetTitle ?? t("profile.presetDefaultTitle"),
-            },
-          ]
-        : undefined;
-    const currentLutOffers: readonly DigitalProductOffer[] | undefined =
-      currentProfile.lutSalesEnabled
-        ? [
-            {
-              id: `${currentProfile.username}-lut`,
-              imageUrl: productPreviewImage,
-              priceMinor: currentProfile.lutPrice ?? 0,
-              title: currentProfile.lutTitle ?? t("profile.lutDefaultTitle"),
-            },
-          ]
-        : undefined;
+    const currentPresetOffers = currentProfile.presetSalesEnabled
+      ? (currentProfile.digitalProducts?.filter(
+          (product) => product.kind === "PRESET",
+        ) ?? [])
+      : undefined;
+    const currentLutOffers = currentProfile.lutSalesEnabled
+      ? (currentProfile.digitalProducts?.filter(
+          (product) => product.kind === "LUT",
+        ) ?? [])
+      : undefined;
 
     return (
       <section className="profile-page">
@@ -10216,11 +9944,36 @@ export function HomeClient({
               "preset",
               currentPresetOffers,
               currentProfile.name,
+              Boolean(
+                currentProfile.presetSalesEnabled && currentTier !== "viewer",
+              ),
             )}
             {renderDigitalProductSection(
               "lut",
               currentLutOffers,
               currentProfile.name,
+              Boolean(
+                currentProfile.lutSalesEnabled && currentTier !== "viewer",
+              ),
+            )}
+
+            {renderDigitalProductSection(
+              "preset",
+              currentProfile.digitalPurchases?.filter(
+                (product) => product.kind === "PRESET",
+              ),
+              currentProfile.name,
+              false,
+              true,
+            )}
+            {renderDigitalProductSection(
+              "lut",
+              currentProfile.digitalPurchases?.filter(
+                (product) => product.kind === "LUT",
+              ),
+              currentProfile.name,
+              false,
+              true,
             )}
 
             {currentTier !== "viewer" ? (
@@ -10688,115 +10441,37 @@ export function HomeClient({
 
               <fieldset className="master-settings preset-settings">
                 <legend>{t("profile.presets")}</legend>
-                <p>{t("profile.presetsCopy")}</p>
                 <label className="checkbox-field" htmlFor="profile-presets">
                   <input
                     checked={profileForm.presetSalesEnabled}
                     id="profile-presets"
-                    onChange={(event) => {
+                    onChange={(event) =>
                       updateProfileField(
                         "presetSalesEnabled",
                         event.target.checked,
-                      );
-                    }}
+                      )
+                    }
                     type="checkbox"
                   />
                   <span>{t("profile.presetsEnabled")}</span>
                 </label>
-                <div className="master-price-grid">
-                  <label className="form-field" htmlFor="profile-preset-title">
-                    <span>{t("profile.presetTitle")}</span>
-                    <input
-                      disabled={!profileForm.presetSalesEnabled}
-                      id="profile-preset-title"
-                      onChange={(event) => {
-                        updateProfileField("presetTitle", event.target.value);
-                      }}
-                      type="text"
-                      value={profileForm.presetTitle}
-                    />
-                  </label>
-                  <label className="form-field" htmlFor="profile-preset-price">
-                    <span>{t("profile.presetPrice")}</span>
-                    <div className="review-price-input">
-                      <span aria-hidden="true">$</span>
-                      <input
-                        disabled={!profileForm.presetSalesEnabled}
-                        id="profile-preset-price"
-                        min="1"
-                        onChange={(event) => {
-                          updateProfileField("presetPrice", event.target.value);
-                        }}
-                        step="1"
-                        type="number"
-                        value={profileForm.presetPrice}
-                      />
-                    </div>
-                  </label>
-                </div>
               </fieldset>
 
               <fieldset className="master-settings lut-settings">
                 <legend>{t("profile.luts")}</legend>
-                <p>{t("profile.lutsCopy")}</p>
                 <label className="checkbox-field" htmlFor="profile-luts">
                   <input
                     checked={profileForm.lutSalesEnabled}
                     id="profile-luts"
-                    onChange={(event) => {
+                    onChange={(event) =>
                       updateProfileField(
                         "lutSalesEnabled",
                         event.target.checked,
-                      );
-                    }}
+                      )
+                    }
                     type="checkbox"
                   />
                   <span>{t("profile.lutsEnabled")}</span>
-                </label>
-                <div className="master-price-grid">
-                  <label className="form-field" htmlFor="profile-lut-title">
-                    <span>{t("profile.lutTitle")}</span>
-                    <input
-                      disabled={!profileForm.lutSalesEnabled}
-                      id="profile-lut-title"
-                      onChange={(event) => {
-                        updateProfileField("lutTitle", event.target.value);
-                      }}
-                      type="text"
-                      value={profileForm.lutTitle}
-                    />
-                  </label>
-                  <label className="form-field" htmlFor="profile-lut-price">
-                    <span>{t("profile.lutPrice")}</span>
-                    <div className="review-price-input">
-                      <span aria-hidden="true">$</span>
-                      <input
-                        disabled={
-                          !profileForm.lutSalesEnabled || profileForm.lutIsFree
-                        }
-                        id="profile-lut-price"
-                        min="1"
-                        onChange={(event) => {
-                          updateProfileField("lutPrice", event.target.value);
-                        }}
-                        step="1"
-                        type="number"
-                        value={profileForm.lutPrice}
-                      />
-                    </div>
-                  </label>
-                </div>
-                <label className="checkbox-field" htmlFor="profile-lut-free">
-                  <input
-                    checked={profileForm.lutIsFree}
-                    disabled={!profileForm.lutSalesEnabled}
-                    id="profile-lut-free"
-                    onChange={(event) => {
-                      updateProfileField("lutIsFree", event.target.checked);
-                    }}
-                    type="checkbox"
-                  />
-                  <span>{t("profile.lutFree")}</span>
                 </label>
               </fieldset>
 
@@ -13170,6 +12845,8 @@ function mapServerProfileToAccount(
 
   return {
     availableForHire: profile.availableForHire,
+    digitalProducts: profile.digitalProducts ?? [],
+    digitalPurchases: profile.digitalPurchases ?? [],
     avatarUrl: profile.avatarUrl ?? previous?.avatarUrl,
     battles: globalRating?.battles ?? 0,
     bio: profile.bio ?? getMessage(locale, "profile.defaultBio"),
@@ -13184,12 +12861,13 @@ function mapServerProfileToAccount(
     location: getServerProfileLocation(profile, locale),
     locationSelection: getServerProfileLocationSelection(profile),
     lutPrice: profile.lutOffer?.priceMinor ?? previous?.lutPrice,
-    lutSalesEnabled: Boolean(profile.lutOffer),
+    lutSalesEnabled: profile.lutSalesEnabled ?? Boolean(profile.lutOffer),
     lutTitle: profile.lutOffer?.title ?? previous?.lutTitle,
     name: profile.displayName,
     passwordHash: previous?.passwordHash ?? "",
     presetPrice: profile.presetOffer?.priceMinor ?? previous?.presetPrice,
-    presetSalesEnabled: Boolean(profile.presetOffer),
+    presetSalesEnabled:
+      profile.presetSalesEnabled ?? Boolean(profile.presetOffer),
     presetTitle: profile.presetOffer?.title ?? previous?.presetTitle,
     rating: globalRating?.rating ?? 1500,
     reviewPrice: profile.reviewService
@@ -13222,27 +12900,11 @@ function mapServerPublicProfile(
     id: profile.username,
     locationId: inferLocationId(getServerProfileLocation(profile, locale)),
     locationLabel: getServerProfileLocation(profile, locale),
-    luts: profile.lutOffer?.title
-      ? [
-          {
-            id: `${profile.username}-lut`,
-            imageUrl: profile.coverUrl ?? sampleImages.videoPosterParis,
-            priceMinor: profile.lutOffer.priceMinor,
-            title: profile.lutOffer.title,
-          },
-        ]
-      : undefined,
+    luts: profile.digitalProducts?.filter((product) => product.kind === "LUT"),
     name: profile.displayName,
-    presets: profile.presetOffer?.title
-      ? [
-          {
-            id: `${profile.username}-preset`,
-            imageUrl: profile.coverUrl ?? sampleImages.street,
-            priceMinor: profile.presetOffer.priceMinor ?? 0,
-            title: profile.presetOffer.title,
-          },
-        ]
-      : undefined,
+    presets: profile.digitalProducts?.filter(
+      (product) => product.kind === "PRESET",
+    ),
     rating: globalRating?.rating ?? 1500,
     reviewPrice: profile.reviewService
       ? Number(profile.reviewService.priceMinor)

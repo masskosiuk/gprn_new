@@ -15,6 +15,7 @@
     "db:seed": "pnpm --filter @gprn/db db:seed",
     "db:seed:demo-battles": "pnpm --filter @gprn/api demo:seed-battles",
     "db:seed:demo-challenges": "pnpm --filter @gprn/api demo:seed-challenges",
+    "db:seed:demo-products": "pnpm --filter @gprn/api demo:seed-products",
     "db:refresh:demo-challenge-video": "pnpm --filter @gprn/api demo:refresh-challenge-video",
     "db:repair:media-titles": "pnpm --filter @gprn/api media:repair-titles",
     "dev": "turbo dev",
