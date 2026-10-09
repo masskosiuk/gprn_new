@@ -194,6 +194,31 @@ test("preserves an administrator's custom title and description", async () => {
   assert.equal(db.photo.description, "Administrator description");
 });
 
+test("new metadata with old media is repaired rather than reported as updated", async () => {
+  const db = database();
+  db.photo.metadata!.exifJson = {
+    sourcePage: replacementVideo.sourcePage,
+    credit: replacementVideo.credit,
+  };
+  assert.equal(demoVideoRefreshStatus(db.photo), "READY");
+  assert.equal(await refreshDemoChallengeVideo(db.client, assets), "REPLACED");
+  assert(
+    db.photo.assets.every((asset) =>
+      asset.storageKey.includes(replacementVideoRevision),
+    ),
+  );
+});
+
+test("a partial known revision is repaired but a custom upload is never overwritten", async () => {
+  const db = database();
+  db.photo.metadata!.exifJson = { sourcePage: replacementVideo.sourcePage };
+  db.photo.assets[0]!.storageKey = assets[0]!.storageKey;
+  assert.equal(demoVideoRefreshStatus(db.photo), "READY");
+  assert.equal(await refreshDemoChallengeVideo(db.client, assets), "REPLACED");
+  db.photo.assets[0]!.storageKey = "administrator/custom.mp4";
+  assert.throws(() => demoVideoRefreshStatus(db.photo), /edited/);
+});
+
 test("deleted, hidden, rejected and pending works stay unavailable", async () => {
   for (const fields of [
     { deletedAt: new Date() },

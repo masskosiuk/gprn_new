@@ -982,6 +982,10 @@ const baseMessages = {
   "admin.accountsCopy":
     "Search accounts, assign tiers and ratings, or restrict access.",
   "admin.moderationTitle": "Battle and challenge moderation",
+  "admin.battleModerationTitle": "Battle moderation",
+  "admin.challengeModerationTitle": "Challenge moderation",
+  "admin.portfolioModerationTitle": "Portfolio file moderation",
+  "admin.portfolioModerationCopy": "Photos and videos awaiting publication.",
   "admin.moderationCopy":
     "Review submitted works, correct categories, approve or reject entries.",
   "admin.refreshModeration": "Refresh moderation queue",
@@ -1960,6 +1964,10 @@ const ruMessages: Partial<MessageMap> = {
   "admin.accountsCopy":
     "Поиск аккаунтов, назначение рангов и рейтинга, блокировка доступа.",
   "admin.moderationTitle": "Модерация батлов и челленджей",
+  "admin.battleModerationTitle": "Модерация батлов",
+  "admin.challengeModerationTitle": "Модерация челленджей",
+  "admin.portfolioModerationTitle": "Модерация файлов портфолио",
+  "admin.portfolioModerationCopy": "Фото и видео, ожидающие публикации.",
   "admin.moderationCopy":
     "Проверяйте работы, исправляйте категории, одобряйте или отклоняйте заявки.",
   "admin.refreshModeration": "Обновить очередь модерации",
@@ -2079,6 +2087,10 @@ const ukMessages: Partial<MessageMap> = {
   "challenge.photo": "Фоточелендж",
   "challenge.video": "Відеочелендж · 10–60 с",
   "challenge.stockExample": "Стоковий демоприклад",
+  "admin.battleModerationTitle": "Модерація батлів",
+  "admin.challengeModerationTitle": "Модерація челенджів",
+  "admin.portfolioModerationTitle": "Модерація файлів портфоліо",
+  "admin.portfolioModerationCopy": "Фото та відео, що очікують публікації.",
   "demo.work.lateScene": "Запізнення в кадр",
   "demo.work.soundtrack": "Свій саундтрек",
   "demo.work.green": "Зелений у деталях",

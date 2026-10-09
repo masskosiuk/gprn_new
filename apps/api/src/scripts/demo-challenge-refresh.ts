@@ -53,12 +53,12 @@ export function demoVideoRefreshStatus(
     metadata && typeof metadata === "object" && !Array.isArray(metadata)
       ? metadata.sourcePage
       : null;
-  if (sourcePage === replacementVideo.sourcePage) return "UPDATED";
-  if (sourcePage !== legacySource)
+  if (sourcePage !== legacySource && sourcePage !== replacementVideo.sourcePage)
     throw new Error(
       "The stock source has been edited; existing content was preserved.",
     );
-  // Only the original seeded assets may be replaced, never an administrator's upload.
+  // Only known seeded revisions may be replaced, never an administrator's upload.
+  let assetsUpdated = true;
   for (const [type, filename] of [
     ["DISPLAY", "display.mp4"],
     ["THUMBNAIL", "thumbnail.webp"],
@@ -68,13 +68,24 @@ export function demoVideoRefreshStatus(
     );
     if (
       matches.length !== 1 ||
-      matches[0]!.storageKey !== `demo/challenges/v1/${photo.id}/${filename}`
+      !["v1", replacementVideoRevision].some(
+        (revision) =>
+          matches[0]!.storageKey ===
+          `demo/challenges/${revision}/${photo.id}/${filename}`,
+      )
     )
       throw new Error(
         "The demo assets have been edited; existing content was preserved.",
       );
+    if (
+      matches[0]!.storageKey !==
+      `demo/challenges/${replacementVideoRevision}/${photo.id}/${filename}`
+    )
+      assetsUpdated = false;
   }
-  return "READY";
+  return sourcePage === replacementVideo.sourcePage && assetsUpdated
+    ? "UPDATED"
+    : "READY";
 }
 
 export async function refreshDemoChallengeVideo(

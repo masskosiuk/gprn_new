@@ -1949,18 +1949,19 @@ img {
   align-items: center;
   display: grid;
   gap: 24px;
-  grid-template-columns: minmax(260px, 0.8fr) minmax(480px, 1.2fr);
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .battle-create-actions {
   align-items: center;
-  display: grid;
+  display: flex;
   gap: 10px;
-  grid-template-columns: minmax(260px, 1fr) auto;
 }
 
 .battle-create-actions .primary-action {
+  max-width: 100%;
   white-space: nowrap;
+  width: auto;
 }
 
 .battle-filter-bar {
@@ -4190,10 +4191,6 @@ img {
     grid-column: 1 / -1;
     max-width: none;
     padding: 12px 0 0;
-  }
-
-  .battle-create-actions {
-    grid-template-columns: 1fr;
   }
 
   .battle-filter-bar {

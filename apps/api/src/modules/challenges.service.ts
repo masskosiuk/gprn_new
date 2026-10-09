@@ -9,6 +9,7 @@ import {
 
 import type { CurrentUser } from "./auth.service.js";
 import { dateToIso, mediaAssetResponse } from "./serialization.js";
+import { stockSourceResponse } from "./stock-source.js";
 import { asRecord, requiredString } from "./validation.js";
 
 const challengeInclude = {
@@ -35,6 +36,8 @@ const challengeInclude = {
       photo: {
         include: {
           assets: true,
+          metadata: { select: { exifJson: true } },
+          provenance: { select: { sourceProvider: true } },
           owner: { include: { profile: true } },
         },
       },
@@ -74,6 +77,8 @@ interface ChallengeRecord {
     readonly photo: {
       readonly id: string;
       readonly title: string;
+      readonly metadata: { readonly exifJson: unknown } | null;
+      readonly provenance: { readonly sourceProvider: string | null } | null;
       readonly assets: readonly {
         readonly contentType: string;
         readonly storageKey: string;
@@ -546,6 +551,10 @@ export class ChallengesService {
               ...media,
               id: entry.photo.id,
               title: entry.photo.title,
+              stockSource: stockSourceResponse(
+                entry.photo.provenance?.sourceProvider,
+                entry.photo.metadata?.exifJson,
+              ),
             },
             submittedAt: entry.submittedAt.toISOString(),
           },

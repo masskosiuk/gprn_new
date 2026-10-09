@@ -445,6 +445,10 @@ interface ServerChallengePayload {
     readonly photo: {
       readonly displayUrl: string;
       readonly videoUrl?: string | null;
+      readonly stockSource?: {
+        readonly credit: string;
+        readonly sourcePage: string;
+      } | null;
       readonly id: string;
       readonly title: string;
     };
@@ -755,6 +759,10 @@ interface ChallengeRecord {
     readonly imageUrl: string;
     readonly photoId: string;
     readonly title: string;
+    readonly stockSource?: {
+      readonly credit: string;
+      readonly sourcePage: string;
+    };
   }[];
   readonly statusKey: MessageKey;
   readonly title?: string;
@@ -2347,6 +2355,7 @@ const demoChallenges: readonly ChallengeRecord[] = challengeCatalog.map(
         videoUrl: work.mediaType === "VIDEO" ? work.url : undefined,
         photoId: work.id,
         title: work.title,
+        stockSource: { credit: work.credit, sourcePage: work.sourcePage },
       })),
   }),
 );
@@ -8336,7 +8345,10 @@ export function HomeClient({
           const stock = demoChallengeWorks.find(
             (work) => work.id === entry.photoId,
           );
-          const title = stock ? t(stock.titleKey) : entry.title;
+          const title =
+            stock && stock.title === entry.title
+              ? t(stock.titleKey)
+              : entry.title;
           const href = `${getSectionHref(locale, "profile")}?author=${encodeURIComponent(entry.authorUsername)}&photo=${entry.photoId}`;
           return (
             <div className="challenge-submission" key={entry.id}>
@@ -8363,14 +8375,14 @@ export function HomeClient({
               <Link className="photo-author-link" href={href}>
                 {entry.authorName}
               </Link>
-              {stock ? (
+              {entry.stockSource ? (
                 <a
                   className="stock-credit"
-                  href={stock.sourcePage}
+                  href={entry.stockSource.sourcePage}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  {t("challenge.stockExample")} · {stock.credit}
+                  {t("challenge.stockExample")} · {entry.stockSource.credit}
                 </a>
               ) : null}
             </div>
@@ -10914,6 +10926,208 @@ export function HomeClient({
     );
   }
 
+  function renderCompetitionModeration(
+    kind: "battle" | "challenge",
+  ): ReactNode {
+    const submissions = adminCompetitionSubmissions.filter(
+      (submission) => submission.kind === kind,
+    );
+    const headingId = `admin-${kind}-moderation-title`;
+    return (
+      <section
+        className="admin-panel admin-moderation-panel"
+        id={`admin-${kind}-moderation`}
+        aria-labelledby={headingId}
+      >
+        <div className="admin-panel-heading">
+          <div className="panel-title">
+            {kind === "battle" ? (
+              <Swords aria-hidden="true" size={22} />
+            ) : (
+              <Trophy aria-hidden="true" size={22} />
+            )}
+            <div>
+              <h2 id={headingId}>
+                {t(
+                  kind === "battle"
+                    ? "admin.battleModerationTitle"
+                    : "admin.challengeModerationTitle",
+                )}
+              </h2>
+              <p>{t("admin.moderationCopy")}</p>
+            </div>
+          </div>
+          <button
+            aria-label={t("admin.refreshModeration")}
+            className="icon-button"
+            disabled={adminLoading}
+            onClick={() => void loadAdminData()}
+            title={t("admin.refreshModeration")}
+            type="button"
+          >
+            <RefreshCw aria-hidden="true" size={17} />
+          </button>
+        </div>
+        {adminLoading && submissions.length === 0 ? (
+          <div className="admin-loading">
+            <RefreshCw aria-hidden="true" size={20} />
+            {t("admin.loadingModeration")}
+          </div>
+        ) : null}
+        <div className="admin-moderation-list">
+          {submissions.map((submission) => {
+            const draft = adminModerationDrafts[submission.entryId];
+            if (!draft) return null;
+            const isBusy = adminBusySubmissionId === submission.entryId;
+            const competitionLabel = submission.competition.label.includes(".")
+              ? t(submission.competition.label as MessageKey)
+              : submission.competition.label;
+
+            return (
+              <article
+                className="admin-moderation-card"
+                key={`${submission.kind}-${submission.entryId}`}
+              >
+                <button
+                  aria-label={submission.title}
+                  className="admin-moderation-preview"
+                  disabled={!submission.displayUrl}
+                  onClick={() => {
+                    if (!submission.displayUrl) return;
+                    setImagePreview({
+                      alt: submission.title,
+                      src: submission.displayUrl,
+                      videoSrc: submission.videoUrl ?? undefined,
+                    });
+                  }}
+                  type="button"
+                >
+                  {submission.displayUrl ? (
+                    <img alt={submission.title} src={submission.displayUrl} />
+                  ) : (
+                    <Images aria-hidden="true" size={30} />
+                  )}
+                </button>
+
+                <div className="admin-moderation-body">
+                  <div className="admin-moderation-head">
+                    <div>
+                      <strong>{submission.title}</strong>
+                      <span>
+                        {submission.owner.displayName} ·{" "}
+                        {submission.owner.email}
+                      </span>
+                    </div>
+                    <span className="admin-moderation-status">
+                      {submission.kind === "battle"
+                        ? t("admin.inBattle")
+                        : t("admin.inChallenge")}
+                    </span>
+                  </div>
+
+                  <div className="admin-moderation-contexts">
+                    <span>
+                      {submission.kind === "battle" ? (
+                        <Swords aria-hidden="true" size={14} />
+                      ) : (
+                        <Trophy aria-hidden="true" size={14} />
+                      )}
+                      {competitionLabel} · {submission.competition.status}
+                    </span>
+                  </div>
+
+                  <div className="admin-moderation-fields">
+                    <label className="compact-field">
+                      <span>{t("admin.category")}</span>
+                      <select
+                        disabled={isBusy}
+                        onChange={(event) =>
+                          updateAdminModerationDraft(
+                            submission.entryId,
+                            "categorySlug",
+                            event.target.value,
+                          )
+                        }
+                        value={draft.categorySlug}
+                      >
+                        {categoryFilters
+                          .filter((category) => category.id !== "all")
+                          .map((category) => (
+                            <option key={category.id} value={category.id}>
+                              {t(category.key)}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className="compact-field admin-moderation-reason">
+                      <span>{t("admin.reason")}</span>
+                      <input
+                        disabled={isBusy}
+                        maxLength={1000}
+                        onChange={(event) =>
+                          updateAdminModerationDraft(
+                            submission.entryId,
+                            "reason",
+                            event.target.value,
+                          )
+                        }
+                        placeholder={t("admin.moderationReasonPlaceholder")}
+                        type="text"
+                        value={draft.reason}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="admin-moderation-actions">
+                    <button
+                      className="secondary-action compact"
+                      disabled={isBusy}
+                      onClick={() =>
+                        void moderateAdminSubmission(submission, "UNDER_REVIEW")
+                      }
+                      type="button"
+                    >
+                      <Eye aria-hidden="true" size={16} />
+                      {t("admin.keepReviewing")}
+                    </button>
+                    <button
+                      className="danger-action compact"
+                      disabled={isBusy}
+                      onClick={() =>
+                        void moderateAdminSubmission(submission, "REJECTED")
+                      }
+                      type="button"
+                    >
+                      <X aria-hidden="true" size={16} />
+                      {t("admin.reject")}
+                    </button>
+                    <button
+                      className="primary-action compact"
+                      disabled={isBusy}
+                      onClick={() =>
+                        void moderateAdminSubmission(submission, "APPROVED")
+                      }
+                      type="button"
+                    >
+                      <Check aria-hidden="true" size={16} />
+                      {t("admin.approve")}
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        {!adminLoading && submissions.length === 0 ? (
+          <div className="admin-empty">
+            <CheckCircle2 aria-hidden="true" size={30} />
+            <p>{t("admin.emptyModeration")}</p>
+          </div>
+        ) : null}
+      </section>
+    );
+  }
+
   function renderAdminPage(): ReactNode {
     if (!currentProfile || !serverUser) {
       return (
@@ -10991,13 +11205,21 @@ export function HomeClient({
           ))}
         </div>
 
-        <section className="admin-panel admin-moderation-panel">
+        {renderCompetitionModeration("battle")}
+        {renderCompetitionModeration("challenge")}
+        <section
+          className="admin-panel admin-moderation-panel"
+          id="admin-portfolio-moderation"
+          aria-labelledby="admin-portfolio-moderation-title"
+        >
           <div className="admin-panel-heading">
             <div className="panel-title">
               <ShieldCheck aria-hidden="true" size={22} />
               <div>
-                <h2>{t("admin.moderationTitle")}</h2>
-                <p>{t("admin.moderationCopy")}</p>
+                <h2 id="admin-portfolio-moderation-title">
+                  {t("admin.portfolioModerationTitle")}
+                </h2>
+                <p>{t("admin.portfolioModerationCopy")}</p>
               </div>
             </div>
             <button
@@ -11020,153 +11242,6 @@ export function HomeClient({
           ) : null}
 
           <div className="admin-moderation-list">
-            {adminCompetitionSubmissions.map((submission) => {
-              const draft = adminModerationDrafts[submission.entryId];
-              if (!draft) return null;
-              const isBusy = adminBusySubmissionId === submission.entryId;
-              const competitionLabel = submission.competition.label.includes(
-                ".",
-              )
-                ? t(submission.competition.label as MessageKey)
-                : submission.competition.label;
-
-              return (
-                <article
-                  className="admin-moderation-card"
-                  key={`${submission.kind}-${submission.entryId}`}
-                >
-                  <button
-                    aria-label={submission.title}
-                    className="admin-moderation-preview"
-                    disabled={!submission.displayUrl}
-                    onClick={() => {
-                      if (!submission.displayUrl) return;
-                      setImagePreview({
-                        alt: submission.title,
-                        src: submission.displayUrl,
-                        videoSrc: submission.videoUrl ?? undefined,
-                      });
-                    }}
-                    type="button"
-                  >
-                    {submission.displayUrl ? (
-                      <img alt={submission.title} src={submission.displayUrl} />
-                    ) : (
-                      <Images aria-hidden="true" size={30} />
-                    )}
-                  </button>
-
-                  <div className="admin-moderation-body">
-                    <div className="admin-moderation-head">
-                      <div>
-                        <strong>{submission.title}</strong>
-                        <span>
-                          {submission.owner.displayName} ·{" "}
-                          {submission.owner.email}
-                        </span>
-                      </div>
-                      <span className="admin-moderation-status">
-                        {submission.kind === "battle"
-                          ? t("admin.inBattle")
-                          : t("admin.inChallenge")}
-                      </span>
-                    </div>
-
-                    <div className="admin-moderation-contexts">
-                      <span>
-                        {submission.kind === "battle" ? (
-                          <Swords aria-hidden="true" size={14} />
-                        ) : (
-                          <Trophy aria-hidden="true" size={14} />
-                        )}
-                        {competitionLabel} · {submission.competition.status}
-                      </span>
-                    </div>
-
-                    <div className="admin-moderation-fields">
-                      <label className="compact-field">
-                        <span>{t("admin.category")}</span>
-                        <select
-                          disabled={isBusy}
-                          onChange={(event) =>
-                            updateAdminModerationDraft(
-                              submission.entryId,
-                              "categorySlug",
-                              event.target.value,
-                            )
-                          }
-                          value={draft.categorySlug}
-                        >
-                          {categoryFilters
-                            .filter((category) => category.id !== "all")
-                            .map((category) => (
-                              <option key={category.id} value={category.id}>
-                                {t(category.key)}
-                              </option>
-                            ))}
-                        </select>
-                      </label>
-                      <label className="compact-field admin-moderation-reason">
-                        <span>{t("admin.reason")}</span>
-                        <input
-                          disabled={isBusy}
-                          maxLength={1000}
-                          onChange={(event) =>
-                            updateAdminModerationDraft(
-                              submission.entryId,
-                              "reason",
-                              event.target.value,
-                            )
-                          }
-                          placeholder={t("admin.moderationReasonPlaceholder")}
-                          type="text"
-                          value={draft.reason}
-                        />
-                      </label>
-                    </div>
-
-                    <div className="admin-moderation-actions">
-                      <button
-                        className="secondary-action compact"
-                        disabled={isBusy}
-                        onClick={() =>
-                          void moderateAdminSubmission(
-                            submission,
-                            "UNDER_REVIEW",
-                          )
-                        }
-                        type="button"
-                      >
-                        <Eye aria-hidden="true" size={16} />
-                        {t("admin.keepReviewing")}
-                      </button>
-                      <button
-                        className="danger-action compact"
-                        disabled={isBusy}
-                        onClick={() =>
-                          void moderateAdminSubmission(submission, "REJECTED")
-                        }
-                        type="button"
-                      >
-                        <X aria-hidden="true" size={16} />
-                        {t("admin.reject")}
-                      </button>
-                      <button
-                        className="primary-action compact"
-                        disabled={isBusy}
-                        onClick={() =>
-                          void moderateAdminSubmission(submission, "APPROVED")
-                        }
-                        type="button"
-                      >
-                        <Check aria-hidden="true" size={16} />
-                        {t("admin.approve")}
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
             {adminModerationPhotos.map((photo) => {
               const draft = adminModerationDrafts[photo.id];
               if (!draft) return null;
@@ -11313,9 +11388,7 @@ export function HomeClient({
             })}
           </div>
 
-          {!adminLoading &&
-          adminModerationPhotos.length === 0 &&
-          adminCompetitionSubmissions.length === 0 ? (
+          {!adminLoading && adminModerationPhotos.length === 0 ? (
             <div className="admin-empty">
               <CheckCircle2 aria-hidden="true" size={30} />
               <p>{t("admin.emptyModeration")}</p>
@@ -13066,6 +13139,7 @@ function mapServerChallenge(
       imageUrl: entry.photo.displayUrl,
       photoId: entry.photo.id,
       title: entry.photo.title,
+      stockSource: entry.photo.stockSource ?? undefined,
     })),
     statusKey:
       challenge.status === "ACTIVE"
