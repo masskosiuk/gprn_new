@@ -9744,6 +9744,7 @@ export function HomeClient({
                         username={author.username}
                         name={getPublicAuthorName(author, locale)}
                         image={author.coverUrl}
+                        avatarUrl={author.avatarUrl}
                       />
                       <ReportButton
                         type="PROFILE"

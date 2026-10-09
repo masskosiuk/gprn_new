@@ -24,6 +24,9 @@ import {
   ExternalLink,
   ShieldCheck,
   ChevronRight,
+  Camera,
+  Star,
+  GraduationCap,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -169,10 +172,12 @@ function Dialog({
   title,
   close,
   children,
+  className = "",
 }: {
   title: string;
   close(): void;
   children: ReactNode;
+  className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -182,13 +187,29 @@ function Dialog({
       dialog?.close();
     };
   }, []);
+  function dismiss() {
+    ref.current?.close();
+    close();
+  }
   return (
     <dialog
-      className="community-dialog"
+      className={`community-dialog ${className}`}
+      aria-label={title}
       ref={ref}
-      onCancel={close}
+      onCancel={(event) => {
+        event.preventDefault();
+        dismiss();
+      }}
       onClick={(event) => {
-        if (event.target === ref.current) close();
+        if (event.target !== ref.current) return;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        if (
+          event.clientX < bounds.left ||
+          event.clientX > bounds.right ||
+          event.clientY < bounds.top ||
+          event.clientY > bounds.bottom
+        )
+          dismiss();
       }}
     >
       <header>
@@ -197,7 +218,7 @@ function Dialog({
           type="button"
           className="icon-button"
           aria-label="Close"
-          onClick={close}
+          onClick={dismiss}
         >
           <X size={20} />
         </button>
@@ -1820,62 +1841,82 @@ export function InteractionMenu({
   username,
   name,
   image,
+  avatarUrl,
 }: {
   username: string;
   name: string;
   image?: string;
+  avatarUrl?: string;
 }) {
   const { userId, login, request, locale } = useCommunity();
   const t = useWords();
   const [topic, setTopic] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const [discussion, setDiscussion] = useState(false);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [sent, setSent] = useState(false);
-  const menu = useRef<HTMLDetailsElement>(null);
-  const options: [string, string][] = [
-    ["SHOOT", t("Предложить съёмку", "Propose a shoot")],
-    ["REVIEW", t("Заказать оценку", "Request a review")],
-    ["SECURE", t("Защищённая сделка", "Protected deal")],
-    ["MENTORSHIP", t("Менторство", "Mentorship")],
-    ["DISPUTE", t("Открыть спор", "Open a dispute")],
-    ["MESSAGE", t("Сообщение", "Message")],
+  const options: [string, string, typeof MessageCircle][] = [
+    ["SHOOT", t("Предложить съёмку", "Propose a shoot"), Camera],
+    ["REVIEW", t("Заказать оценку", "Request a review"), Star],
+    ["SECURE", t("Защищённая сделка", "Protected deal"), ShieldCheck],
+    ["MENTORSHIP", t("Менторство", "Mentorship"), GraduationCap],
+    ["DISPUTE", t("Открыть спор", "Open a dispute"), MessagesSquare],
+    ["MESSAGE", t("Сообщение", "Message"), Mail],
   ];
-  useEffect(() => {
-    const close = (e: PointerEvent) => {
-      if (menu.current && !menu.current.contains(e.target as Node))
-        menu.current.open = false;
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, []);
   return (
     <>
-      <details ref={menu} className="community-interaction">
-        <summary className="primary-action">
-          <MessageCircle size={17} />
-          {t("Взаимодействовать", "Interact")}
-          <ChevronDown size={15} />
-        </summary>
-        <div className="community-interaction-menu">
-          {options.map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                if (menu.current) menu.current.open = false;
-                setFeedback("");
-                setSent(false);
-                if (!userId) login();
-                else if (key === "DISPUTE") setDiscussion(true);
-                else setTopic(key);
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </details>
+      <button
+        type="button"
+        className="primary-action community-interaction-trigger"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        <MessageCircle size={17} />
+        {t("Взаимодействовать", "Interact")}
+      </button>
+      {open ? (
+        <Dialog
+          title={t("Взаимодействовать", "Interact")}
+          className="community-interaction-dialog"
+          close={() => setOpen(false)}
+        >
+          <div className="community-interaction-author">
+            <span className="community-interaction-avatar" aria-hidden="true">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="" />
+              ) : (
+                name.slice(0, 1).toLocaleUpperCase(locale)
+              )}
+            </span>
+            <div>
+              <strong>{name}</strong>
+              <span>@{username}</span>
+            </div>
+          </div>
+          <div className="community-interaction-actions">
+            {options.map(([key, label, Icon]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setFeedback("");
+                  setSent(false);
+                  if (!userId) login();
+                  else if (key === "DISPUTE") setDiscussion(true);
+                  else setTopic(key);
+                }}
+              >
+                <Icon size={20} aria-hidden="true" />
+                <span>{label}</span>
+                <ChevronRight size={16} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </Dialog>
+      ) : null}
       {topic ? (
         <Dialog
           title={options.find(([key]) => key === topic)![1]}
