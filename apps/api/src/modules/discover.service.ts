@@ -67,6 +67,10 @@ export class DiscoverService {
           moderationStatus: "APPROVED",
           status: "PUBLISHED",
           visibility: "PUBLIC",
+          owner: {
+            status: "ACTIVE",
+            profile: { visibility: "PUBLIC", deletedAt: null },
+          },
         },
       }),
       prisma.profile.findMany({

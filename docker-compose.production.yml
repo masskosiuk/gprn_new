@@ -111,6 +111,49 @@ services:
     networks:
       - internal
 
+  seed-community:
+    image: gprn-app:local
+    profiles: ["maintenance"]
+    restart: "no"
+    init: true
+    cpus: 1.0
+    mem_limit: 768m
+    command:
+      [
+        "timeout",
+        "-s",
+        "KILL",
+        "900",
+        "node",
+        "apps/api/dist/scripts/seed-demo-community.js",
+      ]
+    env_file:
+      - .env.production
+    networks:
+      - internal
+
+  seed-product-covers:
+    image: gprn-app:local
+    profiles: ["maintenance"]
+    restart: "no"
+    init: true
+    cpus: 1.0
+    mem_limit: 768m
+    command:
+      [
+        "timeout",
+        "-s",
+        "KILL",
+        "900",
+        "node",
+        "apps/api/dist/scripts/seed-demo-digital-products.js",
+        "--refresh-covers",
+      ]
+    env_file:
+      - .env.production
+    networks:
+      - internal
+
   worker:
     image: gprn-app:local
     build: *app-build

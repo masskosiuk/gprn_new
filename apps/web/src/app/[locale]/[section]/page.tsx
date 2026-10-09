@@ -23,6 +23,8 @@ interface SectionPageProps {
     readonly challenge?: string | string[];
     readonly model?: string | string[];
     readonly photo?: string | string[];
+    readonly post?: string | string[];
+    readonly product?: string | string[];
     readonly studio?: string | string[];
   }>;
 }
@@ -41,7 +43,7 @@ export default async function SectionPage({
   searchParams,
 }: SectionPageProps): Promise<React.ReactNode> {
   const { locale: requestedLocale, section: requestedSection } = await params;
-  const { author, battle, challenge, model, photo, studio } =
+  const { author, battle, challenge, model, photo, post, product, studio } =
     await searchParams;
 
   if (!isRoutedSectionId(requestedSection)) {
@@ -49,6 +51,16 @@ export default async function SectionPage({
   }
 
   const locale = isSupportedLocale(requestedLocale) ? requestedLocale : "en";
+
+  if (requestedSection === "discover" || requestedSection === "video") {
+    const query = new URLSearchParams({
+      media: requestedSection === "video" ? "VIDEO" : "PHOTO",
+    });
+    for (const [key, value] of Object.entries(await searchParams)) {
+      if (typeof value === "string" && key !== "media") query.set(key, value);
+    }
+    redirect(`/${locale}/feed?${query}`);
+  }
 
   if (requestedSection === "leaderboard") {
     redirect(`/${locale}/experts`);
@@ -61,6 +73,8 @@ export default async function SectionPage({
       initialChallengeId={typeof challenge === "string" ? challenge : undefined}
       initialModelId={typeof model === "string" ? model : undefined}
       initialPhotoId={typeof photo === "string" ? photo : undefined}
+      initialPostId={typeof post === "string" ? post : undefined}
+      initialProductId={typeof product === "string" ? product : undefined}
       initialSection={requestedSection}
       initialStudioId={typeof studio === "string" ? studio : undefined}
       locale={locale}

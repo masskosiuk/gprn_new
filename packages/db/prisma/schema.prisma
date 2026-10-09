@@ -305,6 +305,9 @@ model User {
   donationsReceived       Donation[]           @relation("donation_recipient")
   promotions              Promotion[]
   walletAdjustments       WalletTransaction[]  @relation("wallet_transaction_actor")
+  communityPosts          CommunityPost[]
+  communityInquiries      CommunityInquiry[]
+  comments                Comment[]
 
   @@index([status])
   @@map("users")
@@ -321,6 +324,7 @@ model Profile {
   websiteUrl           String?
   socialLinks          Json?
   tier                 ProfileTier @default(VIEWER)
+  proUntil             DateTime?
   availableForHire     Boolean     @default(true)
   presetSalesEnabled   Boolean     @default(false)
   presetTitle          String?
@@ -1053,17 +1057,69 @@ model SavedPhoto {
 
 model Comment {
   id        String    @id @default(uuid()) @db.Uuid
-  photoId   String    @db.Uuid
+  photoId   String?   @db.Uuid
+  postId    String?   @db.Uuid
   userId    String    @db.Uuid
   body      String
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
-  photo     Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  photo     Photo?    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  post      CommunityPost? @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([photoId, createdAt])
   @@index([userId])
+  @@index([postId, createdAt])
   @@map("comments")
+}
+
+model CommunityPost {
+  id               String           @id @default(uuid()) @db.Uuid
+  authorId         String           @db.Uuid
+  kind             String
+  title            String
+  body             String
+  location         String
+  language         String
+  startsAt         DateTime
+  endsAt           DateTime?
+  coverAssetKey    String?
+  sourceType       String?
+  sourceId         String?
+  sourcePath       String?
+  moderationStatus ModerationStatus @default(PENDING)
+  moderationReason String?
+  demoKey          String?          @unique
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+  author           User             @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  comments         Comment[]
+
+  @@index([kind, moderationStatus, startsAt])
+  @@index([authorId, kind, createdAt])
+  @@map("community_posts")
+}
+
+model CommunityInquiry {
+  id            String       @id @default(uuid()) @db.Uuid
+  authorId      String       @db.Uuid
+  kind          String
+  body          String
+  attachmentKey String?
+  targetType    String?
+  targetId      String?
+  targetPath    String?
+  status        ReportStatus @default(OPEN)
+  reply         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  author        User         @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([kind, status, createdAt])
+  @@index([authorId, createdAt])
+  @@map("community_inquiries")
 }
 
 model Notification {
@@ -1103,6 +1159,7 @@ model MarketplaceProduct {
   categoryId      String?                @db.Uuid
   slug            String                 @unique
   title           String
+  genre           String?
   description     String?
   priceMinor      BigInt
   currency        String                 @db.Char(3)

@@ -88,11 +88,24 @@ import {
 } from "./interactive-photo-map";
 import { getSectionHref, type SectionId } from "./sections";
 import { ProfileStats } from "./profile-stats";
+import { ServerMarketplace } from "./server-marketplace";
+import {
+  CommunityProvider,
+  CommunityBoard,
+  SuggestionsPage,
+  PublicationTools,
+  ReportButton,
+  InteractionMenu,
+  AdminFold,
+  AdminCommunitySections,
+  ProControl,
+} from "./community";
 import {
   ProfileLocationPicker,
   type LocationOption,
 } from "./profile-location-picker";
 import { isVideoWork, mergeMediaWorks } from "../../lib/media-kind";
+import { matchesFeedFilters } from "../../lib/feed-filter";
 import { PhotoTitleEditor } from "./photo-title-editor";
 import {
   DigitalProductSection,
@@ -169,7 +182,21 @@ type StudioCriterion =
   | "comfort"
   | "value";
 type StudioScores = Record<StudioCriterion, number>;
-type ModelGenre = "fashion" | "beauty" | "commercial" | "boudoir" | "editorial";
+type ModelGenre =
+  | "fashion"
+  | "beauty"
+  | "commercial"
+  | "boudoir"
+  | "editorial"
+  | "nude"
+  | "social"
+  | "art"
+  | "documentary"
+  | "presenter"
+  | "actor"
+  | "fitness"
+  | "runway"
+  | "hand";
 type ModelGenreFilter = "all" | ModelGenre;
 type SocialPlatformId =
   "instagram" | "facebook" | "artstation" | "adobe" | "behance";
@@ -180,6 +207,8 @@ interface HomeClientProps {
   readonly initialChallengeId?: string;
   readonly initialModelId?: string;
   readonly initialPhotoId?: string;
+  readonly initialPostId?: string;
+  readonly initialProductId?: string;
   readonly initialSection: SectionId;
   readonly initialStudioId?: string;
   readonly locale: SupportedLocale;
@@ -223,6 +252,7 @@ interface PhotoReviewRecord {
 }
 
 interface LocalNotification {
+  readonly href?: string;
   readonly createdAt: string;
   readonly id: string;
   readonly messageKey: MessageKey;
@@ -481,6 +511,7 @@ interface AdminUserRecord {
   readonly profile: {
     readonly avatarAssetKey: string | null;
     readonly displayName: string;
+    readonly proUntil: string | null;
     readonly tier: AdminAccountTier;
     readonly username: string;
   } | null;
@@ -1089,8 +1120,10 @@ const promotionPriceMinor: Record<PromotionPlacement, number> = {
 
 const navItems: readonly NavItem[] = [
   { Icon: Compass, id: "home", messageKey: "nav.home" },
-  { Icon: ImagePlus, id: "discover", messageKey: "nav.discover" },
-  { Icon: Video, id: "video", messageKey: "nav.video" },
+  { Icon: Images, id: "feed", messageKey: "nav.feed" },
+  { Icon: CalendarDays, id: "events", messageKey: "nav.events" },
+  { Icon: BookOpen, id: "discussions", messageKey: "nav.discussions" },
+  { Icon: Search, id: "search", messageKey: "nav.search" },
   { Icon: Users, id: "models", messageKey: "nav.models" },
   { Icon: Building2, id: "studios", messageKey: "nav.studios" },
   { Icon: Swords, id: "battles", messageKey: "nav.battles" },
@@ -1147,6 +1180,23 @@ const dateInputPlaceholders: Record<SupportedLocale, string> = {
 };
 
 const sectionMeta: Record<Exclude<SectionId, "home">, SectionMeta> = {
+  feed: { introKey: "section.feed.intro", titleKey: "section.feed.title" },
+  events: {
+    introKey: "section.events.intro",
+    titleKey: "section.events.title",
+  },
+  discussions: {
+    introKey: "section.discussions.intro",
+    titleKey: "section.discussions.title",
+  },
+  search: {
+    introKey: "section.search.intro",
+    titleKey: "section.search.title",
+  },
+  suggestions: {
+    introKey: "section.suggestions.intro",
+    titleKey: "section.suggestions.title",
+  },
   admin: {
     introKey: "section.admin.intro",
     titleKey: "section.admin.title",
@@ -1291,6 +1341,15 @@ const modelGenreFilters: readonly {
   { id: "commercial", key: "models.genre.commercial" },
   { id: "boudoir", key: "models.genre.boudoir" },
   { id: "editorial", key: "models.genre.editorial" },
+  { id: "nude", key: "models.genre.nude" },
+  { id: "social", key: "models.genre.social" },
+  { id: "art", key: "models.genre.art" },
+  { id: "documentary", key: "models.genre.documentary" },
+  { id: "presenter", key: "models.genre.presenter" },
+  { id: "actor", key: "models.genre.actor" },
+  { id: "fitness", key: "models.genre.fitness" },
+  { id: "runway", key: "models.genre.runway" },
+  { id: "hand", key: "models.genre.hand" },
 ];
 
 const externalPhotoProviders: readonly { id: string; key: MessageKey }[] = [
@@ -2556,6 +2615,8 @@ export function HomeClient({
   initialChallengeId,
   initialModelId,
   initialPhotoId,
+  initialPostId,
+  initialProductId,
   initialSection,
   initialStudioId,
   locale,
@@ -2667,7 +2728,19 @@ export function HomeClient({
   const [photoPendingDeletion, setPhotoPendingDeletion] =
     useState<PhotoRecord | null>(null);
   const [photoDeleteBusy, setPhotoDeleteBusy] = useState(false);
+  const [feedKind, setFeedKind] = useState<"PHOTO" | "VIDEO">("PHOTO");
+  const [feedStatus, setFeedStatus] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
+  const feedGenres = useRef({
+    PHOTO: "all" as CategoryFilter,
+    VIDEO: "all" as CategoryFilter,
+  });
   const [searchTerm, setSearchTerm] = useState("");
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("media") === "VIDEO")
+      setFeedKind("VIDEO");
+  }, []);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [discoverLocationFilter, setDiscoverLocationFilter] =
     useState<LocationFilter>("all");
@@ -2772,7 +2845,7 @@ export function HomeClient({
   >({});
 
   useEffect(() => {
-    if (initialSection !== "discover") {
+    if (initialSection !== "discover" && initialSection !== "feed") {
       return;
     }
 
@@ -2782,15 +2855,12 @@ export function HomeClient({
 
     if (
       requestedCategory &&
-      categoryFilters.some((filter) => filter.id === requestedCategory)
+      videoCategoryFilters.some((filter) => filter.id === requestedCategory)
     ) {
       setCategoryFilter(requestedCategory as CategoryFilter);
     }
 
-    if (
-      requestedLocation &&
-      locationFilters.some((filter) => filter.id === requestedLocation)
-    ) {
+    if (requestedLocation && requestedLocation.length <= 160) {
       setDiscoverLocationFilter(requestedLocation as LocationFilter);
     }
   }, [initialSection]);
@@ -2933,46 +3003,30 @@ export function HomeClient({
     ) ??
     uploadedPhotos.find((photo) => !photo.profileAsset) ??
     null;
-  const visiblePhotos = publicImages.filter((photo) => {
-    const query = searchTerm.trim().toLocaleLowerCase(locale);
-    const title = getPhotoTitle(photo, locale).toLocaleLowerCase(locale);
-    const author = getPhotoAuthor(photo, locale).toLocaleLowerCase(locale);
-    const location = getLocationLabel(
-      photo.locationId,
+  const visiblePhotos = serverPhotos.filter((photo) =>
+    matchesFeedFilters(
+      {
+        video: isVideoWork(photo),
+        category: photo.categoryId,
+        location: photo.locationId,
+        publishedAt: photo.uploadedAt,
+        searchText: [
+          getPhotoTitle(photo, locale),
+          getPhotoAuthor(photo, locale),
+          getLocationLabel(photo.locationId, locale, photo.locationLabel),
+        ].join(" "),
+      },
+      {
+        kind: feedKind,
+        category: categoryFilter,
+        location: discoverLocationFilter,
+        from: discoverDateFrom,
+        to: discoverDateTo,
+        search: searchTerm,
+      },
       locale,
-      photo.locationLabel,
-    ).toLocaleLowerCase(locale);
-    const categoryMatches =
-      categoryFilter === "all" || photo.categoryId === categoryFilter;
-    const locationMatches =
-      discoverLocationFilter === "all" ||
-      photo.locationId === discoverLocationFilter;
-    const publishedAt = photo.uploadedAt ? new Date(photo.uploadedAt) : null;
-    const fromMatches =
-      !discoverDateFrom ||
-      Boolean(
-        publishedAt && publishedAt >= new Date(`${discoverDateFrom}T00:00:00`),
-      );
-    const toMatches =
-      !discoverDateTo ||
-      Boolean(
-        publishedAt &&
-        publishedAt <= new Date(`${discoverDateTo}T23:59:59.999`),
-      );
-    const queryMatches =
-      !query ||
-      title.includes(query) ||
-      author.includes(query) ||
-      location.includes(query);
-
-    return (
-      categoryMatches &&
-      locationMatches &&
-      fromMatches &&
-      toMatches &&
-      queryMatches
-    );
-  });
+    ),
+  );
   const visibleBattles = battles.filter(
     (battle) => battleFilter === "all" || battle.scope === battleFilter,
   );
@@ -3055,7 +3109,7 @@ export function HomeClient({
   const mapPhotoMarkers = useMemo<readonly PhotoMapMarker[]>(() => {
     const locationPhotoCounts = new Map<string, number>();
 
-    return publicImages
+    return visiblePhotos
       .filter((photo) => {
         if (photo.locationHidden) return false;
         const knownLocation = locationPins.find(
@@ -3092,7 +3146,7 @@ export function HomeClient({
           title: getPhotoTitle(photo, locale),
         };
       });
-  }, [locale, publicImages]);
+  }, [locale, visiblePhotos]);
   const mapVideoMarkers = useMemo<readonly PhotoMapMarker[]>(() => {
     const locationVideoCounts = new Map<LocationId, number>();
 
@@ -4260,24 +4314,18 @@ export function HomeClient({
   }
 
   async function refreshDiscoverPhotos(): Promise<void> {
+    setFeedStatus("loading");
     try {
-      const kind =
-        initialSection === "discover"
-          ? "PHOTO"
-          : initialSection === "video"
-            ? "VIDEO"
-            : null;
-      const response = await apiRequest<DiscoverResponse>(
-        `/discover${kind ? `?mediaType=${kind}` : ""}`,
-      );
+      const response = await apiRequest<DiscoverResponse>("/discover");
       setHasServerFeed(true);
+      setFeedStatus("ready");
       setServerPhotos(
         response.photos
           .map((photo) => mapServerPhoto(photo, serverUser?.id))
           .filter((photo): photo is PhotoRecord => Boolean(photo)),
       );
     } catch {
-      // The curated feed remains available while the API is unavailable.
+      setFeedStatus("error");
     }
   }
 
@@ -6230,301 +6278,320 @@ export function HomeClient({
   )!;
 
   return (
-    <main className="shell">
-      <header className="topbar">
-        <Link className="brand" href={getSectionHref(locale, "home")}>
-          <span className="brand-mark">{t("app.shortName").slice(0, 1)}</span>
-          <span>{t("app.name")}</span>
-        </Link>
+    <CommunityProvider
+      locale={locale}
+      userId={serverUser?.id}
+      isAdmin={isAdministrator}
+      login={() => openAuth("login")}
+      request={apiRequest}
+      root={getApiRoot()}
+    >
+      <main className="shell">
+        <header className="topbar">
+          <Link className="brand" href={getSectionHref(locale, "home")}>
+            <span className="brand-mark">{t("app.shortName").slice(0, 1)}</span>
+            <span>{t("app.name")}</span>
+          </Link>
 
-        <button
-          aria-expanded={isMobileMenuOpen}
-          aria-label={t("nav.menu")}
-          className="mobile-menu-button"
-          onClick={() => {
-            setMobileMenuOpen((isOpen) => !isOpen);
-          }}
-          type="button"
-        >
-          {isMobileMenuOpen ? (
-            <X aria-hidden="true" size={20} />
-          ) : (
-            <Menu aria-hidden="true" size={20} />
-          )}
-        </button>
-
-        <nav
-          aria-label={t("nav.home")}
-          className={`nav${isMobileMenuOpen ? " is-open" : ""}`}
-        >
-          {navItems.map(({ Icon, id, messageKey }) => (
-            <Link
-              aria-current={initialSection === id ? "page" : undefined}
-              className={`nav-button${initialSection === id ? " is-active" : ""}`}
-              href={getSectionHref(locale, id)}
-              key={id}
-              onClick={() => {
-                setMobileMenuOpen(false);
-              }}
-            >
-              <Icon aria-hidden="true" size={15} />
-              <span>{t(messageKey)}</span>
-            </Link>
-          ))}
-        </nav>
-
-        <div className={`header-tools${isMobileMenuOpen ? " is-open" : ""}`}>
           <button
-            aria-label={theme === "dark" ? t("theme.light") : t("theme.dark")}
-            aria-pressed={theme === "dark"}
-            className="header-icon-button theme-toggle"
+            aria-expanded={isMobileMenuOpen}
+            aria-label={t("nav.menu")}
+            className="mobile-menu-button"
             onClick={() => {
-              setTheme((currentTheme) =>
-                currentTheme === "dark" ? "light" : "dark",
-              );
+              setMobileMenuOpen((isOpen) => !isOpen);
             }}
-            title={theme === "dark" ? t("theme.light") : t("theme.dark")}
             type="button"
           >
-            {theme === "dark" ? (
-              <SunMedium aria-hidden="true" size={18} />
+            {isMobileMenuOpen ? (
+              <X aria-hidden="true" size={20} />
             ) : (
-              <Moon aria-hidden="true" size={18} />
+              <Menu aria-hidden="true" size={20} />
             )}
           </button>
-          <div className="language-picker" ref={languageMenuRef}>
+
+          <nav
+            aria-label={t("nav.home")}
+            className={`nav${isMobileMenuOpen ? " is-open" : ""}`}
+          >
+            {navItems.map(({ Icon, id, messageKey }) => (
+              <Link
+                aria-current={initialSection === id ? "page" : undefined}
+                className={`nav-button${initialSection === id ? " is-active" : ""}`}
+                href={getSectionHref(locale, id)}
+                key={id}
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                }}
+              >
+                <Icon aria-hidden="true" size={15} />
+                <span>{t(messageKey)}</span>
+              </Link>
+            ))}
+          </nav>
+
+          <div className={`header-tools${isMobileMenuOpen ? " is-open" : ""}`}>
             <button
-              aria-expanded={isLanguageMenuOpen}
-              aria-haspopup="menu"
-              aria-label={`${t("language.label")}: ${t(activeLanguage.labelKey)}`}
-              className="language-trigger"
+              aria-label={theme === "dark" ? t("theme.light") : t("theme.dark")}
+              aria-pressed={theme === "dark"}
+              className="header-icon-button theme-toggle"
               onClick={() => {
-                setLanguageMenuOpen((isOpen) => !isOpen);
+                setTheme((currentTheme) =>
+                  currentTheme === "dark" ? "light" : "dark",
+                );
               }}
+              title={theme === "dark" ? t("theme.light") : t("theme.dark")}
               type="button"
             >
-              <img
-                alt=""
-                aria-hidden="true"
-                className="language-flag"
-                height="15"
-                src={`https://flagcdn.com/w40/${activeLanguage.flagCode}.png`}
-                width="22"
-              />
-              <span>{activeLanguage.locale.toUpperCase()}</span>
-              <ChevronDown
-                aria-hidden="true"
-                className={isLanguageMenuOpen ? "is-open" : ""}
-                size={14}
-              />
+              {theme === "dark" ? (
+                <SunMedium aria-hidden="true" size={18} />
+              ) : (
+                <Moon aria-hidden="true" size={18} />
+              )}
             </button>
-
-            {isLanguageMenuOpen ? (
-              <div
-                aria-label={t("language.label")}
-                className="language-menu"
-                role="menu"
+            <div className="language-picker" ref={languageMenuRef}>
+              <button
+                aria-expanded={isLanguageMenuOpen}
+                aria-haspopup="menu"
+                aria-label={`${t("language.label")}: ${t(activeLanguage.labelKey)}`}
+                className="language-trigger"
+                onClick={() => {
+                  setLanguageMenuOpen((isOpen) => !isOpen);
+                }}
+                type="button"
               >
-                {languageOptions.map((option) => (
+                <img
+                  alt=""
+                  aria-hidden="true"
+                  className="language-flag"
+                  height="15"
+                  src={`https://flagcdn.com/w40/${activeLanguage.flagCode}.png`}
+                  width="22"
+                />
+                <span>{activeLanguage.locale.toUpperCase()}</span>
+                <ChevronDown
+                  aria-hidden="true"
+                  className={isLanguageMenuOpen ? "is-open" : ""}
+                  size={14}
+                />
+              </button>
+
+              {isLanguageMenuOpen ? (
+                <div
+                  aria-label={t("language.label")}
+                  className="language-menu"
+                  role="menu"
+                >
+                  {languageOptions.map((option) => (
+                    <button
+                      aria-checked={option.locale === locale}
+                      className={option.locale === locale ? "is-active" : ""}
+                      key={option.locale}
+                      onClick={() => {
+                        handleLanguageChange(option.locale);
+                      }}
+                      role="menuitemradio"
+                      type="button"
+                    >
+                      <img
+                        alt=""
+                        aria-hidden="true"
+                        className="language-flag"
+                        height="15"
+                        src={`https://flagcdn.com/w40/${option.flagCode}.png`}
+                        width="22"
+                      />
+                      <span className="language-option-name">
+                        {t(option.labelKey)}
+                      </span>
+                      <span className="language-code">
+                        {option.locale.toUpperCase()}
+                      </span>
+                      {option.locale === locale ? (
+                        <Check aria-hidden="true" size={15} strokeWidth={2.5} />
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            {currentProfile ? (
+              <>
+                <div className="header-notifications">
                   <button
-                    aria-checked={option.locale === locale}
-                    className={option.locale === locale ? "is-active" : ""}
-                    key={option.locale}
+                    aria-expanded={isNotificationMenuOpen}
+                    aria-label={t("notifications.title")}
+                    className="header-icon-button"
                     onClick={() => {
-                      handleLanguageChange(option.locale);
+                      setNotificationMenuOpen((current) => !current);
                     }}
-                    role="menuitemradio"
+                    title={t("notifications.title")}
                     type="button"
                   >
-                    <img
-                      alt=""
-                      aria-hidden="true"
-                      className="language-flag"
-                      height="15"
-                      src={`https://flagcdn.com/w40/${option.flagCode}.png`}
-                      width="22"
-                    />
-                    <span className="language-option-name">
-                      {t(option.labelKey)}
-                    </span>
-                    <span className="language-code">
-                      {option.locale.toUpperCase()}
-                    </span>
-                    {option.locale === locale ? (
-                      <Check aria-hidden="true" size={15} strokeWidth={2.5} />
+                    <Bell aria-hidden="true" size={18} />
+                    {notifications.some(
+                      (notification) => !notification.read,
+                    ) ? (
+                      <span className="notification-dot">
+                        {
+                          notifications.filter(
+                            (notification) => !notification.read,
+                          ).length
+                        }
+                      </span>
                     ) : null}
                   </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-
-          {currentProfile ? (
-            <>
-              <div className="header-notifications">
+                  {isNotificationMenuOpen ? (
+                    <div className="header-notification-menu">
+                      <div className="notification-menu-head">
+                        <strong>{t("notifications.title")}</strong>
+                        <button
+                          className="text-link-button"
+                          onClick={() => {
+                            void markAllNotificationsRead();
+                          }}
+                          type="button"
+                        >
+                          {t("notifications.markRead")}
+                        </button>
+                      </div>
+                      {notifications.length > 0 ? (
+                        notifications.slice(0, 6).map((notification) => (
+                          <div
+                            className={`header-notification-item${notification.read ? "" : " is-unread"}`}
+                            key={notification.id}
+                          >
+                            <span>
+                              {notification.message ??
+                                t(notification.messageKey)}
+                            </span>
+                            <time>
+                              {formatDate(locale, notification.createdAt)}
+                            </time>
+                            {notification.href ? (
+                              <Link href={notification.href}>
+                                {t("common.open")}
+                              </Link>
+                            ) : null}
+                          </div>
+                        ))
+                      ) : (
+                        <p>{t("notifications.empty")}</p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+                {isAdministrator ? (
+                  <Link
+                    aria-current={
+                      initialSection === "admin" ? "page" : undefined
+                    }
+                    className={`icon-text-button admin-header-link${initialSection === "admin" ? " is-active" : ""}`}
+                    href={getSectionHref(locale, "admin")}
+                  >
+                    <ShieldCheck aria-hidden="true" size={17} />
+                    <span>{t("section.admin.title")}</span>
+                  </Link>
+                ) : null}
+                <Link
+                  className="user-pill"
+                  href={getSectionHref(locale, "profile")}
+                >
+                  {currentProfile.avatarUrl ? (
+                    <img
+                      alt={t("profile.avatarAlt")}
+                      src={currentProfile.avatarUrl}
+                    />
+                  ) : (
+                    <span>{getInitials(currentProfile.name)}</span>
+                  )}
+                  <strong>{currentProfile.name}</strong>
+                </Link>
                 <button
-                  aria-expanded={isNotificationMenuOpen}
-                  aria-label={t("notifications.title")}
-                  className="header-icon-button"
-                  onClick={() => {
-                    setNotificationMenuOpen((current) => !current);
-                  }}
-                  title={t("notifications.title")}
+                  className="icon-text-button"
+                  onClick={logOut}
                   type="button"
                 >
-                  <Bell aria-hidden="true" size={18} />
-                  {notifications.some((notification) => !notification.read) ? (
-                    <span className="notification-dot">
-                      {
-                        notifications.filter(
-                          (notification) => !notification.read,
-                        ).length
-                      }
-                    </span>
-                  ) : null}
+                  <LogOut aria-hidden="true" size={17} />
+                  <span>{t("auth.logout")}</span>
                 </button>
-                {isNotificationMenuOpen ? (
-                  <div className="header-notification-menu">
-                    <div className="notification-menu-head">
-                      <strong>{t("notifications.title")}</strong>
-                      <button
-                        className="text-link-button"
-                        onClick={() => {
-                          void markAllNotificationsRead();
-                        }}
-                        type="button"
-                      >
-                        {t("notifications.markRead")}
-                      </button>
-                    </div>
-                    {notifications.length > 0 ? (
-                      notifications.slice(0, 6).map((notification) => (
-                        <div
-                          className={`header-notification-item${notification.read ? "" : " is-unread"}`}
-                          key={notification.id}
-                        >
-                          <span>
-                            {notification.message ?? t(notification.messageKey)}
-                          </span>
-                          <time>
-                            {formatDate(locale, notification.createdAt)}
-                          </time>
-                        </div>
-                      ))
-                    ) : (
-                      <p>{t("notifications.empty")}</p>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-              {isAdministrator ? (
-                <Link
-                  aria-current={initialSection === "admin" ? "page" : undefined}
-                  className={`icon-text-button admin-header-link${initialSection === "admin" ? " is-active" : ""}`}
-                  href={getSectionHref(locale, "admin")}
+              </>
+            ) : (
+              <>
+                <button
+                  className="icon-text-button"
+                  onClick={() => {
+                    openAuth("login");
+                  }}
+                  type="button"
                 >
-                  <ShieldCheck aria-hidden="true" size={17} />
-                  <span>{t("section.admin.title")}</span>
-                </Link>
-              ) : null}
-              <Link
-                className="user-pill"
-                href={getSectionHref(locale, "profile")}
-              >
-                {currentProfile.avatarUrl ? (
-                  <img
-                    alt={t("profile.avatarAlt")}
-                    src={currentProfile.avatarUrl}
-                  />
-                ) : (
-                  <span>{getInitials(currentProfile.name)}</span>
-                )}
-                <strong>{currentProfile.name}</strong>
-              </Link>
-              <button
-                className="icon-text-button"
-                onClick={logOut}
-                type="button"
-              >
-                <LogOut aria-hidden="true" size={17} />
-                <span>{t("auth.logout")}</span>
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                className="icon-text-button"
-                onClick={() => {
-                  openAuth("login");
-                }}
-                type="button"
-              >
-                <LogIn aria-hidden="true" size={17} />
-                <span>{t("auth.login")}</span>
-              </button>
-              <button
-                className="header-action"
-                onClick={() => {
-                  openAuth("register");
-                }}
-                type="button"
-              >
-                <UserPlus aria-hidden="true" size={17} />
-                <span>{t("auth.join")}</span>
-              </button>
-            </>
-          )}
-        </div>
-      </header>
+                  <LogIn aria-hidden="true" size={17} />
+                  <span>{t("auth.login")}</span>
+                </button>
+                <button
+                  className="header-action"
+                  onClick={() => {
+                    openAuth("register");
+                  }}
+                  type="button"
+                >
+                  <UserPlus aria-hidden="true" size={17} />
+                  <span>{t("auth.join")}</span>
+                </button>
+              </>
+            )}
+          </div>
+        </header>
 
-      <input
-        accept="image/*,video/mp4,video/webm"
-        className="visually-hidden"
-        onChange={(event) => {
-          void handlePhotoChange(event);
-        }}
-        ref={fileInputRef}
-        type="file"
-      />
-      <input
-        accept="image/*"
-        aria-label={t("profile.addCover")}
-        className="visually-hidden"
-        onChange={(event) => {
-          void handleCoverChange(event);
-        }}
-        ref={coverInputRef}
-        type="file"
-      />
-      <input
-        accept="image/*"
-        aria-label={t("profile.addAvatar")}
-        className="visually-hidden"
-        onChange={(event) => {
-          void handleAvatarChange(event);
-        }}
-        ref={avatarInputRef}
-        type="file"
-      />
+        <input
+          accept="image/*,video/mp4,video/webm"
+          className="visually-hidden"
+          onChange={(event) => {
+            void handlePhotoChange(event);
+          }}
+          ref={fileInputRef}
+          type="file"
+        />
+        <input
+          accept="image/*"
+          aria-label={t("profile.addCover")}
+          className="visually-hidden"
+          onChange={(event) => {
+            void handleCoverChange(event);
+          }}
+          ref={coverInputRef}
+          type="file"
+        />
+        <input
+          accept="image/*"
+          aria-label={t("profile.addAvatar")}
+          className="visually-hidden"
+          onChange={(event) => {
+            void handleAvatarChange(event);
+          }}
+          ref={avatarInputRef}
+          type="file"
+        />
 
-      {globalFeedback ? (
-        <div className={`toast ${globalFeedback.kind}`} role="status">
-          {globalFeedback.text}
-        </div>
-      ) : null}
+        {globalFeedback ? (
+          <div className={`toast ${globalFeedback.kind}`} role="status">
+            {globalFeedback.text}
+          </div>
+        ) : null}
 
-      {initialSection === "home"
-        ? renderHomePage()
-        : renderSectionPage(initialSection)}
+        {initialSection === "home"
+          ? renderHomePage()
+          : renderSectionPage(initialSection)}
 
-      {renderFooter()}
-      {isAuthOpen ? renderAuthDialog() : null}
-      {isAddPhotoOpen ? renderAddPhotoDialog() : null}
-      {commerceDialog ? renderCommerceDialog() : null}
-      {workPickerTarget ? renderWorkPickerDialog() : null}
-      {photoPendingDeletion ? renderDeletePhotoDialog() : null}
-      {imagePreview ? renderImagePreviewDialog() : null}
-    </main>
+        {renderFooter()}
+        {isAuthOpen ? renderAuthDialog() : null}
+        {isAddPhotoOpen ? renderAddPhotoDialog() : null}
+        {commerceDialog ? renderCommerceDialog() : null}
+        {workPickerTarget ? renderWorkPickerDialog() : null}
+        {photoPendingDeletion ? renderDeletePhotoDialog() : null}
+        {imagePreview ? renderImagePreviewDialog() : null}
+      </main>
+    </CommunityProvider>
   );
 
   function renderHomePage(): ReactNode {
@@ -6893,11 +6960,9 @@ export function HomeClient({
               <h1>{t(meta.titleKey)}</h1>
               {sectionId !== "profile" ? <p>{t(meta.introKey)}</p> : null}
             </div>
-            {sectionId !== "admin" &&
-            sectionId !== "studios" &&
-            sectionId !== "video" &&
-            sectionId !== "models" &&
-            sectionId !== "profile" ? (
+            {["feed", "discover", "battles", "challenges"].includes(
+              sectionId,
+            ) ? (
               <div className="intro-actions">
                 <button
                   className="primary-action"
@@ -6925,6 +6990,17 @@ export function HomeClient({
         ) : null}
 
         {sectionId === "discover" ? renderDiscoverPage() : null}
+        {sectionId === "feed" ? renderDiscoverPage() : null}
+        {sectionId === "events" ? (
+          <CommunityBoard kind="EVENT" initialPostId={initialPostId} />
+        ) : null}
+        {sectionId === "discussions" ? (
+          <CommunityBoard kind="DISCUSSION" initialPostId={initialPostId} />
+        ) : null}
+        {sectionId === "search" ? (
+          <CommunityBoard kind="CASTING" initialPostId={initialPostId} />
+        ) : null}
+        {sectionId === "suggestions" ? <SuggestionsPage /> : null}
         {sectionId === "video" ? renderVideoPage() : null}
         {sectionId === "models" ? renderModelsPage() : null}
         {sectionId === "battles" ? renderBattlesPage() : null}
@@ -6941,180 +7017,252 @@ export function HomeClient({
 
   function renderDiscoverPage(): ReactNode {
     return (
-      <section className="workspace-grid discover-workspace">
-        <div className="discover-map-section">
-          <InteractivePhotoMap
-            activeLocationId={discoverLocationFilter}
-            ariaLabel={t("map.pins")}
-            locations={mapLocations}
-            markers={mapPhotoMarkers}
-            onLocationSelect={(locationId) => {
-              setDiscoverLocationFilter(locationId as LocationFilter);
-            }}
-            onPhotoOpen={(src, alt) => {
-              setImagePreview({ alt, src: getLargeImageSource(src) });
-            }}
-          />
+      <>
+        <div
+          className="feed-kind-filter"
+          role="group"
+          aria-label={t("nav.feed")}
+        >
+          {(["PHOTO", "VIDEO"] as const).map((kind) => (
+            <button
+              type="button"
+              key={kind}
+              aria-pressed={feedKind === kind}
+              onClick={() => {
+                feedGenres.current[feedKind] = categoryFilter;
+                setFeedKind(kind);
+                setCategoryFilter(feedGenres.current[kind]);
+                const url = new URL(window.location.href);
+                url.searchParams.set("media", kind);
+                url.searchParams.delete("category");
+                window.history.replaceState(null, "", url);
+              }}
+            >
+              {kind === "PHOTO" ? <Camera size={16} /> : <Video size={16} />}
+              {t(kind === "PHOTO" ? "nav.discover" : "nav.video")}
+            </button>
+          ))}
         </div>
-
-        <div className="main-column">
-          <div className="toolbar discover-toolbar">
-            <label className="search-box">
-              <Search aria-hidden="true" size={18} />
-              <span className="visually-hidden">{t("common.search")}</span>
-              <input
-                onChange={(event) => {
-                  setSearchTerm(event.target.value);
-                }}
-                placeholder={t("discover.searchPlaceholder")}
-                type="search"
-                value={searchTerm}
-              />
-            </label>
+        <section className="workspace-grid discover-workspace">
+          <div className="discover-map-section">
+            <InteractivePhotoMap
+              activeLocationId={discoverLocationFilter}
+              ariaLabel={t("map.pins")}
+              locations={mapLocations.filter((location) =>
+                mapPhotoMarkers.some((marker) => marker.id === location.id),
+              )}
+              markers={mapPhotoMarkers}
+              onLocationSelect={(locationId) => {
+                setDiscoverLocationFilter(locationId as LocationFilter);
+              }}
+              onPhotoOpen={(src, alt) => {
+                const work = visiblePhotos.find((photo) => photo.src === src);
+                setImagePreview({
+                  alt,
+                  src: getLargeImageSource(src),
+                  videoSrc: work?.videoSrc,
+                });
+              }}
+            />
           </div>
 
-          <div className="section-heading">
-            <div>
-              <span className="eyebrow">{t("discover.featured")}</span>
-              <h2>{t("section.discover.title")}</h2>
-            </div>
-            <span className="count-pill">
-              {numberFormatter.format(visiblePhotos.length)}
-            </span>
-          </div>
-
-          {visiblePhotos.length > 0 ? (
-            <div className="photo-gallery">
-              {visiblePhotos.map((photo) => renderPhotoCard(photo))}
-            </div>
-          ) : (
-            <p className="empty-state">{t("discover.empty")}</p>
-          )}
-        </div>
-
-        <div className="side-column discover-filter-column">
-          <aside className="discover-filter-panel">
-            <div className="panel-title">
-              <Filter aria-hidden="true" size={20} />
-              <h2>{t("discover.filters")}</h2>
+          <div className="main-column">
+            <div className="toolbar discover-toolbar">
+              <label className="search-box">
+                <Search aria-hidden="true" size={18} />
+                <span className="visually-hidden">{t("common.search")}</span>
+                <input
+                  onChange={(event) => {
+                    setSearchTerm(event.target.value);
+                  }}
+                  placeholder={t("discover.searchPlaceholder")}
+                  type="search"
+                  value={searchTerm}
+                />
+              </label>
             </div>
 
-            <div className="discover-filter-fields">
-              <div className="discover-filter-field">
-                <span>{t("discover.category")}</span>
-                <div
-                  aria-label={t("discover.category")}
-                  className="category-filter-tags"
-                  role="group"
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">
+                  {t(
+                    feedKind === "VIDEO"
+                      ? "video.featured"
+                      : "discover.featured",
+                  )}
+                </span>
+                <h2>
+                  {t(
+                    feedKind === "VIDEO"
+                      ? "section.video.title"
+                      : "section.discover.title",
+                  )}
+                </h2>
+              </div>
+              <span className="count-pill">
+                {numberFormatter.format(visiblePhotos.length)}
+              </span>
+            </div>
+
+            {feedStatus === "error" ? (
+              <div role="status">
+                <p>{t("product.failed")}</p>
+                <button
+                  className="secondary-action"
+                  type="button"
+                  onClick={() => void refreshDiscoverPhotos()}
                 >
-                  {categoryFilters.map((filter) => (
-                    <button
-                      aria-pressed={categoryFilter === filter.id}
-                      className={`filter-tag${
-                        categoryFilter === filter.id ? " is-active" : ""
-                      }`}
-                      key={filter.id}
-                      onClick={() => {
-                        setCategoryFilter(filter.id);
-                      }}
-                      type="button"
-                    >
-                      {t(filter.key)}
-                    </button>
-                  ))}
-                </div>
+                  <RefreshCw size={16} />
+                  {t("admin.refresh")}
+                </button>
+              </div>
+            ) : feedStatus === "loading" ? (
+              <p role="status">{t("admin.loading")}</p>
+            ) : visiblePhotos.length > 0 ? (
+              <div className="photo-gallery">
+                {visiblePhotos.map((photo) => renderPhotoCard(photo))}
+              </div>
+            ) : (
+              <p className="empty-state">{t("discover.empty")}</p>
+            )}
+          </div>
+
+          <div className="side-column discover-filter-column">
+            <aside className="discover-filter-panel">
+              <div className="panel-title">
+                <Filter aria-hidden="true" size={20} />
+                <h2>{t("discover.filters")}</h2>
               </div>
 
-              <label className="discover-filter-field">
-                <span>{t("discover.location")}</span>
-                <select
-                  onChange={(event) => {
-                    setDiscoverLocationFilter(
-                      event.target.value as LocationFilter,
-                    );
-                  }}
-                  value={discoverLocationFilter}
-                >
-                  {locationFilters.map((filter) => (
-                    <option key={filter.id} value={filter.id}>
-                      {t(filter.key)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <fieldset className="discover-date-filter">
-                <legend>{t("discover.date")}</legend>
-                <div className="discover-date-grid">
-                  <label className="discover-filter-field discover-date-field">
-                    <span className="discover-date-prefix">
-                      {t("discover.dateFrom")}
-                    </span>
-                    <span
-                      className={`discover-date-value${discoverDateFrom ? "" : " is-placeholder"}`}
-                    >
-                      {formatDateInputDisplay(locale, discoverDateFrom)}
-                    </span>
-                    <CalendarDays aria-hidden="true" size={17} />
-                    <input
-                      aria-label={t("discover.dateFrom")}
-                      max={discoverDateTo || undefined}
-                      onChange={(event) => {
-                        setDiscoverDateFrom(event.target.value);
-                      }}
-                      type="date"
-                      value={discoverDateFrom}
-                    />
-                  </label>
-                  <label className="discover-filter-field discover-date-field">
-                    <span className="discover-date-prefix">
-                      {t("discover.dateTo")}
-                    </span>
-                    <span
-                      className={`discover-date-value${discoverDateTo ? "" : " is-placeholder"}`}
-                    >
-                      {formatDateInputDisplay(locale, discoverDateTo)}
-                    </span>
-                    <CalendarDays aria-hidden="true" size={17} />
-                    <input
-                      aria-label={t("discover.dateTo")}
-                      min={discoverDateFrom || undefined}
-                      onChange={(event) => {
-                        setDiscoverDateTo(event.target.value);
-                      }}
-                      type="date"
-                      value={discoverDateTo}
-                    />
-                  </label>
+              <div className="discover-filter-fields">
+                <div className="discover-filter-field">
+                  <span>{t("discover.category")}</span>
+                  <div
+                    aria-label={t("discover.category")}
+                    className="category-filter-tags"
+                    role="group"
+                  >
+                    {(feedKind === "VIDEO"
+                      ? videoCategoryFilters
+                      : categoryFilters
+                    ).map((filter) => (
+                      <button
+                        aria-pressed={categoryFilter === filter.id}
+                        className={`filter-tag${
+                          categoryFilter === filter.id ? " is-active" : ""
+                        }`}
+                        key={filter.id}
+                        onClick={() => {
+                          setCategoryFilter(filter.id);
+                        }}
+                        type="button"
+                      >
+                        {t(filter.key)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </fieldset>
-            </div>
 
-            <div className="discover-filter-footer">
-              <span>
-                {t("discover.results").replace(
-                  "{count}",
-                  numberFormatter.format(visiblePhotos.length),
-                )}
-              </span>
-              <button
-                className="secondary-action compact-action"
-                onClick={() => {
-                  setSearchTerm("");
-                  setCategoryFilter("all");
-                  setDiscoverLocationFilter("all");
-                  setDiscoverDateFrom("");
-                  setDiscoverDateTo("");
-                }}
-                type="button"
-              >
-                <X aria-hidden="true" size={15} />
-                {t("discover.clearFilters")}
-              </button>
-            </div>
-          </aside>
-        </div>
-      </section>
+                <label className="discover-filter-field">
+                  <span>{t("discover.location")}</span>
+                  <select
+                    onChange={(event) => {
+                      setDiscoverLocationFilter(
+                        event.target.value as LocationFilter,
+                      );
+                    }}
+                    value={discoverLocationFilter}
+                  >
+                    <option value="all">{t("map.location.all")}</option>
+                    {mapLocations
+                      .filter((location) =>
+                        serverPhotos.some(
+                          (photo) =>
+                            !photo.locationHidden &&
+                            photo.locationId === location.id,
+                        ),
+                      )
+                      .map((location) => (
+                        <option key={location.id} value={location.id}>
+                          {location.label}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+
+                <fieldset className="discover-date-filter">
+                  <legend>{t("discover.date")}</legend>
+                  <div className="discover-date-grid">
+                    <label className="discover-filter-field discover-date-field">
+                      <span className="discover-date-prefix">
+                        {t("discover.dateFrom")}
+                      </span>
+                      <span
+                        className={`discover-date-value${discoverDateFrom ? "" : " is-placeholder"}`}
+                      >
+                        {formatDateInputDisplay(locale, discoverDateFrom)}
+                      </span>
+                      <CalendarDays aria-hidden="true" size={17} />
+                      <input
+                        aria-label={t("discover.dateFrom")}
+                        max={discoverDateTo || undefined}
+                        onChange={(event) => {
+                          setDiscoverDateFrom(event.target.value);
+                        }}
+                        type="date"
+                        value={discoverDateFrom}
+                      />
+                    </label>
+                    <label className="discover-filter-field discover-date-field">
+                      <span className="discover-date-prefix">
+                        {t("discover.dateTo")}
+                      </span>
+                      <span
+                        className={`discover-date-value${discoverDateTo ? "" : " is-placeholder"}`}
+                      >
+                        {formatDateInputDisplay(locale, discoverDateTo)}
+                      </span>
+                      <CalendarDays aria-hidden="true" size={17} />
+                      <input
+                        aria-label={t("discover.dateTo")}
+                        min={discoverDateFrom || undefined}
+                        onChange={(event) => {
+                          setDiscoverDateTo(event.target.value);
+                        }}
+                        type="date"
+                        value={discoverDateTo}
+                      />
+                    </label>
+                  </div>
+                </fieldset>
+              </div>
+
+              <div className="discover-filter-footer">
+                <span>
+                  {t("discover.results").replace(
+                    "{count}",
+                    numberFormatter.format(visiblePhotos.length),
+                  )}
+                </span>
+                <button
+                  className="secondary-action compact-action"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setCategoryFilter("all");
+                    setDiscoverLocationFilter("all");
+                    setDiscoverDateFrom("");
+                    setDiscoverDateTo("");
+                  }}
+                  type="button"
+                >
+                  <X aria-hidden="true" size={15} />
+                  {t("discover.clearFilters")}
+                </button>
+              </div>
+            </aside>
+          </div>
+        </section>
+      </>
     );
   }
 
@@ -7485,8 +7633,9 @@ export function HomeClient({
 
   function renderPhotoCard(photo: PhotoRecord): ReactNode {
     const gallerySection = isVideoWork(photo) ? "video" : "discover";
-    const showCommerce =
-      initialSection !== "discover" && initialSection !== "video";
+    const showCommerce = !["discover", "video", "feed"].includes(
+      initialSection,
+    );
     const isSaved = savedPhotoIds.includes(photo.id);
     const isLiked = likedPhotoIds.includes(photo.id);
     const isInMoodboard = moodboardPhotoIds.includes(photo.id);
@@ -7496,24 +7645,24 @@ export function HomeClient({
     const criterionScores = getPhotoCriterionScores(photo);
 
     const openDiscoverWithCategory = (): void => {
-      if (gallerySection === "video") setVideoCategoryFilter(photo.categoryId);
-      else setCategoryFilter(photo.categoryId);
+      setFeedKind(isVideoWork(photo) ? "VIDEO" : "PHOTO");
+      setCategoryFilter(photo.categoryId);
 
-      if (initialSection !== gallerySection) {
+      if (initialSection !== "feed") {
         router.push(
-          `${getSectionHref(locale, gallerySection)}?category=${photo.categoryId}`,
+          `${getSectionHref(locale, "feed")}?media=${isVideoWork(photo) ? "VIDEO" : "PHOTO"}&category=${photo.categoryId}`,
         );
       }
     };
 
     const openDiscoverWithLocation = (): void => {
       if (photo.locationHidden || !photo.locationId) return;
-      if (gallerySection === "video") setVideoLocationFilter(photo.locationId);
-      else setDiscoverLocationFilter(photo.locationId);
+      setFeedKind(isVideoWork(photo) ? "VIDEO" : "PHOTO");
+      setDiscoverLocationFilter(photo.locationId);
 
-      if (initialSection !== gallerySection) {
+      if (initialSection !== "feed") {
         router.push(
-          `${getSectionHref(locale, gallerySection)}?location=${photo.locationId}`,
+          `${getSectionHref(locale, "feed")}?media=${isVideoWork(photo) ? "VIDEO" : "PHOTO"}&location=${encodeURIComponent(photo.locationId)}`,
         );
       }
     };
@@ -7757,7 +7906,7 @@ export function HomeClient({
               onClick={() => {
                 void shareItem(
                   getPhotoTitle(photo, locale),
-                  `/${locale}/${gallerySection}?photo=${photo.id}`,
+                  `/${locale}/profile?author=${encodeURIComponent(getPhotoAuthorId(photo))}&photo=${photo.id}`,
                 );
               }}
               title={t("common.share")}
@@ -7811,6 +7960,17 @@ export function HomeClient({
               </>
             ) : null}
           </div>
+          {photo.serverBacked && photo.published ? (
+            <PublicationTools
+              source={{
+                type: "PHOTO",
+                id: photo.id,
+                title: getPhotoTitle(photo, locale),
+                image: photo.src,
+                path: `/${locale}/profile?author=${encodeURIComponent(getPhotoAuthorId(photo))}&photo=${photo.id}`,
+              }}
+            />
+          ) : null}
         </div>
       </article>
     );
@@ -8404,135 +8564,7 @@ export function HomeClient({
   }
 
   function renderMarketplacePage(): ReactNode {
-    return (
-      <section className="page-section">
-        <div className="marketplace-promo-strip">
-          <div>
-            <Megaphone aria-hidden="true" size={20} />
-            <div>
-              <strong>{t("promotion.marketplaceTitle")}</strong>
-              <p>{t("promotion.marketplaceCopy")}</p>
-            </div>
-          </div>
-          <span>{formatMoney(promotionPriceMinor.marketplace, locale)}</span>
-          <button
-            className="primary-action compact"
-            disabled={!selectedUploadedPhoto}
-            onClick={() => {
-              if (selectedUploadedPhoto) {
-                openCommerceDialog({
-                  kind: "promotion",
-                  photo: selectedUploadedPhoto,
-                });
-              }
-            }}
-            type="button"
-          >
-            {t("promotion.reserve")}
-          </button>
-        </div>
-
-        {renderPromotedPlacement("marketplace")}
-
-        <div className="product-grid">
-          {marketplaceProducts.map((product) => {
-            const isSaved = wishlistProductIds.includes(product.id);
-
-            return (
-              <article className="product-card" key={product.id}>
-                {renderPreviewableImage(product.imageUrl, t(product.titleKey))}
-                <div className="product-body">
-                  <span className="pill">{t(product.kindKey)}</span>
-                  <h2>{t(product.titleKey)}</h2>
-                  <p>{t(product.copyKey)}</p>
-                  <dl className="definition-list compact-definition">
-                    <div>
-                      <dt>{t("marketplace.seller")}</dt>
-                      <dd>{t(product.sellerKey)}</dd>
-                    </div>
-                    <div>
-                      <dt>{t("marketplace.price")}</dt>
-                      <dd>{product.price}</dd>
-                    </div>
-                  </dl>
-                  <div className="card-actions">
-                    <button
-                      className="primary-action compact"
-                      onClick={() => {
-                        buyMarketplaceItem(
-                          t(product.titleKey),
-                          Math.round(
-                            Number(product.price.replace(/[^0-9.]/g, "")) * 100,
-                          ),
-                        );
-                      }}
-                      type="button"
-                    >
-                      <ShoppingBag aria-hidden="true" size={16} />
-                      {t("marketplace.buy")}
-                    </button>
-                    <button
-                      className="secondary-action compact"
-                      onClick={() => {
-                        toggleWishlist(product.id);
-                      }}
-                      type="button"
-                    >
-                      <Heart
-                        aria-hidden="true"
-                        fill={isSaved ? "currentColor" : "none"}
-                        size={16}
-                      />
-                      {isSaved
-                        ? t("marketplace.removeWishlist")
-                        : t("marketplace.addWishlist")}
-                    </button>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-          {uploadedPhotos
-            .filter(
-              (photo) => photo.published && listedPhotoIds.includes(photo.id),
-            )
-            .map((photo) => (
-              <article className="product-card" key={`listing-${photo.id}`}>
-                {renderPreviewableImage(
-                  photo.src,
-                  getPhotoTitle(photo, locale),
-                  photo.id,
-                )}
-                <div className="product-body">
-                  <span className="pill">{t("marketplace.license")}</span>
-                  <h2>{getPhotoTitle(photo, locale)}</h2>
-                  <p>{t("marketplace.creatorListing")}</p>
-                  <dl className="definition-list compact-definition">
-                    <div>
-                      <dt>{t("marketplace.seller")}</dt>
-                      <dd>{currentProfile?.name ?? t("common.you")}</dd>
-                    </div>
-                    <div>
-                      <dt>{t("marketplace.price")}</dt>
-                      <dd>{formatMoney(3500, locale)}</dd>
-                    </div>
-                  </dl>
-                  <button
-                    className="secondary-action compact"
-                    onClick={() => {
-                      toggleMarketplaceListing(photo.id);
-                    }}
-                    type="button"
-                  >
-                    <X aria-hidden="true" size={15} />
-                    {t("marketplace.unlist")}
-                  </button>
-                </div>
-              </article>
-            ))}
-        </div>
-      </section>
-    );
+    return <ServerMarketplace initialProductId={initialProductId} />;
   }
 
   function renderPromotedPlacement(
@@ -9010,6 +9042,11 @@ export function HomeClient({
               <div>
                 <span className="eyebrow">{t("models.profile")}</span>
                 <h1>{t(model.nameKey)}</h1>
+                <ReportButton
+                  type="MODEL"
+                  id={model.id}
+                  path={getSectionHref(locale, "models") + "?model=" + model.id}
+                />
                 <p>{t(model.bioKey)}</p>
                 <div className="meta-row">
                   <span>
@@ -9395,6 +9432,13 @@ export function HomeClient({
               <div>
                 <span className="eyebrow">{t("studios.profile")}</span>
                 <h1>{t(studio.nameKey)}</h1>
+                <ReportButton
+                  type="STUDIO"
+                  id={studio.id}
+                  path={
+                    getSectionHref(locale, "studios") + "?studio=" + studio.id
+                  }
+                />
                 <p>{t(studio.descriptionKey)}</p>
                 <div className="meta-row">
                   <span>
@@ -9670,45 +9714,20 @@ export function HomeClient({
                   </div>
                   <div className="profile-head-actions-row">
                     <div className="profile-commerce-actions">
-                      {author.tier !== "viewer" &&
-                      (author.availableForHire ?? true) ? (
-                        <button
-                          className="primary-action compact"
-                          onClick={() => {
-                            openCommerceDialog({ author, kind: "service" });
-                          }}
-                          type="button"
-                        >
-                          <Send aria-hidden="true" size={16} />
-                          {t("service.order")}
-                        </button>
-                      ) : null}
-                      {["experienced", "professional", "star"].includes(
-                        author.tier,
-                      ) ? (
-                        <button
-                          className="secondary-action compact"
-                          onClick={() => {
-                            openCommerceDialog({ author, kind: "review" });
-                          }}
-                          type="button"
-                        >
-                          <Star aria-hidden="true" size={16} />
-                          {t("review.order")}
-                        </button>
-                      ) : null}
-                      {author.tier !== "viewer" ? (
-                        <button
-                          className="secondary-action compact"
-                          onClick={() => {
-                            openCommerceDialog({ author, kind: "donation" });
-                          }}
-                          type="button"
-                        >
-                          <HandCoins aria-hidden="true" size={16} />
-                          {t("donation.support")}
-                        </button>
-                      ) : null}
+                      <InteractionMenu
+                        username={author.username}
+                        name={getPublicAuthorName(author, locale)}
+                        image={author.coverUrl}
+                      />
+                      <ReportButton
+                        type="PROFILE"
+                        id={author.username}
+                        path={
+                          getSectionHref(locale, "profile") +
+                          "?author=" +
+                          encodeURIComponent(author.username)
+                        }
+                      />
                     </div>
                     {(author.completedOrders ?? 0) > 0 ? (
                       <div className="profile-service-metrics">
@@ -10852,145 +10871,429 @@ export function HomeClient({
           </div>
         ) : null}
 
-        <div className="admin-metrics">
-          {[
-            [
-              numberFormatter.format(adminOverview?.counts.users ?? 0),
-              "admin.users",
-            ],
-            [
-              numberFormatter.format(adminOverview?.counts.photos ?? 0),
-              "admin.photos",
-            ],
-            [
-              numberFormatter.format(adminOverview?.counts.openReports ?? 0),
-              "admin.openReports",
-            ],
-            [
-              numberFormatter.format(
-                adminOverview?.counts.moderationPending ?? 0,
-              ),
-              "admin.moderationPending",
-            ],
-          ].map(([value, label]) => (
-            <div key={label}>
-              <span>{t(label as MessageKey)}</span>
-              <strong>{value}</strong>
+        <AdminFold title={t("section.admin.title")}>
+          <div className="admin-metrics">
+            {[
+              [
+                numberFormatter.format(adminOverview?.counts.users ?? 0),
+                "admin.users",
+              ],
+              [
+                numberFormatter.format(adminOverview?.counts.photos ?? 0),
+                "admin.photos",
+              ],
+              [
+                numberFormatter.format(adminOverview?.counts.openReports ?? 0),
+                "admin.openReports",
+              ],
+              [
+                numberFormatter.format(
+                  adminOverview?.counts.moderationPending ?? 0,
+                ),
+                "admin.moderationPending",
+              ],
+            ].map(([value, label]) => (
+              <div key={label}>
+                <span>{t(label as MessageKey)}</span>
+                <strong>{value}</strong>
+              </div>
+            ))}
+          </div>
+        </AdminFold>
+        <AdminCommunitySections />
+        <AdminFold title={t("nav.battles")}>
+          {renderCompetitionModeration("battle")}
+        </AdminFold>
+        <AdminFold title={t("nav.challenges")}>
+          {renderCompetitionModeration("challenge")}
+        </AdminFold>
+        <AdminFold title={t("admin.portfolioModerationTitle")}>
+          <section
+            className="admin-panel admin-moderation-panel"
+            id="admin-portfolio-moderation"
+            aria-labelledby="admin-portfolio-moderation-title"
+          >
+            <div className="admin-panel-heading">
+              <div className="panel-title">
+                <ShieldCheck aria-hidden="true" size={22} />
+                <div>
+                  <h2 id="admin-portfolio-moderation-title">
+                    {t("admin.portfolioModerationTitle")}
+                  </h2>
+                  <p>{t("admin.portfolioModerationCopy")}</p>
+                </div>
+              </div>
+              <button
+                aria-label={t("admin.refreshModeration")}
+                className="icon-button"
+                disabled={adminLoading}
+                onClick={() => void loadAdminData()}
+                title={t("admin.refreshModeration")}
+                type="button"
+              >
+                <RefreshCw aria-hidden="true" size={17} />
+              </button>
             </div>
-          ))}
-        </div>
 
-        {renderCompetitionModeration("battle")}
-        {renderCompetitionModeration("challenge")}
-        <section
-          className="admin-panel admin-moderation-panel"
-          id="admin-portfolio-moderation"
-          aria-labelledby="admin-portfolio-moderation-title"
-        >
-          <div className="admin-panel-heading">
-            <div className="panel-title">
-              <ShieldCheck aria-hidden="true" size={22} />
-              <div>
-                <h2 id="admin-portfolio-moderation-title">
-                  {t("admin.portfolioModerationTitle")}
-                </h2>
-                <p>{t("admin.portfolioModerationCopy")}</p>
+            {adminLoading && adminModerationPhotos.length === 0 ? (
+              <div className="admin-loading">
+                <RefreshCw aria-hidden="true" size={20} />
+                {t("admin.loadingModeration")}
+              </div>
+            ) : null}
+
+            <div className="admin-moderation-list">
+              {adminModerationPhotos.map((photo) => {
+                const draft = adminModerationDrafts[photo.id];
+                if (!draft) return null;
+                const isBusy = adminBusyPhotoId === photo.id;
+
+                return (
+                  <article className="admin-moderation-card" key={photo.id}>
+                    <button
+                      aria-label={photo.title}
+                      className="admin-moderation-preview"
+                      disabled={!photo.displayUrl}
+                      onClick={() => {
+                        if (!photo.displayUrl) return;
+                        setImagePreview({
+                          alt: photo.title,
+                          src: photo.displayUrl,
+                          videoSrc: photo.videoUrl ?? undefined,
+                        });
+                      }}
+                      type="button"
+                    >
+                      {photo.displayUrl ? (
+                        <img alt={photo.title} src={photo.displayUrl} />
+                      ) : (
+                        <Images aria-hidden="true" size={30} />
+                      )}
+                    </button>
+
+                    <div className="admin-moderation-body">
+                      <div className="admin-moderation-head">
+                        <div>
+                          <PhotoTitleEditor
+                            locale={locale}
+                            title={photo.title}
+                            editable={isAdministrator}
+                            onSave={(title) => renameWork(photo.id, title)}
+                          />
+                          <span>
+                            {photo.owner.displayName} · {photo.owner.email}
+                          </span>
+                        </div>
+                        <span className="admin-moderation-status">
+                          {photo.moderationStatus === "UNDER_REVIEW"
+                            ? t("submission.reviewing")
+                            : t("submission.pending")}
+                        </span>
+                      </div>
+
+                      <div className="admin-moderation-contexts">
+                        {photo.contexts.battles.map((context) => (
+                          <span key={context.battleId}>
+                            <Swords aria-hidden="true" size={14} />
+                            {t("admin.inBattle")}
+                          </span>
+                        ))}
+                        {photo.contexts.challenges.map((context) => (
+                          <span key={context.challengeId}>
+                            <Trophy aria-hidden="true" size={14} />
+                            {t("admin.inChallenge")}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="admin-moderation-fields">
+                        <label className="compact-field">
+                          <span>{t("admin.category")}</span>
+                          <select
+                            disabled={isBusy}
+                            onChange={(event) =>
+                              updateAdminModerationDraft(
+                                photo.id,
+                                "categorySlug",
+                                event.target.value,
+                              )
+                            }
+                            value={draft.categorySlug}
+                          >
+                            {categoryFilters
+                              .filter((category) => category.id !== "all")
+                              .map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {t(category.key)}
+                                </option>
+                              ))}
+                          </select>
+                        </label>
+                        <label className="compact-field admin-moderation-reason">
+                          <span>{t("admin.reason")}</span>
+                          <input
+                            disabled={isBusy}
+                            maxLength={1000}
+                            onChange={(event) =>
+                              updateAdminModerationDraft(
+                                photo.id,
+                                "reason",
+                                event.target.value,
+                              )
+                            }
+                            placeholder={t("admin.moderationReasonPlaceholder")}
+                            type="text"
+                            value={draft.reason}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="admin-moderation-actions">
+                        <button
+                          className="secondary-action compact"
+                          disabled={isBusy}
+                          onClick={() =>
+                            void moderateAdminPhoto(photo, "UNDER_REVIEW")
+                          }
+                          type="button"
+                        >
+                          <Eye aria-hidden="true" size={16} />
+                          {t("admin.keepReviewing")}
+                        </button>
+                        <button
+                          className="danger-action compact"
+                          disabled={isBusy}
+                          onClick={() =>
+                            void moderateAdminPhoto(photo, "REJECTED")
+                          }
+                          type="button"
+                        >
+                          <X aria-hidden="true" size={16} />
+                          {t("admin.reject")}
+                        </button>
+                        <button
+                          className="primary-action compact"
+                          disabled={isBusy}
+                          onClick={() =>
+                            void moderateAdminPhoto(photo, "APPROVED")
+                          }
+                          type="button"
+                        >
+                          <Check aria-hidden="true" size={16} />
+                          {t("admin.approve")}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            {!adminLoading && adminModerationPhotos.length === 0 ? (
+              <div className="admin-empty">
+                <CheckCircle2 aria-hidden="true" size={30} />
+                <p>{t("admin.emptyModeration")}</p>
+              </div>
+            ) : null}
+          </section>
+        </AdminFold>
+        <AdminFold title={t("admin.coversTitle")}>
+          <section className="admin-panel admin-covers-panel">
+            <div className="admin-panel-heading">
+              <div className="panel-title">
+                <Images aria-hidden="true" size={22} />
+                <div>
+                  <h2>{t("admin.coversTitle")}</h2>
+                  <p>{t("admin.coversCopy")}</p>
+                </div>
               </div>
             </div>
-            <button
-              aria-label={t("admin.refreshModeration")}
-              className="icon-button"
-              disabled={adminLoading}
-              onClick={() => void loadAdminData()}
-              title={t("admin.refreshModeration")}
-              type="button"
-            >
-              <RefreshCw aria-hidden="true" size={17} />
-            </button>
-          </div>
 
-          {adminLoading && adminModerationPhotos.length === 0 ? (
-            <div className="admin-loading">
-              <RefreshCw aria-hidden="true" size={20} />
-              {t("admin.loadingModeration")}
-            </div>
-          ) : null}
-
-          <div className="admin-moderation-list">
-            {adminModerationPhotos.map((photo) => {
-              const draft = adminModerationDrafts[photo.id];
-              if (!draft) return null;
-              const isBusy = adminBusyPhotoId === photo.id;
-
-              return (
-                <article className="admin-moderation-card" key={photo.id}>
-                  <button
-                    aria-label={photo.title}
-                    className="admin-moderation-preview"
-                    disabled={!photo.displayUrl}
-                    onClick={() => {
-                      if (!photo.displayUrl) return;
-                      setImagePreview({
-                        alt: photo.title,
-                        src: photo.displayUrl,
-                        videoSrc: photo.videoUrl ?? undefined,
-                      });
-                    }}
-                    type="button"
-                  >
-                    {photo.displayUrl ? (
-                      <img alt={photo.title} src={photo.displayUrl} />
-                    ) : (
-                      <Images aria-hidden="true" size={30} />
-                    )}
-                  </button>
-
-                  <div className="admin-moderation-body">
-                    <div className="admin-moderation-head">
-                      <div>
-                        <PhotoTitleEditor
-                          locale={locale}
-                          title={photo.title}
-                          editable={isAdministrator}
-                          onSave={(title) => renameWork(photo.id, title)}
-                        />
+            <div className="admin-cover-list">
+              {adminCompetitionCovers.map((cover) => {
+                const draft = adminCompetitionDrafts[cover.id];
+                if (!draft) return null;
+                const isBusy = adminBusyCoverId === cover.id;
+                return (
+                  <article className="admin-cover-card" key={cover.id}>
+                    <div className="admin-cover-preview">
+                      {draft.coverUrl ? (
+                        <img alt="" aria-hidden="true" src={draft.coverUrl} />
+                      ) : (
+                        <Images aria-hidden="true" size={28} />
+                      )}
+                    </div>
+                    <div className="admin-cover-body">
+                      <div className="admin-cover-title">
+                        <strong>{draft.name}</strong>
                         <span>
-                          {photo.owner.displayName} · {photo.owner.email}
+                          {cover.kind === "season"
+                            ? t("admin.coverSeason")
+                            : t("admin.coverChallenge")}{" "}
+                          · {cover.status}
+                        </span>
+                      </div>
+                      <label className="compact-field">
+                        <span>{t("admin.competitionName")}</span>
+                        <input
+                          disabled={isBusy}
+                          maxLength={160}
+                          onChange={(event) =>
+                            setAdminCompetitionDrafts((current) => ({
+                              ...current,
+                              [cover.id]: {
+                                ...draft,
+                                name: event.target.value,
+                              },
+                            }))
+                          }
+                          type="text"
+                          value={draft.name}
+                        />
+                      </label>
+                      <label className="compact-field">
+                        <span>{t("admin.coverUrl")}</span>
+                        <input
+                          disabled={isBusy}
+                          onChange={(event) =>
+                            setAdminCompetitionDrafts((current) => ({
+                              ...current,
+                              [cover.id]: {
+                                ...draft,
+                                coverUrl: event.target.value,
+                              },
+                            }))
+                          }
+                          placeholder="/images/challenges/cover.png"
+                          type="url"
+                          value={draft.coverUrl}
+                        />
+                      </label>
+                      <label className="compact-field">
+                        <span>{t("admin.status")}</span>
+                        <select
+                          disabled={isBusy}
+                          onChange={(event) =>
+                            setAdminCompetitionDrafts((current) => ({
+                              ...current,
+                              [cover.id]: {
+                                ...draft,
+                                status: event.target.value,
+                              },
+                            }))
+                          }
+                          value={draft.status}
+                        >
+                          {(cover.kind === "season"
+                            ? [
+                                "DRAFT",
+                                "UPCOMING",
+                                "ACTIVE",
+                                "COMPLETED",
+                                "ARCHIVED",
+                              ]
+                            : [
+                                "DRAFT",
+                                "UPCOMING",
+                                "ACTIVE",
+                                "COMPLETED",
+                                "CANCELLED",
+                              ]
+                          ).map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        className="primary-action compact"
+                        disabled={
+                          isBusy ||
+                          (draft.coverUrl === (cover.coverUrl ?? "") &&
+                            draft.name ===
+                              (cover.name ?? t(cover.labelKey as MessageKey)) &&
+                            draft.status === cover.status)
+                        }
+                        onClick={() => void saveAdminCompetitionCover(cover)}
+                        type="button"
+                      >
+                        <Check aria-hidden="true" size={16} />
+                        {t("common.save")}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        </AdminFold>
+        <AdminFold title={t("admin.battlesTitle")}>
+          <section className="admin-panel admin-battles-panel">
+            <div className="admin-panel-heading">
+              <div className="panel-title">
+                <Swords aria-hidden="true" size={22} />
+                <div>
+                  <h2>{t("admin.battlesTitle")}</h2>
+                  <p>{t("admin.battlesCopy")}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-battle-list">
+              {adminBattles.map((battle) => {
+                const draft = adminBattleDrafts[battle.id];
+                if (!draft) return null;
+                const isBusy = adminBusyBattleId === battle.id;
+                return (
+                  <article className="admin-battle-card" key={battle.id}>
+                    <div className="admin-battle-head">
+                      <div>
+                        <strong>
+                          {battle.entries.length > 0
+                            ? battle.entries
+                                .map((entry) => entry.title)
+                                .join(" / ")
+                            : t("admin.emptyBattle")}
+                        </strong>
+                        <span>
+                          {battle.entries.length}/2 · {battle.status}
                         </span>
                       </div>
                       <span className="admin-moderation-status">
-                        {photo.moderationStatus === "UNDER_REVIEW"
-                          ? t("submission.reviewing")
-                          : t("submission.pending")}
+                        {battle.id.slice(0, 8)}
                       </span>
                     </div>
 
-                    <div className="admin-moderation-contexts">
-                      {photo.contexts.battles.map((context) => (
-                        <span key={context.battleId}>
-                          <Swords aria-hidden="true" size={14} />
-                          {t("admin.inBattle")}
-                        </span>
-                      ))}
-                      {photo.contexts.challenges.map((context) => (
-                        <span key={context.challengeId}>
-                          <Trophy aria-hidden="true" size={14} />
-                          {t("admin.inChallenge")}
-                        </span>
+                    <div className="admin-battle-entries">
+                      {battle.entries.map((entry) => (
+                        <div key={entry.id}>
+                          {entry.displayUrl ? (
+                            <img alt={entry.title} src={entry.displayUrl} />
+                          ) : (
+                            <Images aria-hidden="true" size={22} />
+                          )}
+                          <span>
+                            <strong>{entry.ownerName}</strong>
+                            <small>{entry.moderationStatus}</small>
+                          </span>
+                        </div>
                       ))}
                     </div>
 
-                    <div className="admin-moderation-fields">
+                    <div className="admin-battle-fields">
                       <label className="compact-field">
                         <span>{t("admin.category")}</span>
                         <select
                           disabled={isBusy}
                           onChange={(event) =>
-                            updateAdminModerationDraft(
-                              photo.id,
-                              "categorySlug",
-                              event.target.value,
-                            )
+                            setAdminBattleDrafts((current) => ({
+                              ...current,
+                              [battle.id]: {
+                                ...draft,
+                                categorySlug: event.target.value,
+                              },
+                            }))
                           }
                           value={draft.categorySlug}
                         >
@@ -11003,645 +11306,382 @@ export function HomeClient({
                             ))}
                         </select>
                       </label>
-                      <label className="compact-field admin-moderation-reason">
+                      <label className="compact-field">
+                        <span>{t("admin.coverSeason")}</span>
+                        <select
+                          disabled={isBusy}
+                          onChange={(event) =>
+                            setAdminBattleDrafts((current) => ({
+                              ...current,
+                              [battle.id]: {
+                                ...draft,
+                                seasonId: event.target.value,
+                              },
+                            }))
+                          }
+                          value={draft.seasonId}
+                        >
+                          <option value="">{t("admin.noSeason")}</option>
+                          {adminCompetitionCovers
+                            .filter((item) => item.kind === "season")
+                            .map((season) => (
+                              <option key={season.id} value={season.id}>
+                                {adminCompetitionDrafts[season.id]?.name ??
+                                  t(season.labelKey as MessageKey)}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <label className="compact-field">
+                        <span>{t("admin.status")}</span>
+                        <select
+                          disabled={isBusy}
+                          onChange={(event) =>
+                            setAdminBattleDrafts((current) => ({
+                              ...current,
+                              [battle.id]: {
+                                ...draft,
+                                status: event.target.value,
+                              },
+                            }))
+                          }
+                          value={draft.status}
+                        >
+                          {["DRAFT", "OPEN", "CLOSED", "CANCELLED"].map(
+                            (status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </label>
+                      <button
+                        className="primary-action compact"
+                        disabled={isBusy}
+                        onClick={() => void saveAdminBattle(battle)}
+                        type="button"
+                      >
+                        <Check aria-hidden="true" size={16} />
+                        {t("common.save")}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        </AdminFold>
+        <AdminFold title={t("admin.accounts")}>
+          <section className="admin-panel admin-accounts-panel">
+            <div className="admin-panel-heading">
+              <div className="panel-title">
+                <CircleUserRound aria-hidden="true" size={22} />
+                <div>
+                  <h2>{t("admin.accounts")}</h2>
+                  <p>{t("admin.accountsCopy")}</p>
+                </div>
+              </div>
+              <button
+                aria-label={t("admin.refresh")}
+                className="icon-button"
+                disabled={adminLoading}
+                onClick={() => void loadAdminData()}
+                title={t("admin.refresh")}
+                type="button"
+              >
+                <RefreshCw aria-hidden="true" size={17} />
+              </button>
+            </div>
+
+            <form
+              className="admin-toolbar"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void loadAdminData();
+              }}
+            >
+              <label className="search-box admin-search">
+                <Search aria-hidden="true" size={18} />
+                <span className="visually-hidden">{t("admin.search")}</span>
+                <input
+                  onChange={(event) => setAdminSearch(event.target.value)}
+                  placeholder={t("admin.searchPlaceholder")}
+                  type="search"
+                  value={adminSearch}
+                />
+              </label>
+              <label className="compact-field">
+                <span>{t("admin.status")}</span>
+                <select
+                  onChange={(event) =>
+                    setAdminStatusFilter(
+                      event.target.value as "ALL" | AdminAccountStatus,
+                    )
+                  }
+                  value={adminStatusFilter}
+                >
+                  <option value="ALL">{t("admin.allStatuses")}</option>
+                  {(
+                    [
+                      "ACTIVE",
+                      "SUSPENDED",
+                      "DELETION_REQUESTED",
+                      "DELETED",
+                    ] as const
+                  ).map((status) => (
+                    <option key={status} value={status}>
+                      {t(getAdminStatusKey(status))}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="compact-field">
+                <span>{t("admin.tier")}</span>
+                <select
+                  onChange={(event) =>
+                    setAdminTierFilter(
+                      event.target.value as "ALL" | AdminAccountTier,
+                    )
+                  }
+                  value={adminTierFilter}
+                >
+                  <option value="ALL">{t("admin.allTiers")}</option>
+                  {adminAccountTiers.map((tier) => (
+                    <option key={tier} value={tier}>
+                      {t(getAccountTierKey(normalizeServerTier(tier)))}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="primary-action compact" type="submit">
+                <Search aria-hidden="true" size={16} />
+                {t("common.search")}
+              </button>
+            </form>
+
+            <div className="admin-results-heading">
+              <span>
+                {t("admin.found").replace(
+                  "{count}",
+                  numberFormatter.format(adminUsers.length),
+                )}
+              </span>
+              <small>{t("admin.reasonHint")}</small>
+            </div>
+
+            {adminLoading && adminUsers.length === 0 ? (
+              <div className="admin-loading">
+                <RefreshCw aria-hidden="true" size={20} />
+                {t("admin.loading")}
+              </div>
+            ) : null}
+
+            <div className="admin-account-list">
+              {adminUsers.map((user) => {
+                const draft = adminUserDrafts[user.id];
+                if (!draft) return null;
+                const isSelf = user.id === serverUser.id;
+                const isBusy = adminBusyUserId === user.id;
+                const isDeleted = user.status === "DELETED";
+
+                return (
+                  <article
+                    className={`admin-account-card status-${user.status.toLowerCase()}`}
+                    key={user.id}
+                  >
+                    <div className="admin-account-head">
+                      <div className="admin-account-person">
+                        <span className="admin-account-avatar">
+                          {getInitials(
+                            user.profile?.displayName ??
+                              user.email.split("@")[0] ??
+                              "U",
+                          )}
+                        </span>
+                        <div>
+                          <strong>
+                            {user.profile?.displayName ?? user.email}
+                          </strong>
+                          <span>
+                            {user.profile
+                              ? `@${user.profile.username}`
+                              : user.email}
+                          </span>
+                          {user.profile ? <small>{user.email}</small> : null}
+                        </div>
+                      </div>
+                      <div className="admin-account-flags">
+                        {isSelf ? <span>{t("admin.you")}</span> : null}
+                        <span
+                          className={`admin-status status-${user.status.toLowerCase()}`}
+                        >
+                          {t(getAdminStatusKey(user.status))}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="admin-account-summary">
+                      <span>
+                        {t("admin.photos")}:{" "}
+                        {numberFormatter.format(user.photoCount)}
+                      </span>
+                      <span>
+                        {t("common.rating")}:{" "}
+                        {numberFormatter.format(user.rating?.rating ?? 0)}
+                      </span>
+                      <span>
+                        {t("admin.battles")}:{" "}
+                        {numberFormatter.format(user.rating?.battles ?? 0)}
+                      </span>
+                      <span>{user.roles.join(", ")}</span>
+                      <span>{formatDate(locale, user.createdAt)}</span>
+                    </div>
+
+                    {!isDeleted && user.profile ? (
+                      <ProControl
+                        userId={user.id}
+                        initialProUntil={user.profile.proUntil}
+                      />
+                    ) : null}
+                    <div className="admin-account-fields">
+                      <label className="compact-field">
+                        <span>{t("admin.tier")}</span>
+                        <select
+                          disabled={isBusy || isDeleted}
+                          onChange={(event) =>
+                            updateAdminUserDraft(
+                              user.id,
+                              "tier",
+                              event.target.value,
+                            )
+                          }
+                          value={draft.tier}
+                        >
+                          {adminAccountTiers.map((tier) => (
+                            <option key={tier} value={tier}>
+                              {t(getAccountTierKey(normalizeServerTier(tier)))}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="compact-field">
+                        <span>{t("admin.status")}</span>
+                        <select
+                          disabled={isBusy || isDeleted || isSelf}
+                          onChange={(event) =>
+                            updateAdminUserDraft(
+                              user.id,
+                              "status",
+                              event.target.value,
+                            )
+                          }
+                          value={draft.status}
+                        >
+                          {(
+                            [
+                              "ACTIVE",
+                              "SUSPENDED",
+                              "DELETION_REQUESTED",
+                            ] as const
+                          ).map((status) => (
+                            <option key={status} value={status}>
+                              {t(getAdminStatusKey(status))}
+                            </option>
+                          ))}
+                          {isDeleted ? (
+                            <option value="DELETED">
+                              {t("admin.status.deleted")}
+                            </option>
+                          ) : null}
+                        </select>
+                      </label>
+                      <label className="compact-field">
+                        <span>{t("common.rating")}</span>
+                        <input
+                          disabled={isBusy || isDeleted || !user.rating}
+                          max={10000}
+                          min={0}
+                          onChange={(event) =>
+                            updateAdminUserDraft(
+                              user.id,
+                              "rating",
+                              event.target.value,
+                            )
+                          }
+                          type="number"
+                          value={draft.rating}
+                        />
+                      </label>
+                      <label className="compact-field admin-reason-field">
                         <span>{t("admin.reason")}</span>
                         <input
-                          disabled={isBusy}
+                          disabled={isBusy || isDeleted}
                           maxLength={1000}
                           onChange={(event) =>
-                            updateAdminModerationDraft(
-                              photo.id,
+                            updateAdminUserDraft(
+                              user.id,
                               "reason",
                               event.target.value,
                             )
                           }
-                          placeholder={t("admin.moderationReasonPlaceholder")}
+                          placeholder={t("admin.reasonPlaceholder")}
                           type="text"
                           value={draft.reason}
                         />
                       </label>
                     </div>
 
-                    <div className="admin-moderation-actions">
+                    <div className="admin-account-actions">
                       <button
                         className="secondary-action compact"
-                        disabled={isBusy}
-                        onClick={() =>
-                          void moderateAdminPhoto(photo, "UNDER_REVIEW")
-                        }
-                        type="button"
-                      >
-                        <Eye aria-hidden="true" size={16} />
-                        {t("admin.keepReviewing")}
-                      </button>
-                      <button
-                        className="danger-action compact"
-                        disabled={isBusy}
-                        onClick={() =>
-                          void moderateAdminPhoto(photo, "REJECTED")
-                        }
-                        type="button"
-                      >
-                        <X aria-hidden="true" size={16} />
-                        {t("admin.reject")}
-                      </button>
-                      <button
-                        className="primary-action compact"
-                        disabled={isBusy}
-                        onClick={() =>
-                          void moderateAdminPhoto(photo, "APPROVED")
-                        }
+                        disabled={isBusy || isDeleted}
+                        onClick={() => void saveAdminUser(user)}
                         type="button"
                       >
                         <Check aria-hidden="true" size={16} />
-                        {t("admin.approve")}
+                        {t("common.save")}
+                      </button>
+                      <button
+                        className="secondary-action compact"
+                        disabled={isBusy || isDeleted || isSelf}
+                        onClick={() => void toggleAdminUserBlock(user)}
+                        type="button"
+                      >
+                        {user.status === "SUSPENDED" ? (
+                          <CheckCircle2 aria-hidden="true" size={16} />
+                        ) : (
+                          <LockKeyhole aria-hidden="true" size={16} />
+                        )}
+                        {user.status === "SUSPENDED"
+                          ? t("admin.unblock")
+                          : t("admin.block")}
+                      </button>
+                      <button
+                        className="danger-action compact"
+                        disabled={isBusy || isDeleted || isSelf}
+                        onClick={() => void deleteAdminUser(user)}
+                        type="button"
+                      >
+                        <Trash2 aria-hidden="true" size={16} />
+                        {adminDeleteConfirmId === user.id
+                          ? t("admin.confirmDelete")
+                          : t("admin.deleteAccount")}
                       </button>
                     </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-
-          {!adminLoading && adminModerationPhotos.length === 0 ? (
-            <div className="admin-empty">
-              <CheckCircle2 aria-hidden="true" size={30} />
-              <p>{t("admin.emptyModeration")}</p>
+                  </article>
+                );
+              })}
             </div>
-          ) : null}
-        </section>
 
-        <section className="admin-panel admin-covers-panel">
-          <div className="admin-panel-heading">
-            <div className="panel-title">
-              <Images aria-hidden="true" size={22} />
-              <div>
-                <h2>{t("admin.coversTitle")}</h2>
-                <p>{t("admin.coversCopy")}</p>
+            {!adminLoading && adminUsers.length === 0 ? (
+              <div className="admin-empty">
+                <Users aria-hidden="true" size={30} />
+                <p>{t("admin.emptyUsers")}</p>
               </div>
-            </div>
-          </div>
-
-          <div className="admin-cover-list">
-            {adminCompetitionCovers.map((cover) => {
-              const draft = adminCompetitionDrafts[cover.id];
-              if (!draft) return null;
-              const isBusy = adminBusyCoverId === cover.id;
-              return (
-                <article className="admin-cover-card" key={cover.id}>
-                  <div className="admin-cover-preview">
-                    {draft.coverUrl ? (
-                      <img alt="" aria-hidden="true" src={draft.coverUrl} />
-                    ) : (
-                      <Images aria-hidden="true" size={28} />
-                    )}
-                  </div>
-                  <div className="admin-cover-body">
-                    <div className="admin-cover-title">
-                      <strong>{draft.name}</strong>
-                      <span>
-                        {cover.kind === "season"
-                          ? t("admin.coverSeason")
-                          : t("admin.coverChallenge")}{" "}
-                        · {cover.status}
-                      </span>
-                    </div>
-                    <label className="compact-field">
-                      <span>{t("admin.competitionName")}</span>
-                      <input
-                        disabled={isBusy}
-                        maxLength={160}
-                        onChange={(event) =>
-                          setAdminCompetitionDrafts((current) => ({
-                            ...current,
-                            [cover.id]: {
-                              ...draft,
-                              name: event.target.value,
-                            },
-                          }))
-                        }
-                        type="text"
-                        value={draft.name}
-                      />
-                    </label>
-                    <label className="compact-field">
-                      <span>{t("admin.coverUrl")}</span>
-                      <input
-                        disabled={isBusy}
-                        onChange={(event) =>
-                          setAdminCompetitionDrafts((current) => ({
-                            ...current,
-                            [cover.id]: {
-                              ...draft,
-                              coverUrl: event.target.value,
-                            },
-                          }))
-                        }
-                        placeholder="/images/challenges/cover.png"
-                        type="url"
-                        value={draft.coverUrl}
-                      />
-                    </label>
-                    <label className="compact-field">
-                      <span>{t("admin.status")}</span>
-                      <select
-                        disabled={isBusy}
-                        onChange={(event) =>
-                          setAdminCompetitionDrafts((current) => ({
-                            ...current,
-                            [cover.id]: {
-                              ...draft,
-                              status: event.target.value,
-                            },
-                          }))
-                        }
-                        value={draft.status}
-                      >
-                        {(cover.kind === "season"
-                          ? [
-                              "DRAFT",
-                              "UPCOMING",
-                              "ACTIVE",
-                              "COMPLETED",
-                              "ARCHIVED",
-                            ]
-                          : [
-                              "DRAFT",
-                              "UPCOMING",
-                              "ACTIVE",
-                              "COMPLETED",
-                              "CANCELLED",
-                            ]
-                        ).map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      className="primary-action compact"
-                      disabled={
-                        isBusy ||
-                        (draft.coverUrl === (cover.coverUrl ?? "") &&
-                          draft.name ===
-                            (cover.name ?? t(cover.labelKey as MessageKey)) &&
-                          draft.status === cover.status)
-                      }
-                      onClick={() => void saveAdminCompetitionCover(cover)}
-                      type="button"
-                    >
-                      <Check aria-hidden="true" size={16} />
-                      {t("common.save")}
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="admin-panel admin-battles-panel">
-          <div className="admin-panel-heading">
-            <div className="panel-title">
-              <Swords aria-hidden="true" size={22} />
-              <div>
-                <h2>{t("admin.battlesTitle")}</h2>
-                <p>{t("admin.battlesCopy")}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="admin-battle-list">
-            {adminBattles.map((battle) => {
-              const draft = adminBattleDrafts[battle.id];
-              if (!draft) return null;
-              const isBusy = adminBusyBattleId === battle.id;
-              return (
-                <article className="admin-battle-card" key={battle.id}>
-                  <div className="admin-battle-head">
-                    <div>
-                      <strong>
-                        {battle.entries.length > 0
-                          ? battle.entries
-                              .map((entry) => entry.title)
-                              .join(" / ")
-                          : t("admin.emptyBattle")}
-                      </strong>
-                      <span>
-                        {battle.entries.length}/2 · {battle.status}
-                      </span>
-                    </div>
-                    <span className="admin-moderation-status">
-                      {battle.id.slice(0, 8)}
-                    </span>
-                  </div>
-
-                  <div className="admin-battle-entries">
-                    {battle.entries.map((entry) => (
-                      <div key={entry.id}>
-                        {entry.displayUrl ? (
-                          <img alt={entry.title} src={entry.displayUrl} />
-                        ) : (
-                          <Images aria-hidden="true" size={22} />
-                        )}
-                        <span>
-                          <strong>{entry.ownerName}</strong>
-                          <small>{entry.moderationStatus}</small>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="admin-battle-fields">
-                    <label className="compact-field">
-                      <span>{t("admin.category")}</span>
-                      <select
-                        disabled={isBusy}
-                        onChange={(event) =>
-                          setAdminBattleDrafts((current) => ({
-                            ...current,
-                            [battle.id]: {
-                              ...draft,
-                              categorySlug: event.target.value,
-                            },
-                          }))
-                        }
-                        value={draft.categorySlug}
-                      >
-                        {categoryFilters
-                          .filter((category) => category.id !== "all")
-                          .map((category) => (
-                            <option key={category.id} value={category.id}>
-                              {t(category.key)}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label className="compact-field">
-                      <span>{t("admin.coverSeason")}</span>
-                      <select
-                        disabled={isBusy}
-                        onChange={(event) =>
-                          setAdminBattleDrafts((current) => ({
-                            ...current,
-                            [battle.id]: {
-                              ...draft,
-                              seasonId: event.target.value,
-                            },
-                          }))
-                        }
-                        value={draft.seasonId}
-                      >
-                        <option value="">{t("admin.noSeason")}</option>
-                        {adminCompetitionCovers
-                          .filter((item) => item.kind === "season")
-                          .map((season) => (
-                            <option key={season.id} value={season.id}>
-                              {adminCompetitionDrafts[season.id]?.name ??
-                                t(season.labelKey as MessageKey)}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label className="compact-field">
-                      <span>{t("admin.status")}</span>
-                      <select
-                        disabled={isBusy}
-                        onChange={(event) =>
-                          setAdminBattleDrafts((current) => ({
-                            ...current,
-                            [battle.id]: {
-                              ...draft,
-                              status: event.target.value,
-                            },
-                          }))
-                        }
-                        value={draft.status}
-                      >
-                        {["DRAFT", "OPEN", "CLOSED", "CANCELLED"].map(
-                          (status) => (
-                            <option key={status} value={status}>
-                              {status}
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    </label>
-                    <button
-                      className="primary-action compact"
-                      disabled={isBusy}
-                      onClick={() => void saveAdminBattle(battle)}
-                      type="button"
-                    >
-                      <Check aria-hidden="true" size={16} />
-                      {t("common.save")}
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="admin-panel admin-accounts-panel">
-          <div className="admin-panel-heading">
-            <div className="panel-title">
-              <CircleUserRound aria-hidden="true" size={22} />
-              <div>
-                <h2>{t("admin.accounts")}</h2>
-                <p>{t("admin.accountsCopy")}</p>
-              </div>
-            </div>
-            <button
-              aria-label={t("admin.refresh")}
-              className="icon-button"
-              disabled={adminLoading}
-              onClick={() => void loadAdminData()}
-              title={t("admin.refresh")}
-              type="button"
-            >
-              <RefreshCw aria-hidden="true" size={17} />
-            </button>
-          </div>
-
-          <form
-            className="admin-toolbar"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void loadAdminData();
-            }}
-          >
-            <label className="search-box admin-search">
-              <Search aria-hidden="true" size={18} />
-              <span className="visually-hidden">{t("admin.search")}</span>
-              <input
-                onChange={(event) => setAdminSearch(event.target.value)}
-                placeholder={t("admin.searchPlaceholder")}
-                type="search"
-                value={adminSearch}
-              />
-            </label>
-            <label className="compact-field">
-              <span>{t("admin.status")}</span>
-              <select
-                onChange={(event) =>
-                  setAdminStatusFilter(
-                    event.target.value as "ALL" | AdminAccountStatus,
-                  )
-                }
-                value={adminStatusFilter}
-              >
-                <option value="ALL">{t("admin.allStatuses")}</option>
-                {(
-                  [
-                    "ACTIVE",
-                    "SUSPENDED",
-                    "DELETION_REQUESTED",
-                    "DELETED",
-                  ] as const
-                ).map((status) => (
-                  <option key={status} value={status}>
-                    {t(getAdminStatusKey(status))}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="compact-field">
-              <span>{t("admin.tier")}</span>
-              <select
-                onChange={(event) =>
-                  setAdminTierFilter(
-                    event.target.value as "ALL" | AdminAccountTier,
-                  )
-                }
-                value={adminTierFilter}
-              >
-                <option value="ALL">{t("admin.allTiers")}</option>
-                {adminAccountTiers.map((tier) => (
-                  <option key={tier} value={tier}>
-                    {t(getAccountTierKey(normalizeServerTier(tier)))}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button className="primary-action compact" type="submit">
-              <Search aria-hidden="true" size={16} />
-              {t("common.search")}
-            </button>
-          </form>
-
-          <div className="admin-results-heading">
-            <span>
-              {t("admin.found").replace(
-                "{count}",
-                numberFormatter.format(adminUsers.length),
-              )}
-            </span>
-            <small>{t("admin.reasonHint")}</small>
-          </div>
-
-          {adminLoading && adminUsers.length === 0 ? (
-            <div className="admin-loading">
-              <RefreshCw aria-hidden="true" size={20} />
-              {t("admin.loading")}
-            </div>
-          ) : null}
-
-          <div className="admin-account-list">
-            {adminUsers.map((user) => {
-              const draft = adminUserDrafts[user.id];
-              if (!draft) return null;
-              const isSelf = user.id === serverUser.id;
-              const isBusy = adminBusyUserId === user.id;
-              const isDeleted = user.status === "DELETED";
-
-              return (
-                <article
-                  className={`admin-account-card status-${user.status.toLowerCase()}`}
-                  key={user.id}
-                >
-                  <div className="admin-account-head">
-                    <div className="admin-account-person">
-                      <span className="admin-account-avatar">
-                        {getInitials(
-                          user.profile?.displayName ??
-                            user.email.split("@")[0] ??
-                            "U",
-                        )}
-                      </span>
-                      <div>
-                        <strong>
-                          {user.profile?.displayName ?? user.email}
-                        </strong>
-                        <span>
-                          {user.profile
-                            ? `@${user.profile.username}`
-                            : user.email}
-                        </span>
-                        {user.profile ? <small>{user.email}</small> : null}
-                      </div>
-                    </div>
-                    <div className="admin-account-flags">
-                      {isSelf ? <span>{t("admin.you")}</span> : null}
-                      <span
-                        className={`admin-status status-${user.status.toLowerCase()}`}
-                      >
-                        {t(getAdminStatusKey(user.status))}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="admin-account-summary">
-                    <span>
-                      {t("admin.photos")}:{" "}
-                      {numberFormatter.format(user.photoCount)}
-                    </span>
-                    <span>
-                      {t("common.rating")}:{" "}
-                      {numberFormatter.format(user.rating?.rating ?? 0)}
-                    </span>
-                    <span>
-                      {t("admin.battles")}:{" "}
-                      {numberFormatter.format(user.rating?.battles ?? 0)}
-                    </span>
-                    <span>{user.roles.join(", ")}</span>
-                    <span>{formatDate(locale, user.createdAt)}</span>
-                  </div>
-
-                  <div className="admin-account-fields">
-                    <label className="compact-field">
-                      <span>{t("admin.tier")}</span>
-                      <select
-                        disabled={isBusy || isDeleted}
-                        onChange={(event) =>
-                          updateAdminUserDraft(
-                            user.id,
-                            "tier",
-                            event.target.value,
-                          )
-                        }
-                        value={draft.tier}
-                      >
-                        {adminAccountTiers.map((tier) => (
-                          <option key={tier} value={tier}>
-                            {t(getAccountTierKey(normalizeServerTier(tier)))}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="compact-field">
-                      <span>{t("admin.status")}</span>
-                      <select
-                        disabled={isBusy || isDeleted || isSelf}
-                        onChange={(event) =>
-                          updateAdminUserDraft(
-                            user.id,
-                            "status",
-                            event.target.value,
-                          )
-                        }
-                        value={draft.status}
-                      >
-                        {(
-                          ["ACTIVE", "SUSPENDED", "DELETION_REQUESTED"] as const
-                        ).map((status) => (
-                          <option key={status} value={status}>
-                            {t(getAdminStatusKey(status))}
-                          </option>
-                        ))}
-                        {isDeleted ? (
-                          <option value="DELETED">
-                            {t("admin.status.deleted")}
-                          </option>
-                        ) : null}
-                      </select>
-                    </label>
-                    <label className="compact-field">
-                      <span>{t("common.rating")}</span>
-                      <input
-                        disabled={isBusy || isDeleted || !user.rating}
-                        max={10000}
-                        min={0}
-                        onChange={(event) =>
-                          updateAdminUserDraft(
-                            user.id,
-                            "rating",
-                            event.target.value,
-                          )
-                        }
-                        type="number"
-                        value={draft.rating}
-                      />
-                    </label>
-                    <label className="compact-field admin-reason-field">
-                      <span>{t("admin.reason")}</span>
-                      <input
-                        disabled={isBusy || isDeleted}
-                        maxLength={1000}
-                        onChange={(event) =>
-                          updateAdminUserDraft(
-                            user.id,
-                            "reason",
-                            event.target.value,
-                          )
-                        }
-                        placeholder={t("admin.reasonPlaceholder")}
-                        type="text"
-                        value={draft.reason}
-                      />
-                    </label>
-                  </div>
-
-                  <div className="admin-account-actions">
-                    <button
-                      className="secondary-action compact"
-                      disabled={isBusy || isDeleted}
-                      onClick={() => void saveAdminUser(user)}
-                      type="button"
-                    >
-                      <Check aria-hidden="true" size={16} />
-                      {t("common.save")}
-                    </button>
-                    <button
-                      className="secondary-action compact"
-                      disabled={isBusy || isDeleted || isSelf}
-                      onClick={() => void toggleAdminUserBlock(user)}
-                      type="button"
-                    >
-                      {user.status === "SUSPENDED" ? (
-                        <CheckCircle2 aria-hidden="true" size={16} />
-                      ) : (
-                        <LockKeyhole aria-hidden="true" size={16} />
-                      )}
-                      {user.status === "SUSPENDED"
-                        ? t("admin.unblock")
-                        : t("admin.block")}
-                    </button>
-                    <button
-                      className="danger-action compact"
-                      disabled={isBusy || isDeleted || isSelf}
-                      onClick={() => void deleteAdminUser(user)}
-                      type="button"
-                    >
-                      <Trash2 aria-hidden="true" size={16} />
-                      {adminDeleteConfirmId === user.id
-                        ? t("admin.confirmDelete")
-                        : t("admin.deleteAccount")}
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-
-          {!adminLoading && adminUsers.length === 0 ? (
-            <div className="admin-empty">
-              <Users aria-hidden="true" size={30} />
-              <p>{t("admin.emptyUsers")}</p>
-            </div>
-          ) : null}
-        </section>
+            ) : null}
+          </section>
+        </AdminFold>
       </section>
     );
   }
@@ -11651,6 +11691,9 @@ export function HomeClient({
       <footer className="site-footer">
         <span>{t("footer.legal")}</span>
         <nav aria-label={t("footer.legal")} className="footer-links">
+          <Link href={getSectionHref(locale, "suggestions")}>
+            {t("nav.suggestions")}
+          </Link>
           {legalPolicies.map((policy) => (
             <Link href={`/${locale}/legal/${policy.id}`} key={policy.id}>
               {t(policy.titleKey)}
@@ -12638,10 +12681,30 @@ function mapServerNotification(
     .replace("{title}", title)
     .replace("{reason}", reason || getMessage(locale, "admin.noReason"));
 
+  const payload = notification.payload;
+  const communityMessage =
+    notification.type === "MEMBER_MESSAGE"
+      ? `${String(payload?.senderName ?? "Author")}: ${String(payload?.message ?? "")}`
+      : notification.type === "COMMUNITY_REPLY"
+        ? String(payload?.message ?? "")
+        : notification.type === "COMMUNITY_MODERATION"
+          ? `${title}: ${String(payload?.status ?? "")} ${reason}`
+          : null;
+  const href =
+    notification.type === "MEMBER_MESSAGE" &&
+    typeof payload?.senderUsername === "string"
+      ? `/${locale}/profile?author=${encodeURIComponent(payload.senderUsername)}`
+      : notification.type === "COMMUNITY_REPLY"
+        ? `/${locale}/suggestions`
+        : notification.type === "COMMUNITY_MODERATION"
+          ? `/${locale}/${payload?.kind === "EVENT" ? "events" : payload?.kind === "CASTING" ? "search" : "discussions"}`
+          : undefined;
+
   return {
     createdAt: notification.createdAt,
     id: notification.id,
-    message: baseMessage,
+    message: communityMessage ?? baseMessage,
+    href,
     messageKey,
     read: notification.status !== "UNREAD",
     serverBacked: true,

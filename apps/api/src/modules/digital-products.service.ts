@@ -12,6 +12,9 @@ import { demoDigitalProducts } from "@gprn/domain";
 import type { CurrentUser } from "./auth.service.js";
 import { asRecord, requiredString } from "./validation.js";
 import { publicAssetUrl } from "./serialization.js";
+import { mediaAssetResponse } from "./serialization.js";
+import { mediaCatalogFilter } from "./media-catalog.js";
+import { boundedText, requireUuid } from "./community-policy.js";
 import {
   createProductCover,
   decodeProductUpload,
@@ -40,6 +43,12 @@ export function serializeDigitalProduct(
   return {
     id: product.id,
     kind: product.digitalKind,
+    genre: product.genre,
+    seller: {
+      username: product.seller.user.profile?.username,
+      displayName:
+        product.seller.user.profile?.displayName ?? product.seller.displayName,
+    },
     title: product.title,
     titleKey: demo?.title === product.title ? demo.titleKey : undefined,
     description: product.description,
@@ -69,6 +78,119 @@ export class DigitalProductsService {
     region: this.env.S3_REGION,
     forcePathStyle: this.env.S3_FORCE_PATH_STYLE,
   });
+
+  async catalog(query: Record<string, string | undefined>) {
+    if (query.id) requireUuid(query.id);
+    const kind = query.kind ?? "ALL";
+    if (!["ALL", "PHOTO", "VIDEO", "PRESET", "LUT"].includes(kind))
+      invalidProduct("PRODUCT_KIND_INVALID");
+    const page = Number(query.page ?? 1);
+    if (!Number.isInteger(page) || page < 1 || page > 10000)
+      invalidProduct("INVALID_PAGE");
+    const stock: Prisma.MarketplaceProductWhereInput = {
+      digitalKind: null,
+      photo: {
+        deletedAt: null,
+        status: "PUBLISHED",
+        moderationStatus: "APPROVED",
+        visibility: "PUBLIC",
+        ...mediaCatalogFilter(
+          kind === "PHOTO" || kind === "VIDEO" ? kind : undefined,
+        ),
+      },
+    };
+    const preset: Prisma.MarketplaceProductWhereInput = {
+      digitalKind: "PRESET",
+      seller: { user: { profile: { presetSalesEnabled: true } } },
+    };
+    const lut: Prisma.MarketplaceProductWhereInput = {
+      digitalKind: "LUT",
+      seller: { user: { profile: { lutSalesEnabled: true } } },
+    };
+    const choices =
+      kind === "PRESET"
+        ? [preset]
+        : kind === "LUT"
+          ? [lut]
+          : kind === "ALL"
+            ? [stock, preset, lut]
+            : [stock];
+    const where: Prisma.MarketplaceProductWhereInput = {
+      ...(query.id ? { id: query.id } : {}),
+      status: "PUBLISHED",
+      seller: {
+        status: "ACTIVE",
+        user: {
+          status: "ACTIVE",
+          profile: { visibility: "PUBLIC", deletedAt: null },
+        },
+      },
+      AND: [
+        { OR: choices },
+        ...(query.genre
+          ? [
+              {
+                OR: [
+                  { genre: boundedText(query.genre, 100) },
+                  { category: { slug: query.genre } },
+                ],
+              },
+            ]
+          : []),
+        ...(query.search
+          ? [
+              {
+                title: {
+                  contains: boundedText(query.search, 180),
+                  mode: "insensitive" as const,
+                },
+              },
+            ]
+          : []),
+      ],
+    };
+    const [products, total] = await Promise.all([
+      prisma.marketplaceProduct.findMany({
+        where,
+        include: {
+          ...productInclude,
+          category: true,
+          photo: { include: { assets: true } },
+        },
+        take: 24,
+        skip: (page - 1) * 24,
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      }),
+      prisma.marketplaceProduct.count({ where }),
+    ]);
+    return {
+      products: products.map((product) => {
+        if (product.digitalKind)
+          return serializeDigitalProduct(product, this.env);
+        const media = mediaAssetResponse(this.env, product.photo?.assets ?? []);
+        return {
+          id: product.id,
+          kind: media.mediaType,
+          title: product.title,
+          description: product.description,
+          priceMinor: Number(product.priceMinor),
+          currency: product.currency,
+          genre: product.category?.slug ?? product.genre,
+          imageUrl: media.thumbnailUrl ?? media.displayUrl,
+          videoUrl: media.videoUrl,
+          photoId: product.photoId,
+          seller: {
+            username: product.seller.user.profile?.username,
+            displayName:
+              product.seller.user.profile?.displayName ??
+              product.seller.displayName,
+          },
+        };
+      }),
+      total,
+      page,
+    };
+  }
 
   async demo(author: string) {
     const slugs = demoDigitalProducts
@@ -250,6 +372,10 @@ export class DigitalProductsService {
         });
         const data = {
           title,
+          genre:
+            typeof record.genre === "string"
+              ? boundedText(record.genre.trim(), 100) || null
+              : (existing?.genre ?? null),
           description,
           priceMinor: Number(record.priceMinor),
           status: record.active ? ("PUBLISHED" as const) : ("HIDDEN" as const),

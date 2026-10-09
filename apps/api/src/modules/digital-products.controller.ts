@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Req,
+  Query,
   Res,
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
@@ -30,6 +31,11 @@ export class DigitalProductsController {
   @Get("demo/:author")
   demo(@Param("author") author: string) {
     return this.products.demo(author);
+  }
+
+  @Get()
+  catalog(@Query() query: Record<string, string | undefined>) {
+    return this.products.catalog(query);
   }
 
   @Post()

@@ -3,8 +3,11 @@ import type { MetadataRoute } from "next";
 
 const sectionSlugs = [
   "",
-  "discover",
-  "video",
+  "feed",
+  "events",
+  "discussions",
+  "search",
+  "suggestions",
   "models",
   "studios",
   "battles",

@@ -2,6 +2,11 @@ import type { SupportedLocale } from "@gprn/i18n";
 
 export const sectionIds = [
   "home",
+  "feed",
+  "events",
+  "discussions",
+  "search",
+  "suggestions",
   "discover",
   "video",
   "models",
@@ -16,6 +21,11 @@ export const sectionIds = [
 ] as const;
 
 export const routedSectionIds = [
+  "feed",
+  "events",
+  "discussions",
+  "search",
+  "suggestions",
   "discover",
   "video",
   "models",

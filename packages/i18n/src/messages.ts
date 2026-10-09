@@ -5,6 +5,34 @@ import {
 } from "./locales.js";
 
 const baseMessages = {
+  "models.genre.nude": "Nude",
+  "models.genre.social": "Social campaigns",
+  "models.genre.art": "Art",
+  "models.genre.documentary": "Documentary",
+  "models.genre.presenter": "Presenter",
+  "models.genre.actor": "Actor",
+  "models.genre.fitness": "Fitness",
+  "models.genre.runway": "Runway",
+  "models.genre.hand": "Hand model",
+  "nav.feed": "Feed",
+  "section.feed.title": "Feed",
+  "section.feed.intro": "Photography and video from the community.",
+  "nav.events": "Events",
+  "section.events.title": "Events",
+  "section.events.intro":
+    "Publish or find creative events to meet colleagues and clients, and create new work.",
+  "nav.discussions": "Discussions",
+  "section.discussions.title": "Discussions",
+  "section.discussions.intro":
+    "Questions and debates about work, creators, models, events and studios.",
+  "nav.search": "Casting & Jobs",
+  "section.search.title": "Casting & Jobs",
+  "section.search.intro":
+    "Find collaborators and clients for a specific shoot or creative project.",
+  "nav.suggestions": "Suggestions",
+  "section.suggestions.title": "Suggestions",
+  "section.suggestions.intro":
+    "Send your ideas to the team. Replies are delivered to your account.",
   "product.add": "Create product",
   "product.edit": "Edit product",
   "product.name": "Product name",
@@ -1118,6 +1146,34 @@ export type MessageKey = keyof typeof baseMessages;
 type MessageMap = Record<MessageKey, string>;
 
 const ruMessages: Partial<MessageMap> = {
+  "models.genre.nude": "Ню",
+  "models.genre.social": "Социальная",
+  "models.genre.art": "Художественная",
+  "models.genre.documentary": "Документальная",
+  "models.genre.presenter": "Ведущий",
+  "models.genre.actor": "Актёр",
+  "models.genre.fitness": "Фитнес",
+  "models.genre.runway": "Подиум",
+  "models.genre.hand": "Модель рук",
+  "nav.feed": "Лента",
+  "section.feed.title": "Лента",
+  "section.feed.intro": "Фотографии и видео участников сообщества.",
+  "nav.events": "Мероприятия",
+  "section.events.title": "Мероприятия",
+  "section.events.intro":
+    "Публикуйте или находите творческие мероприятия, чтобы встретить коллег и клиентов и вместе создать контент.",
+  "nav.discussions": "Дискуссии",
+  "section.discussions.title": "Дискуссии",
+  "section.discussions.intro":
+    "Споры и дискуссии о работах мастеров, авторах, моделях, мероприятиях и студиях.",
+  "nav.search": "Поиск",
+  "section.search.title": "Поиск",
+  "section.search.intro":
+    "Объявления о поиске мастеров, моделей и клиентов под конкретную съёмку или творческий проект.",
+  "nav.suggestions": "Предложения",
+  "section.suggestions.title": "Предложения",
+  "section.suggestions.intro":
+    "Отправьте команде текст и изображение. Ответ придёт в ваш аккаунт.",
   "product.add": "Создать товар",
   "product.edit": "Редактировать товар",
   "product.name": "Название товара",
@@ -2130,6 +2186,34 @@ const ruMessages: Partial<MessageMap> = {
 };
 
 const ukMessages: Partial<MessageMap> = {
+  "models.genre.nude": "Ню",
+  "models.genre.social": "Соціальна",
+  "models.genre.art": "Художня",
+  "models.genre.documentary": "Документальна",
+  "models.genre.presenter": "Ведучий",
+  "models.genre.actor": "Актор",
+  "models.genre.fitness": "Фітнес",
+  "models.genre.runway": "Подіум",
+  "models.genre.hand": "Модель рук",
+  "nav.feed": "Стрічка",
+  "section.feed.title": "Стрічка",
+  "section.feed.intro": "Фотографії та відео учасників спільноти.",
+  "nav.events": "Події",
+  "section.events.title": "Події",
+  "section.events.intro":
+    "Публікуйте або знаходьте творчі події, щоб зустріти колег і клієнтів та створити контент.",
+  "nav.discussions": "Дискусії",
+  "section.discussions.title": "Дискусії",
+  "section.discussions.intro":
+    "Суперечки та дискусії про роботи майстрів, авторів, моделей, події та студії.",
+  "nav.search": "Пошук",
+  "section.search.title": "Пошук",
+  "section.search.intro":
+    "Оголошення про пошук майстрів, моделей та клієнтів для конкретної зйомки чи творчого проєкту.",
+  "nav.suggestions": "Пропозиції",
+  "section.suggestions.title": "Пропозиції",
+  "section.suggestions.intro":
+    "Надішліть команді текст і зображення. Відповідь надійде у ваш акаунт.",
   "wallet.transaction": "Операція за рахунком",
   "wallet.unavailable":
     "Поповнення недоступне: платіжний провайдер не підключений.",

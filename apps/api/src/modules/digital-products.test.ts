@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import sharp from "sharp";
 import { prisma } from "@gprn/db";
-import { demoDigitalProducts, paletteFromPixels } from "@gprn/domain";
+import {
+  demoDigitalProducts,
+  demoProductCovers,
+  paletteFromPixels,
+} from "@gprn/domain";
 import { S3ObjectStorage } from "@gprn/storage";
 import {
   createProductCover,
@@ -80,6 +84,49 @@ const record = {
   },
 } as unknown as DigitalProductRecord;
 
+test("catalog filters stock by real media type and only exposes approved public products", async () => {
+  const find = prisma.marketplaceProduct.findMany;
+  const count = prisma.marketplaceProduct.count;
+  let options: unknown;
+  prisma.marketplaceProduct.findMany = (async (args: unknown) => {
+    options = args;
+    return [];
+  }) as typeof find;
+  prisma.marketplaceProduct.count = (async () => 0) as typeof count;
+  try {
+    const service = new DigitalProductsService();
+    for (const kind of ["PHOTO", "VIDEO", "PRESET", "LUT"] as const) {
+      await service.catalog({ kind, genre: "portrait", page: "2" });
+      const query = options as {
+        where: { status: string; seller: unknown; AND: unknown[] };
+        skip: number;
+        take: number;
+      };
+      assert.equal(query.where.status, "PUBLISHED");
+      assert.equal(query.skip, 24);
+      assert.equal(query.take, 24);
+      assert.match(JSON.stringify(query.where.seller), /PUBLIC/);
+      assert.match(JSON.stringify(query.where.AND[1]), /portrait/);
+      const choices = JSON.stringify(query.where.AND[0]);
+      if (kind === "PHOTO" || kind === "VIDEO") {
+        assert.match(choices, /APPROVED/);
+        assert.match(choices, /PUBLIC/);
+        assert.match(choices, /video\//);
+        assert.equal(choices.includes('"NOT"'), kind === "PHOTO");
+      } else {
+        assert.match(choices, new RegExp(kind));
+        assert.match(
+          choices,
+          new RegExp(kind === "LUT" ? "lutSalesEnabled" : "presetSalesEnabled"),
+        );
+      }
+    }
+  } finally {
+    prisma.marketplaceProduct.findMany = find;
+    prisma.marketplaceProduct.count = count;
+  }
+});
+
 test("unverified wallet top-ups cannot mint funds", async () => {
   const original = prisma.$transaction;
   let writes = 0;
@@ -110,6 +157,20 @@ test("unverified wallet top-ups cannot mint funds", async () => {
 test("all 34 demo cards are preserved with distinct cover sources and usable product files", () => {
   assert.equal(demoDigitalProducts.length, 34);
   assert.equal(new Set(demoDigitalProducts.map((offer) => offer.id)).size, 34);
+  assert.equal(demoProductCovers.length, 34);
+  assert.equal(
+    new Set(demoProductCovers.map((cover) => cover.sourcePage)).size,
+    34,
+  );
+  for (const cover of demoProductCovers) {
+    assert.equal(
+      demoDigitalProducts.find((offer) => offer.id === cover.productId)
+        ?.imageUrl,
+      cover.imageUrl,
+    );
+    assert.equal(new URL(cover.imageUrl).hostname, "picsum.photos");
+    assert(cover.credit);
+  }
   assert.equal(
     new Set(demoDigitalProducts.map((offer) => offer.imageUrl.split("?")[0]))
       .size,

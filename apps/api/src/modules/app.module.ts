@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { CommunityController } from "./community.controller.js";
+import { CommunityService } from "./community.service.js";
 
 import { AuthController } from "./auth.controller.js";
 import { AuthService } from "./auth.service.js";
@@ -40,6 +42,7 @@ import { SocialConnectionsService } from "./social-connections.service.js";
 
 @Module({
   controllers: [
+    CommunityController,
     DigitalProductsController,
     AdminController,
     AnalyticsController,
@@ -62,6 +65,7 @@ import { SocialConnectionsService } from "./social-connections.service.js";
     SocialConnectionsController,
   ],
   providers: [
+    CommunityService,
     DigitalProductsService,
     AdminService,
     AnalyticsService,

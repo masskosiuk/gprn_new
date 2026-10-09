@@ -2,7 +2,11 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { loadRuntimeEnv } from "@gprn/config";
 import { prisma, type Prisma } from "@gprn/db";
-import { demoBattleAuthors, demoDigitalProducts } from "@gprn/domain";
+import {
+  demoBattleAuthors,
+  demoDigitalProducts,
+  demoProductCovers,
+} from "@gprn/domain";
 import { S3ObjectStorage } from "@gprn/storage";
 import sharp from "sharp";
 import {
@@ -49,10 +53,19 @@ export function demoProductFile(offer: (typeof demoDigitalProducts)[number]) {
   return { name: `${offer.id}.xmp`, buffer: Buffer.from(content) };
 }
 
-async function downloadCover(url: string) {
+export async function downloadCover(url: string) {
+  if (
+    ![
+      "images.unsplash.com",
+      "picsum.photos",
+      "images.pexels.com",
+      "assets.mixkit.co",
+    ].includes(new URL(url).hostname)
+  )
+    throw new Error("Unsupported demo image host.");
   const response = await fetch(url, {
     signal: AbortSignal.timeout(20_000),
-    redirect: "error",
+    redirect: "follow",
   });
   if (
     !response.ok ||
@@ -86,6 +99,7 @@ async function main() {
     forcePathStyle: env.S3_FORCE_PATH_STYLE,
   });
   let created = 0;
+  let refreshed = 0;
   let existing = 0;
   const extras = [
     {
@@ -137,8 +151,13 @@ async function main() {
         throw new Error(
           "Reserved demo product slug belongs to custom content.",
         );
-      existing++;
-      continue;
+      if (
+        !process.argv.includes("--refresh-covers") ||
+        !prior.previewAssetKey?.startsWith("demo/products/v1/")
+      ) {
+        existing++;
+        continue;
+      }
     }
     const original = await downloadCover(offer.imageUrl);
     const graded = await sharp(original, { limitInputPixels: 24_000_000 })
@@ -148,6 +167,54 @@ async function main() {
       .webp({ quality: 88 })
       .toBuffer();
     const cover = await createProductCover(graded);
+    const source = demoProductCovers.find(
+      (entry) => entry.productId === offer.id,
+    )!;
+    const genre =
+      offer.kind === "LUT"
+        ? "cinematic"
+        : ((
+            {
+              elena: "landscape",
+              anna: "architecture",
+              lucas: "portrait",
+              marcus: "commercial",
+              sofia: "portrait",
+            } as Record<string, string>
+          )[offer.author] ?? "street");
+    if (prior) {
+      const coverKey = "demo/products/v2/" + offer.id + "/cover.webp";
+      await storage.putObject({
+        bucket: env.S3_BUCKET_PUBLIC,
+        key: coverKey,
+        body: cover.buffer,
+        contentType: "image/webp",
+      });
+      const saved = await prisma.marketplaceProduct.updateMany({
+        where: {
+          id: prior.id,
+          isDemo: true,
+          previewAssetKey: prior.previewAssetKey,
+          updatedAt: prior.updatedAt,
+        },
+        data: {
+          previewAssetKey: coverKey,
+          palette: cover.palette,
+          genre,
+          description:
+            "Demo color treatment. Cover: " +
+            source.credit +
+            " / Unsplash. " +
+            source.sourcePage,
+        },
+      });
+      if (!saved.count)
+        throw new Error(
+          "Demo product changed during cover refresh; no customer files were modified.",
+        );
+      refreshed++;
+      continue;
+    }
     const file = demoProductFile(offer);
     validateProductFile(offer.kind, {
       name: file.name,
@@ -155,7 +222,7 @@ async function main() {
     });
     const productId = randomUUID();
     const fileId = randomUUID();
-    const coverKey = `demo/products/v1/${offer.id}/${productId}.webp`;
+    const coverKey = "demo/products/v2/" + offer.id + "/" + productId + ".webp";
     const fileKey = `demo/products/v1/${offer.id}/${fileId}.${offer.kind === "LUT" ? "cube" : "xmp"}`;
     try {
       await storage.putObject({
@@ -212,6 +279,7 @@ async function main() {
             sellerId: seller.id,
             slug,
             title: offer.title,
+            genre,
             priceMinor: offer.priceMinor,
             currency: "USD",
             digitalKind: offer.kind,
@@ -220,7 +288,11 @@ async function main() {
             previewAssetKey: coverKey,
             palette: cover.palette,
             filesJson: files as Prisma.InputJsonValue,
-            description: "Demo color treatment; cover source: Unsplash.",
+            description:
+              "Demo color treatment. Cover: " +
+              source.credit +
+              " / Unsplash. " +
+              source.sourcePage,
           },
         });
         await tx.profile.update({
@@ -242,7 +314,13 @@ async function main() {
     console.log(`Demo product prepared: ${offer.id}`);
   }
   console.log(
-    `Demo products: created ${created}, preserved ${existing}. Real products, accounts and competition entries were not modified.`,
+    "Demo products: created " +
+      created +
+      ", refreshed covers " +
+      refreshed +
+      ", preserved " +
+      existing +
+      ". Real products, accounts and competition entries were not modified.",
   );
 }
 

@@ -3,8 +3,7 @@ export const demoDigitalProducts = [
     author: "mika",
     kind: "PRESET",
     id: "mika-neon-night",
-    imageUrl:
-      "https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "https://picsum.photos/id/208/1200/750",
     priceMinor: 3900,
     titleKey: "preset.style.neonNight",
     title: "Neon Night",
@@ -17,8 +16,7 @@ export const demoDigitalProducts = [
     author: "mika",
     kind: "PRESET",
     id: "mika-rain-cinema",
-    imageUrl:
-      "https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/211/1200/750",
     priceMinor: 3200,
     titleKey: "preset.style.rainCinema",
     title: "Rain Cinema",
@@ -31,8 +29,7 @@ export const demoDigitalProducts = [
     author: "mika",
     kind: "PRESET",
     id: "mika-soft-film",
-    imageUrl:
-      "https://images.unsplash.com/photo-1524413840807-0c3cb6fa808d?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/214/1200/750",
     priceMinor: 2900,
     titleKey: "preset.style.softFilm",
     title: "Soft Film",
@@ -45,8 +42,7 @@ export const demoDigitalProducts = [
     author: "elena",
     kind: "PRESET",
     id: "elena-nordic-matte",
-    imageUrl:
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "https://picsum.photos/id/217/1200/750",
     priceMinor: 3200,
     titleKey: "preset.style.nordicMatte",
     title: "Nordic Matte",
@@ -59,8 +55,7 @@ export const demoDigitalProducts = [
     author: "elena",
     kind: "PRESET",
     id: "elena-coastal-air",
-    imageUrl:
-      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/220/1200/750",
     priceMinor: 2800,
     titleKey: "preset.style.coastalAir",
     title: "Coastal Air",
@@ -73,8 +68,7 @@ export const demoDigitalProducts = [
     author: "elena",
     kind: "PRESET",
     id: "elena-deep-contrast",
-    imageUrl:
-      "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/223/1200/750",
     priceMinor: 3600,
     titleKey: "preset.style.deepContrast",
     title: "Deep Contrast",
@@ -87,8 +81,7 @@ export const demoDigitalProducts = [
     author: "yusuf",
     kind: "PRESET",
     id: "yusuf-desert-gold",
-    imageUrl:
-      "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "https://picsum.photos/id/228/1200/750",
     priceMinor: 2700,
     titleKey: "preset.style.desertGold",
     title: "Desert Gold",
@@ -101,8 +94,7 @@ export const demoDigitalProducts = [
     author: "yusuf",
     kind: "PRESET",
     id: "yusuf-copper-film",
-    imageUrl:
-      "https://images.unsplash.com/photo-1539020140153-e479b8c22e70?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/231/1200/750",
     priceMinor: 3100,
     titleKey: "preset.style.copperFilm",
     title: "Copper Film",
@@ -115,8 +107,7 @@ export const demoDigitalProducts = [
     author: "yusuf",
     kind: "PRESET",
     id: "yusuf-market-warmth",
-    imageUrl:
-      "https://images.unsplash.com/photo-1489493512598-d08130f49bea?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/234/1200/750",
     priceMinor: 2400,
     titleKey: "preset.style.marketWarmth",
     title: "Market Warmth",
@@ -129,8 +120,7 @@ export const demoDigitalProducts = [
     author: "anna",
     kind: "PRESET",
     id: "anna-concrete-minimal",
-    imageUrl:
-      "https://images.unsplash.com/photo-1486718448742-163732cd1544?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "https://picsum.photos/id/237/1200/750",
     priceMinor: 3600,
     titleKey: "preset.style.concreteMinimal",
     title: "Concrete Minimal",
@@ -143,8 +133,7 @@ export const demoDigitalProducts = [
     author: "anna",
     kind: "PRESET",
     id: "anna-urban-chrome",
-    imageUrl:
-      "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/240/1200/750",
     priceMinor: 3300,
     titleKey: "preset.style.urbanChrome",
     title: "Urban Chrome",
@@ -157,8 +146,7 @@ export const demoDigitalProducts = [
     author: "anna",
     kind: "PRESET",
     id: "anna-studio-neutral",
-    imageUrl:
-      "https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/243/1200/750",
     priceMinor: 2900,
     titleKey: "preset.style.studioNeutral",
     title: "Studio Neutral",
@@ -171,8 +159,7 @@ export const demoDigitalProducts = [
     author: "lucas",
     kind: "PRESET",
     id: "lucas-paris-night",
-    imageUrl:
-      "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "https://picsum.photos/id/248/1200/750",
     priceMinor: 4900,
     titleKey: "preset.style.parisNight",
     title: "Paris Night",
@@ -185,8 +172,7 @@ export const demoDigitalProducts = [
     author: "lucas",
     kind: "PRESET",
     id: "lucas-motion-teal",
-    imageUrl:
-      "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/251/1200/750",
     priceMinor: 4400,
     titleKey: "preset.style.motionTeal",
     title: "Motion Teal",
@@ -199,8 +185,7 @@ export const demoDigitalProducts = [
     author: "lucas",
     kind: "PRESET",
     id: "lucas-forest-analog",
-    imageUrl:
-      "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/254/1200/750",
     priceMinor: 3700,
     titleKey: "preset.style.forestAnalog",
     title: "Forest Analog",
@@ -213,8 +198,7 @@ export const demoDigitalProducts = [
     author: "iryna",
     kind: "PRESET",
     id: "iryna-kyiv-grain",
-    imageUrl:
-      "https://images.unsplash.com/photo-1431576901776-e539bd916ba2?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/257/1200/750",
     priceMinor: 3500,
     titleKey: "preset.style.kyivGrain",
     title: "Kyiv Grain",
@@ -227,8 +211,7 @@ export const demoDigitalProducts = [
     author: "iryna",
     kind: "PRESET",
     id: "iryna-storm-story",
-    imageUrl:
-      "https://images.unsplash.com/photo-1494783367193-149034c05e8f?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/260/1200/750",
     priceMinor: 3900,
     titleKey: "preset.style.stormStory",
     title: "Storm Story",
@@ -241,8 +224,7 @@ export const demoDigitalProducts = [
     author: "iryna",
     kind: "PRESET",
     id: "iryna-editorial-skin",
-    imageUrl:
-      "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/264/1200/750",
     priceMinor: 3200,
     titleKey: "preset.style.editorialSkin",
     title: "Editorial Skin",
@@ -255,8 +237,7 @@ export const demoDigitalProducts = [
     author: "marcus",
     kind: "PRESET",
     id: "marcus-clean-portrait",
-    imageUrl:
-      "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "https://picsum.photos/id/267/1200/750",
     priceMinor: 4200,
     titleKey: "preset.style.cleanPortrait",
     title: "Clean Portrait",
@@ -269,8 +250,7 @@ export const demoDigitalProducts = [
     author: "marcus",
     kind: "PRESET",
     id: "marcus-lisbon-blue",
-    imageUrl:
-      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/270/1200/750",
     priceMinor: 3600,
     titleKey: "preset.style.lisbonBlue",
     title: "Lisbon Blue",
@@ -283,8 +263,7 @@ export const demoDigitalProducts = [
     author: "marcus",
     kind: "PRESET",
     id: "marcus-motion-teal",
-    imageUrl:
-      "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/273/1200/750",
     priceMinor: 3900,
     titleKey: "preset.style.motionTeal",
     title: "Motion Teal",
@@ -297,8 +276,7 @@ export const demoDigitalProducts = [
     author: "sofia",
     kind: "PRESET",
     id: "sofia-vintage-transit",
-    imageUrl:
-      "https://images.unsplash.com/photo-1491553895911-0055eca6402d?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "https://picsum.photos/id/276/1200/750",
     priceMinor: 4600,
     titleKey: "preset.style.vintageTransit",
     title: "Vintage Transit",
@@ -311,8 +289,7 @@ export const demoDigitalProducts = [
     author: "sofia",
     kind: "PRESET",
     id: "sofia-coastal-air",
-    imageUrl:
-      "https://images.unsplash.com/photo-1473116763249-2faaef81ccda?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/279/1200/750",
     priceMinor: 3800,
     titleKey: "preset.style.coastalAir",
     title: "Coastal Air",
@@ -325,8 +302,7 @@ export const demoDigitalProducts = [
     author: "sofia",
     kind: "PRESET",
     id: "sofia-fine-art-light",
-    imageUrl:
-      "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/282/1200/750",
     priceMinor: 4100,
     titleKey: "preset.style.fineArtLight",
     title: "Fine Art Light",
@@ -339,8 +315,7 @@ export const demoDigitalProducts = [
     author: "mika",
     kind: "LUT",
     id: "mika-cyan-orange",
-    imageUrl:
-      "https://images.unsplash.com/photo-1536098561742-ca998e48cbcc?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/287/1200/750",
     priceMinor: 3500,
     titleKey: "lut.style.cyanOrange",
     title: "Cyan Orange",
@@ -353,8 +328,7 @@ export const demoDigitalProducts = [
     author: "mika",
     kind: "LUT",
     id: "mika-night-contrast",
-    imageUrl:
-      "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/290/1200/750",
     priceMinor: 0,
     titleKey: "lut.style.nightContrast",
     title: "Night Contrast",
@@ -367,8 +341,7 @@ export const demoDigitalProducts = [
     author: "elena",
     kind: "LUT",
     id: "elena-clean-cinema",
-    imageUrl:
-      "https://images.unsplash.com/photo-1529963183134-61a90db47eaf?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/293/1200/750",
     priceMinor: 3100,
     titleKey: "lut.style.cleanCinema",
     title: "Clean Cinema",
@@ -381,8 +354,7 @@ export const demoDigitalProducts = [
     author: "elena",
     kind: "LUT",
     id: "elena-forest-film",
-    imageUrl:
-      "https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/296/1200/750",
     priceMinor: 2600,
     titleKey: "lut.style.forestFilm",
     title: "Forest Film",
@@ -395,8 +367,7 @@ export const demoDigitalProducts = [
     author: "yusuf",
     kind: "LUT",
     id: "yusuf-desert-heat",
-    imageUrl:
-      "https://images.unsplash.com/photo-1597212618440-806262de4f6b?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/300/1200/750",
     priceMinor: 2400,
     titleKey: "lut.style.desertHeat",
     title: "Desert Heat",
@@ -409,8 +380,7 @@ export const demoDigitalProducts = [
     author: "yusuf",
     kind: "LUT",
     id: "yusuf-skin-tone",
-    imageUrl:
-      "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/304/1200/750",
     priceMinor: 0,
     titleKey: "lut.style.skinTone",
     title: "Skin Tone",
@@ -423,8 +393,7 @@ export const demoDigitalProducts = [
     author: "anna",
     kind: "LUT",
     id: "anna-clean-cinema",
-    imageUrl:
-      "https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/307/1200/750",
     priceMinor: 3300,
     titleKey: "lut.style.cleanCinema",
     title: "Clean Cinema",
@@ -437,8 +406,7 @@ export const demoDigitalProducts = [
     author: "anna",
     kind: "LUT",
     id: "anna-night-contrast",
-    imageUrl:
-      "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/310/1200/750",
     priceMinor: 2800,
     titleKey: "lut.style.nightContrast",
     title: "Night Contrast",
@@ -451,8 +419,7 @@ export const demoDigitalProducts = [
     author: "lucas",
     kind: "LUT",
     id: "lucas-cyan-orange",
-    imageUrl:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/313/1200/750",
     priceMinor: 4600,
     titleKey: "lut.style.cyanOrange",
     title: "Cyan Orange",
@@ -465,8 +432,7 @@ export const demoDigitalProducts = [
     author: "lucas",
     kind: "LUT",
     id: "lucas-skin-tone",
-    imageUrl:
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1200&q=82",
+    imageUrl: "https://picsum.photos/id/316/1200/750",
     priceMinor: 3900,
     titleKey: "lut.style.skinTone",
     title: "Skin Tone",

@@ -16,10 +16,14 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ApiRequestError } from "../../lib/auth-client";
 import { paletteFromPixels } from "@gprn/domain";
+import Link from "next/link";
+import { PublicationTools } from "./community";
 
 export interface DigitalProductOffer {
   readonly id: string;
   readonly kind?: "PRESET" | "LUT";
+  readonly genre?: string | null;
+  readonly seller?: { username: string; displayName: string };
   readonly imageUrl: string;
   readonly priceMinor: number;
   readonly title?: string;
@@ -41,6 +45,7 @@ export interface ProductInput {
   readonly kind: "PRESET" | "LUT";
   readonly title: string;
   readonly description: string;
+  readonly genre?: string;
   readonly priceMinor: number;
   readonly active: boolean;
   readonly coverDataUrl?: string;
@@ -214,6 +219,7 @@ function ProductEditor({
     offer?.title ?? (offer?.titleKey ? t(offer.titleKey) : ""),
   );
   const [description, setDescription] = useState(offer?.description ?? "");
+  const [genre, setGenre] = useState(offer?.genre ?? "");
   const [price, setPrice] = useState(String((offer?.priceMinor ?? 2500) / 100));
   const [free, setFree] = useState(offer?.priceMinor === 0);
   const [active, setActive] = useState(!offer || offer.status === "PUBLISHED");
@@ -264,6 +270,7 @@ function ProductEditor({
                 kind,
                 title: title.trim(),
                 description,
+                genre,
                 priceMinor,
                 active,
                 coverDataUrl: cover,
@@ -306,6 +313,36 @@ function ProductEditor({
             />
           </label>
           <div className="product-editor-cover">
+            <label className="form-field">
+              <span>{t("discover.category")}</span>
+              <select
+                value={genre}
+                onChange={(event) => setGenre(event.target.value)}
+              >
+                <option value="">{t("category.all")}</option>
+                {(
+                  [
+                    "portrait",
+                    "landscape",
+                    "street",
+                    "nature",
+                    "architecture",
+                    "documentary",
+                    "commercial",
+                    "boudoir",
+                    "cinematic",
+                  ] as const
+                ).map((key) => (
+                  <option key={key} value={key}>
+                    {key === "cinematic"
+                      ? locale === "ru"
+                        ? "Кино"
+                        : "Cinema"
+                      : t(("category." + key) as MessageKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
             {cover || offer?.imageUrl ? (
               <img src={cover ?? offer!.imageUrl} alt={t("product.cover")} />
             ) : (
@@ -628,6 +665,18 @@ export function DigitalProductSection({
                   )}
                 </span>
                 <h3>{title}</h3>
+                {offer.seller ? (
+                  <Link
+                    href={
+                      "/" +
+                      locale +
+                      "/profile?author=" +
+                      encodeURIComponent(offer.seller.username)
+                    }
+                  >
+                    {offer.seller.displayName}
+                  </Link>
+                ) : null}
                 {offer.description && <p>{offer.description}</p>}
                 {offer.files && (
                   <p>
@@ -689,6 +738,19 @@ export function DigitalProductSection({
                     </button>
                   </div>
                 </div>
+                {/^[0-9a-f-]{36}$/i.test(offer.id) &&
+                offer.status === "PUBLISHED" ? (
+                  <PublicationTools
+                    comments={false}
+                    source={{
+                      type: "PRODUCT",
+                      id: offer.id,
+                      title,
+                      image: offer.imageUrl,
+                      path: "/" + locale + "/marketplace?product=" + offer.id,
+                    }}
+                  />
+                ) : null}
               </div>
             </article>
           );

@@ -532,6 +532,7 @@ export class AdminService {
             ? {
                 avatarAssetKey: user.profile.avatarAssetKey,
                 displayName: user.profile.displayName,
+                proUntil: user.profile.proUntil,
                 tier: user.profile.tier,
                 username: user.profile.username,
               }
