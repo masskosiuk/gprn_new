@@ -1121,15 +1121,15 @@ const promotionPriceMinor: Record<PromotionPlacement, number> = {
 const navItems: readonly NavItem[] = [
   { Icon: Compass, id: "home", messageKey: "nav.home" },
   { Icon: Images, id: "feed", messageKey: "nav.feed" },
-  { Icon: CalendarDays, id: "events", messageKey: "nav.events" },
-  { Icon: BookOpen, id: "discussions", messageKey: "nav.discussions" },
-  { Icon: Search, id: "search", messageKey: "nav.search" },
-  { Icon: Users, id: "models", messageKey: "nav.models" },
+  { Icon: Trophy, id: "experts", messageKey: "nav.experts" },
   { Icon: Building2, id: "studios", messageKey: "nav.studios" },
+  { Icon: Users, id: "models", messageKey: "nav.models" },
   { Icon: Swords, id: "battles", messageKey: "nav.battles" },
   { Icon: BadgeCheck, id: "challenges", messageKey: "nav.challenges" },
   { Icon: ShoppingBag, id: "marketplace", messageKey: "nav.marketplace" },
-  { Icon: Trophy, id: "experts", messageKey: "nav.experts" },
+  { Icon: BookOpen, id: "discussions", messageKey: "nav.discussions" },
+  { Icon: CalendarDays, id: "events", messageKey: "nav.events" },
+  { Icon: Search, id: "search", messageKey: "nav.search" },
 ];
 
 const adminAccountTiers: readonly AdminAccountTier[] = [
