@@ -32,6 +32,92 @@ const actor = {
 const forbidden = (error: unknown) =>
   (error as { getStatus(): number }).getStatus() === 403;
 
+test("home highlights contain only public approved posts in newest-publication order", async () => {
+  const find = prisma.communityPost.findMany;
+  const kinds: string[] = [];
+  prisma.communityPost.findMany = (async (query: {
+    where: {
+      kind: string;
+      deletedAt: unknown;
+      moderationStatus: string;
+      author: unknown;
+    };
+    take: number;
+    orderBy: unknown;
+  }) => {
+    kinds.push(query.where.kind);
+    assert.equal(query.take, 3);
+    assert.equal(query.where.deletedAt, null);
+    assert.equal(query.where.moderationStatus, "APPROVED");
+    assert.match(JSON.stringify(query.where.author), /PUBLIC/);
+    assert.deepEqual(query.orderBy, [{ createdAt: "desc" }, { id: "asc" }]);
+    return [];
+  }) as unknown as typeof find;
+  try {
+    const result = await new CommunityService().highlights();
+    assert.deepEqual(kinds, ["DISCUSSION", "CASTING", "EVENT"]);
+    assert.deepEqual(result.groups, { DISCUSSION: [], CASTING: [], EVENT: [] });
+  } finally {
+    prisma.communityPost.findMany = find;
+  }
+});
+
+test("translation cannot expose a comment on a hidden or removed material", async () => {
+  const find = prisma.comment.findFirst;
+  const photo = prisma.photo.findFirst;
+  prisma.comment.findFirst = (async () => ({
+    body: "Private text",
+    photoId: id,
+    postId: null,
+  })) as unknown as typeof find;
+  prisma.photo.findFirst = (async () => null) as typeof photo;
+  try {
+    await assert.rejects(
+      new CommunityService().translateComment(id, { language: "en" }),
+      (error: unknown) =>
+        (error as { getStatus(): number }).getStatus() === 404,
+    );
+  } finally {
+    prisma.comment.findFirst = find;
+    prisma.photo.findFirst = photo;
+  }
+});
+
+test("translation reads the stored comment, never arbitrary client text", async () => {
+  const find = prisma.comment.findFirst;
+  const photo = prisma.photo.findFirst;
+  prisma.comment.findFirst = (async () => ({
+    body: "Stored text",
+    photoId: id,
+    postId: null,
+  })) as unknown as typeof find;
+  prisma.photo.findFirst = (async () => ({ id })) as typeof photo;
+  const service = new CommunityService();
+  (
+    service as unknown as {
+      translator: {
+        translate(text: string, language: string): Promise<{ text: string }>;
+      };
+    }
+  ).translator.translate = async (text, language) => {
+    assert.equal(text, "Stored text");
+    assert.equal(language, "fr");
+    return { text: "Texte stocké" };
+  };
+  try {
+    assert.deepEqual(
+      await service.translateComment(id, {
+        language: "fr",
+        text: "Injected text",
+      }),
+      { text: "Texte stocké" },
+    );
+  } finally {
+    prisma.comment.findFirst = find;
+    prisma.photo.findFirst = photo;
+  }
+});
+
 test("community demo catalog contains every requested topic and only reserved masters", () => {
   assert.equal(demoCommunityPosts.length, 14);
   assert.equal(new Set(demoCommunityPosts.map((entry) => entry.key)).size, 14);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ShoppingBag, Search } from "lucide-react";
+import { ShoppingBag } from "lucide-react";
 import { getMessage, type MessageKey, type SupportedLocale } from "@gprn/i18n";
 import {
   DigitalProductSection,
@@ -91,7 +91,7 @@ export function ServerMarketplace({
       (product) => product.kind === type,
     ) as DigitalProductOffer[];
   return (
-    <section className="server-marketplace">
+    <section className="page-section server-marketplace">
       <div className="community-filters marketplace-filters">
         <label>
           {text("Категория", "Category")}
@@ -142,7 +142,7 @@ export function ServerMarketplace({
           </select>
         </label>
         <label>
-          <Search size={16} />
+          {t("common.search")}
           <input
             type="search"
             aria-label={t("common.search")}
@@ -261,6 +261,7 @@ export function ServerMarketplace({
       </div>
       <DigitalProductSection
         kind="preset"
+        catalog
         locale={locale}
         offers={digital("PRESET")}
         apiRoot={root}
@@ -268,6 +269,7 @@ export function ServerMarketplace({
       />
       <DigitalProductSection
         kind="lut"
+        catalog
         locale={locale}
         offers={digital("LUT")}
         apiRoot={root}

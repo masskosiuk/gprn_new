@@ -45,6 +45,7 @@ import {
   Megaphone,
   Medal,
   Menu,
+  MessageCircle,
   Moon,
   Paperclip,
   Palette,
@@ -93,7 +94,9 @@ import {
   CommunityProvider,
   CommunityBoard,
   SuggestionsPage,
-  PublicationTools,
+  Comments,
+  DiscussionButton,
+  CommunityHighlights,
   ReportButton,
   InteractionMenu,
   AdminFold,
@@ -2728,18 +2731,19 @@ export function HomeClient({
   const [photoPendingDeletion, setPhotoPendingDeletion] =
     useState<PhotoRecord | null>(null);
   const [photoDeleteBusy, setPhotoDeleteBusy] = useState(false);
-  const [feedKind, setFeedKind] = useState<"PHOTO" | "VIDEO">("PHOTO");
+  const [feedKind, setFeedKind] = useState<"ALL" | "PHOTO" | "VIDEO">("ALL");
   const [feedStatus, setFeedStatus] = useState<"loading" | "ready" | "error">(
     "loading",
   );
   const feedGenres = useRef({
+    ALL: "all" as CategoryFilter,
     PHOTO: "all" as CategoryFilter,
     VIDEO: "all" as CategoryFilter,
   });
   const [searchTerm, setSearchTerm] = useState("");
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("media") === "VIDEO")
-      setFeedKind("VIDEO");
+    const media = new URLSearchParams(window.location.search).get("media");
+    if (media === "VIDEO" || media === "PHOTO") setFeedKind(media);
   }, []);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [discoverLocationFilter, setDiscoverLocationFilter] =
@@ -6685,39 +6689,6 @@ export function HomeClient({
           </button>
         </section>
 
-        <section className="page-section">
-          <div className="section-heading">
-            <div>
-              <span className="eyebrow">{t("home.previewTitle")}</span>
-              <h2>{t("home.previewCopy")}</h2>
-            </div>
-          </div>
-          <div className="feature-grid">
-            {navItems
-              .filter((item) => item.id !== "home")
-              .map(({ Icon, id, messageKey }) => {
-                const meta = sectionMeta[id as Exclude<SectionId, "home">];
-
-                return (
-                  <Link
-                    className="feature-card"
-                    href={getSectionHref(locale, id)}
-                    key={id}
-                  >
-                    <Icon aria-hidden="true" size={22} />
-                    <strong>{t(messageKey)}</strong>
-                    <span>{t(meta.introKey)}</span>
-                    <ChevronRight
-                      aria-hidden="true"
-                      className="feature-arrow"
-                      size={18}
-                    />
-                  </Link>
-                );
-              })}
-          </div>
-        </section>
-
         <section className="sponsor-band">
           <div className="section-heading">
             <div>
@@ -6942,6 +6913,7 @@ export function HomeClient({
             ))}
           </div>
         </section>
+        <CommunityHighlights />
       </>
     );
   }
@@ -7018,31 +6990,6 @@ export function HomeClient({
   function renderDiscoverPage(): ReactNode {
     return (
       <>
-        <div
-          className="feed-kind-filter"
-          role="group"
-          aria-label={t("nav.feed")}
-        >
-          {(["PHOTO", "VIDEO"] as const).map((kind) => (
-            <button
-              type="button"
-              key={kind}
-              aria-pressed={feedKind === kind}
-              onClick={() => {
-                feedGenres.current[feedKind] = categoryFilter;
-                setFeedKind(kind);
-                setCategoryFilter(feedGenres.current[kind]);
-                const url = new URL(window.location.href);
-                url.searchParams.set("media", kind);
-                url.searchParams.delete("category");
-                window.history.replaceState(null, "", url);
-              }}
-            >
-              {kind === "PHOTO" ? <Camera size={16} /> : <Video size={16} />}
-              {t(kind === "PHOTO" ? "nav.discover" : "nav.video")}
-            </button>
-          ))}
-        </div>
         <section className="workspace-grid discover-workspace">
           <div className="discover-map-section">
             <InteractivePhotoMap
@@ -7059,6 +7006,7 @@ export function HomeClient({
                 const work = visiblePhotos.find((photo) => photo.src === src);
                 setImagePreview({
                   alt,
+                  photoId: work?.id,
                   src: getLargeImageSource(src),
                   videoSrc: work?.videoSrc,
                 });
@@ -7086,16 +7034,20 @@ export function HomeClient({
               <div>
                 <span className="eyebrow">
                   {t(
-                    feedKind === "VIDEO"
-                      ? "video.featured"
-                      : "discover.featured",
+                    feedKind === "ALL"
+                      ? "section.feed.intro"
+                      : feedKind === "VIDEO"
+                        ? "video.featured"
+                        : "discover.featured",
                   )}
                 </span>
                 <h2>
                   {t(
-                    feedKind === "VIDEO"
-                      ? "section.video.title"
-                      : "section.discover.title",
+                    feedKind === "ALL"
+                      ? "section.feed.title"
+                      : feedKind === "VIDEO"
+                        ? "section.video.title"
+                        : "section.discover.title",
                   )}
                 </h2>
               </div>
@@ -7133,7 +7085,43 @@ export function HomeClient({
                 <Filter aria-hidden="true" size={20} />
                 <h2>{t("discover.filters")}</h2>
               </div>
-
+              <div
+                className="feed-kind-filter"
+                role="group"
+                aria-label={t("nav.feed")}
+              >
+                {(["PHOTO", "VIDEO", "ALL"] as const).map((kind) => (
+                  <button
+                    type="button"
+                    key={kind}
+                    aria-pressed={feedKind === kind}
+                    onClick={() => {
+                      feedGenres.current[feedKind] = categoryFilter;
+                      setFeedKind(kind);
+                      setCategoryFilter(feedGenres.current[kind]);
+                      const url = new URL(window.location.href);
+                      url.searchParams.set("media", kind);
+                      url.searchParams.delete("category");
+                      window.history.replaceState(null, "", url);
+                    }}
+                  >
+                    {kind === "PHOTO" ? (
+                      <Camera size={16} />
+                    ) : kind === "VIDEO" ? (
+                      <Video size={16} />
+                    ) : (
+                      <Images size={16} />
+                    )}
+                    {t(
+                      kind === "ALL"
+                        ? "feed.all"
+                        : kind === "PHOTO"
+                          ? "nav.discover"
+                          : "nav.video",
+                    )}
+                  </button>
+                ))}
+              </div>
               <div className="discover-filter-fields">
                 <div className="discover-filter-field">
                   <span>{t("discover.category")}</span>
@@ -7142,9 +7130,9 @@ export function HomeClient({
                     className="category-filter-tags"
                     role="group"
                   >
-                    {(feedKind === "VIDEO"
-                      ? videoCategoryFilters
-                      : categoryFilters
+                    {(feedKind === "PHOTO"
+                      ? categoryFilters
+                      : videoCategoryFilters
                     ).map((filter) => (
                       <button
                         aria-pressed={categoryFilter === filter.id}
@@ -7248,6 +7236,17 @@ export function HomeClient({
                   className="secondary-action compact-action"
                   onClick={() => {
                     setSearchTerm("");
+                    setFeedKind("ALL");
+                    feedGenres.current = {
+                      ALL: "all",
+                      PHOTO: "all",
+                      VIDEO: "all",
+                    };
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete("media");
+                    url.searchParams.delete("category");
+                    url.searchParams.delete("location");
+                    window.history.replaceState(null, "", url);
                     setCategoryFilter("all");
                     setDiscoverLocationFilter("all");
                     setDiscoverDateFrom("");
@@ -7828,7 +7827,7 @@ export function HomeClient({
               </button>
             </div>
           ) : null}
-          <div className="photo-actions">
+          <div className="photo-actions publication-actions">
             <button
               aria-label={isLiked ? t("photo.unlike") : t("photo.like")}
               aria-pressed={isLiked}
@@ -7850,10 +7849,29 @@ export function HomeClient({
                 )}
               </span>
             </button>
+            {photo.serverBacked && photo.published ? (
+              <button
+                type="button"
+                className="icon-button"
+                title={locale === "ru" ? "Комментарии" : "Comments"}
+                aria-label={locale === "ru" ? "Комментарии" : "Comments"}
+                onClick={() => {
+                  setPhotoReviewOpen(false);
+                  setImagePreview({
+                    alt: getPhotoTitle(photo, locale),
+                    photoId: photo.id,
+                    src: getLargeImageSource(photo.src),
+                    videoSrc: photo.videoSrc,
+                  });
+                }}
+              >
+                <MessageCircle size={22} />
+              </button>
+            ) : null}
             <button
               aria-label={isSaved ? t("discover.unsave") : t("discover.save")}
               aria-pressed={isSaved}
-              className={`photo-counter-action${isSaved ? " is-active" : ""}`}
+              className={`photo-counter-action photo-save-action${isSaved ? " is-active" : ""}`}
               onClick={() => {
                 toggleSavePhoto(photo.id);
               }}
@@ -7912,8 +7930,27 @@ export function HomeClient({
               title={t("common.share")}
               type="button"
             >
-              <Share2 aria-hidden="true" size={18} />
+              <Send aria-hidden="true" size={22} />
             </button>
+            {photo.serverBacked && photo.published ? (
+              <>
+                <DiscussionButton
+                  compact
+                  source={{
+                    type: "PHOTO",
+                    id: photo.id,
+                    title: getPhotoTitle(photo, locale),
+                    image: photo.src,
+                    path: `/${locale}/profile?author=${encodeURIComponent(getPhotoAuthorId(photo))}&photo=${photo.id}`,
+                  }}
+                />
+                <ReportButton
+                  type="PHOTO"
+                  id={photo.id}
+                  path={`/${locale}/profile?author=${encodeURIComponent(getPhotoAuthorId(photo))}&photo=${photo.id}`}
+                />
+              </>
+            ) : null}
             {photo.isMine ? (
               <>
                 {photo.published && showCommerce ? (
@@ -7960,17 +7997,6 @@ export function HomeClient({
               </>
             ) : null}
           </div>
-          {photo.serverBacked && photo.published ? (
-            <PublicationTools
-              source={{
-                type: "PHOTO",
-                id: photo.id,
-                title: getPhotoTitle(photo, locale),
-                image: photo.src,
-                path: `/${locale}/profile?author=${encodeURIComponent(getPhotoAuthorId(photo))}&photo=${photo.id}`,
-              }}
-            />
-          ) : null}
         </div>
       </article>
     );
@@ -11706,6 +11732,12 @@ export function HomeClient({
 
   function renderImagePreviewDialog(): ReactNode {
     if (!imagePreview) return null;
+    const previewWork = allPhotos.find(
+      (photo) => photo.id === imagePreview.photoId,
+    );
+    const hasComments = Boolean(
+      previewWork?.serverBacked && previewWork.published,
+    );
 
     const currentTier =
       currentProfile?.tier ?? (currentProfile ? "viewer" : null);
@@ -11724,7 +11756,7 @@ export function HomeClient({
         <figure
           aria-label={imagePreview.alt}
           aria-modal="true"
-          className="image-lightbox-dialog"
+          className={`image-lightbox-dialog${hasComments ? " has-comments" : ""}`}
           onMouseDown={(event) => {
             event.stopPropagation();
           }}
@@ -11767,7 +11799,14 @@ export function HomeClient({
               </button>
             ) : null}
           </figcaption>
-
+          {hasComments && imagePreview.photoId ? (
+            <Comments
+              key={imagePreview.photoId}
+              kind="PHOTO"
+              id={imagePreview.photoId}
+              initiallyOpen
+            />
+          ) : null}
           {isPhotoReviewOpen && imagePreview.photoId ? (
             <form className="photo-review-form" onSubmit={submitPhotoReview}>
               <div className="photo-review-heading">

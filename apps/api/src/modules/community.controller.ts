@@ -26,6 +26,9 @@ export class CommunityController {
   @Get("posts") list(@Query() query: Record<string, string | undefined>) {
     return this.community.list(query);
   }
+  @Get("highlights") highlights() {
+    return this.community.highlights();
+  }
   @Get("posts/:id") one(@Param("id") id: string) {
     return this.community.one(id);
   }
@@ -169,5 +172,11 @@ export class CommunityController {
       await this.auth.requireUserFromRequest(request),
       id,
     );
+  }
+  @Post("comments/:id/translation") translateComment(
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    return this.community.translateComment(id, body);
   }
 }

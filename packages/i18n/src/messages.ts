@@ -15,6 +15,7 @@ const baseMessages = {
   "models.genre.runway": "Runway",
   "models.genre.hand": "Hand model",
   "nav.feed": "Feed",
+  "feed.all": "All",
   "section.feed.title": "Feed",
   "section.feed.intro": "Photography and video from the community.",
   "nav.events": "Events",
@@ -1146,6 +1147,7 @@ export type MessageKey = keyof typeof baseMessages;
 type MessageMap = Record<MessageKey, string>;
 
 const ruMessages: Partial<MessageMap> = {
+  "feed.all": "Всё",
   "models.genre.nude": "Ню",
   "models.genre.social": "Социальная",
   "models.genre.art": "Художественная",
@@ -2186,6 +2188,7 @@ const ruMessages: Partial<MessageMap> = {
 };
 
 const ukMessages: Partial<MessageMap> = {
+  "feed.all": "Усе",
   "models.genre.nude": "Ню",
   "models.genre.social": "Соціальна",
   "models.genre.art": "Художня",

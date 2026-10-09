@@ -54,3 +54,33 @@ test("undated works cannot bypass active date filters", () => {
     ),
   );
 });
+test("all media includes photos and videos while keeping every other filter", () => {
+  const all: FeedFilters = { ...filters, kind: "ALL", category: "street" };
+  for (const video of [false, true]) {
+    assert(matchesFeedFilters({ ...work, video }, all, "en"));
+    assert(
+      !matchesFeedFilters({ ...work, video, category: "portrait" }, all, "en"),
+    );
+    assert(
+      !matchesFeedFilters(
+        { ...work, video, location: "kyiv" },
+        { ...all, location: "paris" },
+        "en",
+      ),
+    );
+    assert(
+      !matchesFeedFilters(
+        { ...work, video },
+        { ...all, search: "missing" },
+        "en",
+      ),
+    );
+    assert(
+      !matchesFeedFilters(
+        { ...work, video },
+        { ...all, from: "2026-10-10" },
+        "en",
+      ),
+    );
+  }
+});

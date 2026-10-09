@@ -542,6 +542,7 @@ export function DigitalProductSection({
   archive,
   purchase,
   apiRoot,
+  catalog = false,
 }: {
   kind: "preset" | "lut";
   offers?: readonly DigitalProductOffer[];
@@ -552,6 +553,7 @@ export function DigitalProductSection({
   archive?: (id: string) => Promise<void>;
   purchase: (offer: DigitalProductOffer) => Promise<boolean>;
   apiRoot: string;
+  catalog?: boolean;
 }) {
   const t = (key: MessageKey) => getMessage(locale, key);
   const [editor, setEditor] = useState<
@@ -611,13 +613,17 @@ export function DigitalProductSection({
           </span>
           <h2 id={`profile-${kind}-${purchased ? "purchases" : "products"}`}>
             {t(
-              purchased
+              catalog
                 ? isLut
-                  ? "product.purchasedLuts"
-                  : "product.purchasedPresets"
-                : isLut
-                  ? "profile.lutOfferTitle"
-                  : "profile.presetOfferTitle",
+                  ? "marketplace.lut"
+                  : "marketplace.preset"
+                : purchased
+                  ? isLut
+                    ? "product.purchasedLuts"
+                    : "product.purchasedPresets"
+                  : isLut
+                    ? "profile.lutOfferTitle"
+                    : "profile.presetOfferTitle",
             )}
           </h2>
           {!purchased && (

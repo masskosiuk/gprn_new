@@ -13,6 +13,7 @@ import {
 import {
   Flag,
   MessageCircle,
+  MessagesSquare,
   Plus,
   Send,
   Share2,
@@ -22,6 +23,7 @@ import {
   Mail,
   ExternalLink,
   ShieldCheck,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -39,6 +41,7 @@ type Author = {
   username: string;
   displayName: string;
   tier: string;
+  avatarUrl?: string | null;
 };
 type Post = {
   id: string;
@@ -541,19 +544,31 @@ function LanguageSelect(props: SelectHTMLAttributes<HTMLSelectElement>) {
     </select>
   );
 }
-export function DiscussionButton({ source }: { source: Source }) {
+export function DiscussionButton({
+  source,
+  compact = false,
+}: {
+  source: Source;
+  compact?: boolean;
+}) {
   const { userId, login } = useCommunity();
   const t = useWords();
   const [open, setOpen] = useState(false);
   return (
     <>
       <button
-        className="community-discuss secondary-action"
+        className={
+          compact
+            ? "community-discuss icon-button"
+            : "community-discuss secondary-action"
+        }
         type="button"
+        title={t("Открыть дискуссию", "Open discussion")}
+        aria-label={t("Открыть дискуссию", "Open discussion")}
         onClick={() => (userId ? setOpen(true) : login())}
       >
-        <MessageCircle size={16} />
-        {t("Открыть дискуссию", "Open discussion")}
+        {compact ? <MessagesSquare size={16} /> : <MessageCircle size={16} />}
+        {compact ? null : t("Открыть дискуссию", "Open discussion")}
       </button>
       {open ? (
         <PostComposer
@@ -577,7 +592,7 @@ export function PublicationTools({
   return (
     <div className="community-publication-tools">
       <div className="community-inline">
-        <DiscussionButton source={source} />
+        <DiscussionButton source={source} compact />
         <ReportButton
           type={reportType ?? source.type}
           id={source.id}
@@ -592,31 +607,151 @@ export function PublicationTools({
 }
 
 type Comment = { id: string; body: string; createdAt: string; author: Author };
-export function Comments({ kind, id }: { kind: "PHOTO" | "POST"; id: string }) {
+function CommentRow({
+  comment,
+  busy,
+  remove,
+  translationAvailable,
+}: {
+  comment: Comment;
+  busy: boolean;
+  remove(id: string): Promise<void>;
+  translationAvailable: boolean;
+}) {
+  const { request, userId, isAdmin, locale } = useCommunity();
+  const t = useWords();
+  const [translation, setTranslation] = useState<string>();
+  const [translated, setTranslated] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const href =
+    "/" +
+    locale +
+    "/profile?author=" +
+    encodeURIComponent(comment.author.username);
+  async function translate() {
+    if (translation) {
+      setTranslated((value) => !value);
+      return;
+    }
+    setTranslating(true);
+    setFeedback("");
+    try {
+      const result = await request<{ text: string }>(
+        "/community/comments/" + comment.id + "/translation",
+        { method: "POST", body: JSON.stringify({ language: locale }) },
+      );
+      setTranslation(result.text);
+      setTranslated(true);
+    } catch (error) {
+      const code = (error as { code?: string })?.code;
+      setFeedback(
+        code === "TRANSLATION_NOT_CONFIGURED"
+          ? t("Перевод пока недоступен", "Translation is not available yet")
+          : errorText(error, t),
+      );
+    } finally {
+      setTranslating(false);
+    }
+  }
+  return (
+    <article className="community-comment">
+      <Link
+        className="community-comment-avatar"
+        href={href}
+        aria-label={comment.author.displayName}
+      >
+        {comment.author.avatarUrl ? (
+          <img src={comment.author.avatarUrl} alt="" loading="lazy" />
+        ) : (
+          <span>
+            {comment.author.displayName.slice(0, 1).toLocaleUpperCase(locale)}
+          </span>
+        )}
+      </Link>
+      <div className="community-comment-copy">
+        <p>
+          <Link href={href}>{comment.author.displayName}</Link>{" "}
+          {translated ? translation : comment.body}
+        </p>
+        <div className="community-comment-meta">
+          <time dateTime={comment.createdAt}>
+            {new Date(comment.createdAt).toLocaleDateString(locale)}
+          </time>
+          {translationAvailable ? (
+            <button
+              type="button"
+              disabled={translating}
+              onClick={() => void translate()}
+            >
+              {translating
+                ? t("Перевод…", "Translating…")
+                : translated
+                  ? t("Показать оригинал", "See original")
+                  : t("Показать перевод", "See translation")}
+            </button>
+          ) : null}
+        </div>
+        {feedback ? <small role="status">{feedback}</small> : null}
+      </div>
+      <div className="community-comment-actions">
+        {userId === comment.author.id || isAdmin ? (
+          <button
+            className="icon-button"
+            type="button"
+            disabled={busy}
+            title={t("Удалить", "Delete")}
+            aria-label={t("Удалить", "Delete")}
+            onClick={() => void remove(comment.id)}
+          >
+            <Trash2 size={14} />
+          </button>
+        ) : null}
+        <ReportButton type="COMMENT" id={comment.id} />
+      </div>
+    </article>
+  );
+}
+export function Comments({
+  kind,
+  id,
+  initiallyOpen = false,
+}: {
+  kind: "PHOTO" | "POST";
+  id: string;
+  initiallyOpen?: boolean;
+}) {
   const { request, userId, login, isAdmin, locale } = useCommunity();
   const t = useWords();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   const [items, setItems] = useState<Comment[]>([]);
+  const [translationAvailable, setTranslationAvailable] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [version, setVersion] = useState(0);
+  const commentsRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (window.location.hash === "#comments-" + id) {
+      setOpen(true);
+      commentsRef.current?.scrollIntoView({ block: "center" });
+    }
+  }, [id]);
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
     setBusy(true);
-    request<{ comments: Comment[]; total: number }>(
-      "/community/comments/" + kind + "/" + id + "?page=" + page,
-      {
-        signal: AbortSignal.any([
-          controller.signal,
-          AbortSignal.timeout(15000),
-        ]),
-      },
-    )
+    request<{
+      comments: Comment[];
+      total: number;
+      translationAvailable?: boolean;
+    }>("/community/comments/" + kind + "/" + id + "?page=" + page, {
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
+    })
       .then((data) => {
         setItems(data.comments);
+        setTranslationAvailable(Boolean(data.translationAvailable));
         setTotal(data.total);
         setFeedback("");
       })
@@ -659,40 +794,35 @@ export function Comments({ kind, id }: { kind: "PHOTO" | "POST"; id: string }) {
     }
   }
   return (
-    <details
+    <section
       className="community-comments"
-      onToggle={(event) => setOpen(event.currentTarget.open)}
+      id={"comments-" + id}
+      ref={commentsRef}
     >
-      <summary>
-        <MessageCircle size={16} />
+      <button
+        type="button"
+        className="community-comments-toggle"
+        aria-expanded={open}
+        aria-controls={"comment-list-" + id}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <MessageCircle size={20} />
         {t("Комментарии", "Comments")}
         {open ? " (" + total + ")" : ""}
-      </summary>
+      </button>
       {open ? (
-        <>
+        <div id={"comment-list-" + id} className="community-comments-content">
+          {busy ? (
+            <small role="status">{t("Загрузка…", "Loading…")}</small>
+          ) : null}
           {items.map((comment) => (
-            <div className="community-comment" key={comment.id}>
-              <header>
-                <AuthorLink author={comment.author} />
-                <small>{comment.author.tier}</small>
-                <time>
-                  {new Date(comment.createdAt).toLocaleDateString(locale)}
-                </time>
-                {userId === comment.author.id || isAdmin ? (
-                  <button
-                    className="icon-button"
-                    type="button"
-                    disabled={busy}
-                    title={t("Удалить", "Delete")}
-                    onClick={() => void remove(comment.id)}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                ) : null}
-                <ReportButton type="COMMENT" id={comment.id} />
-              </header>
-              <p>{comment.body}</p>
-            </div>
+            <CommentRow
+              key={comment.id}
+              comment={comment}
+              busy={busy}
+              remove={remove}
+              translationAvailable={translationAvailable}
+            />
           ))}
           {total > 30 ? (
             <div className="community-inline">
@@ -714,21 +844,23 @@ export function Comments({ kind, id }: { kind: "PHOTO" | "POST"; id: string }) {
             </div>
           ) : null}
           {userId ? (
-            <form className="community-form" onSubmit={submit}>
+            <form className="community-comment-form" onSubmit={submit}>
               <textarea
                 aria-label={t("Комментарий", "Comment")}
                 name="body"
-                rows={2}
+                rows={1}
+                placeholder={t("Добавить комментарий…", "Add a comment…")}
                 maxLength={3000}
                 required
               />
               <button
-                className="secondary-action"
+                className="icon-button"
                 type="submit"
+                title={t("Отправить", "Send")}
+                aria-label={t("Отправить", "Send")}
                 disabled={busy}
               >
                 <Send size={15} />
-                {t("Отправить", "Send")}
               </button>
             </form>
           ) : (
@@ -737,9 +869,9 @@ export function Comments({ kind, id }: { kind: "PHOTO" | "POST"; id: string }) {
             </button>
           )}
           <Feedback>{feedback}</Feedback>
-        </>
+        </div>
       ) : null}
-    </details>
+    </section>
   );
 }
 
@@ -773,6 +905,7 @@ export function CommunityBoard({
     languages: [] as string[],
   });
   const [selected, setSelected] = useState<string | null>(null);
+  const isCompactList = !selected;
   useEffect(() => {
     setSelected(initialPostId ?? null);
   }, [kind, initialPostId]);
@@ -863,7 +996,7 @@ export function CommunityBoard({
     }
   }
   return (
-    <section className="community-board">
+    <section className="page-section community-board">
       <div className="community-board-toolbar">
         <span>
           {kind === "EVENT"
@@ -876,7 +1009,7 @@ export function CommunityBoard({
                 )}
         </span>
         <button
-          className="primary-action"
+          className="primary-action compact"
           type="button"
           onClick={() => {
             if (!userId) login();
@@ -993,10 +1126,12 @@ export function CommunityBoard({
       ) : !posts.length ? (
         <p>{t("Публикаций пока нет", "No posts yet")}</p>
       ) : null}
-      <div className="community-posts">
+      <div
+        className={`community-posts community-posts--${kind.toLowerCase()}${kind !== "EVENT" ? " community-posts--list" : ""}${selected ? " community-posts--detail" : ""}`}
+      >
         {posts.map((post) => (
           <article
-            className="community-post"
+            className={`community-post${selected ? " community-post--detail" : ""}${!post.coverUrl ? " community-post--no-cover" : ""}`}
             key={post.id}
             id={"post-" + post.id}
           >
@@ -1012,7 +1147,7 @@ export function CommunityBoard({
             ) : null}
             <div className="community-post-copy">
               <div className="community-post-meta">
-                <time>
+                <time dateTime={post.startsAt}>
                   {new Date(post.startsAt).toLocaleDateString(locale)}
                 </time>
                 <span>{post.location}</span>
@@ -1028,8 +1163,10 @@ export function CommunityBoard({
                   {post.title}
                 </Link>
               </h2>
-              <AuthorLink author={post.author} />
-              <p>{post.body}</p>
+              <div className="community-post-author">
+                <AuthorLink author={post.author} />
+              </div>
+              <p className="community-post-description">{post.body}</p>
               {post.sourcePath ? (
                 <a
                   href={post.sourcePath}
@@ -1041,11 +1178,64 @@ export function CommunityBoard({
                   {t("Оригинальная публикация", "Original publication")}
                 </a>
               ) : null}
-              <div className="community-inline">
+              <div className="community-post-footer">
+                {isCompactList ? (
+                  <>
+                    <Link
+                      className="community-comment-link"
+                      href={
+                        "/" +
+                        locale +
+                        "/" +
+                        paths[post.kind] +
+                        "?post=" +
+                        post.id +
+                        "#comments-" +
+                        post.id
+                      }
+                      title={t("Комментарии", "Comments")}
+                      aria-label={
+                        t("Комментарии", "Comments") + ": " + post.commentCount
+                      }
+                    >
+                      <MessageCircle size={16} />
+                      <span>{post.commentCount}</span>
+                    </Link>
+                    <DiscussionButton
+                      compact
+                      source={{
+                        type: "POST",
+                        id: post.id,
+                        title: post.title,
+                        image: post.coverUrl ?? undefined,
+                        path:
+                          "/" +
+                          locale +
+                          "/" +
+                          paths[post.kind] +
+                          "?post=" +
+                          post.id,
+                      }}
+                    />
+                    <ReportButton
+                      type="POST"
+                      id={post.id}
+                      path={
+                        "/" +
+                        locale +
+                        "/" +
+                        paths[post.kind] +
+                        "?post=" +
+                        post.id
+                      }
+                    />
+                  </>
+                ) : null}
                 <button
                   className="icon-button"
                   type="button"
                   title={t("Поделиться", "Share")}
+                  aria-label={t("Поделиться", "Share")}
                   onClick={() => void share(post)}
                 >
                   <Share2 size={17} />
@@ -1055,22 +1245,30 @@ export function CommunityBoard({
                     type="button"
                     className="icon-button"
                     title={t("Удалить", "Delete")}
+                    aria-label={t("Удалить", "Delete")}
                     onClick={() => void remove(post.id)}
                   >
                     <Trash2 size={17} />
                   </button>
                 ) : null}
               </div>
-              <PublicationTools
-                source={{
-                  type: "POST",
-                  id: post.id,
-                  title: post.title,
-                  image: post.coverUrl ?? undefined,
-                  path:
-                    "/" + locale + "/" + paths[post.kind] + "?post=" + post.id,
-                }}
-              />
+              {!isCompactList ? (
+                <PublicationTools
+                  source={{
+                    type: "POST",
+                    id: post.id,
+                    title: post.title,
+                    image: post.coverUrl ?? undefined,
+                    path:
+                      "/" +
+                      locale +
+                      "/" +
+                      paths[post.kind] +
+                      "?post=" +
+                      post.id,
+                  }}
+                />
+              ) : null}
             </div>
           </article>
         ))}
@@ -1132,6 +1330,119 @@ export function CommunityBoard({
         />
       ) : null}
     </section>
+  );
+}
+
+export function CommunityHighlights() {
+  const { request, locale } = useCommunity();
+  const t = useWords();
+  const [groups, setGroups] = useState<Record<Kind, Post[]>>({
+    EVENT: [],
+    DISCUSSION: [],
+    CASTING: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setFailed(false);
+    request<{ groups: Record<Kind, Post[]> }>("/community/highlights", {
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
+    })
+      .then((data) => setGroups(data.groups))
+      .catch(() => {
+        if (!controller.signal.aborted) setFailed(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [version]);
+  return (
+    <>
+      {(["DISCUSSION", "CASTING", "EVENT"] as const).map((kind) => (
+        <section key={kind} className="page-section home-community-section">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">
+                {t("Последние публикации", "Latest posts")}
+              </span>
+              <h2>
+                {kind === "EVENT"
+                  ? t("Мероприятия", "Events")
+                  : kind === "DISCUSSION"
+                    ? t("Дискуссии", "Discussions")
+                    : t("Поиск", "Casting & Jobs")}
+              </h2>
+            </div>
+            <Link
+              className="secondary-action compact"
+              href={"/" + locale + "/" + paths[kind]}
+            >
+              {t("Смотреть", "View")}
+              <ChevronRight size={16} />
+            </Link>
+          </div>
+          {loading ? (
+            <p role="status">{t("Загрузка…", "Loading…")}</p>
+          ) : failed ? (
+            <p role="status">
+              {t("Не удалось загрузить публикации.", "Could not load posts.")}{" "}
+              <button
+                className="community-text-action"
+                type="button"
+                onClick={() => setVersion((value) => value + 1)}
+              >
+                {t("Повторить", "Retry")}
+              </button>
+            </p>
+          ) : !groups[kind].length ? (
+            <p className="empty-state">
+              {t("Публикаций пока нет", "No posts yet")}
+            </p>
+          ) : null}
+          <div
+            className={`community-posts community-posts--${kind.toLowerCase()}${kind !== "EVENT" ? " community-posts--list" : ""}`}
+          >
+            {groups[kind].map((post) => (
+              <Link
+                key={post.id}
+                href={
+                  "/" +
+                  locale +
+                  "/" +
+                  paths[kind] +
+                  "?post=" +
+                  encodeURIComponent(post.id)
+                }
+                className={`community-post home-community-card${!post.coverUrl ? " community-post--no-cover" : ""}`}
+              >
+                {post.coverUrl ? (
+                  <span className="community-post-cover">
+                    <img src={post.coverUrl} alt="" loading="lazy" />
+                  </span>
+                ) : null}
+                <div className="community-post-copy">
+                  <div className="community-post-meta">
+                    <time dateTime={post.startsAt}>
+                      {new Date(post.startsAt).toLocaleDateString(locale)}
+                    </time>
+                    <span>{post.location}</span>
+                  </div>
+                  <h3>{post.title}</h3>
+                  <span className="community-post-author">
+                    {post.author.displayName}
+                  </span>
+                  <p className="community-post-description">{post.body}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
+    </>
   );
 }
 

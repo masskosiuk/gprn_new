@@ -19,6 +19,10 @@ import {
 } from "./validation.js";
 import { publicAssetUrl } from "./serialization.js";
 import {
+  CommentTranslator,
+  translationLanguage,
+} from "./comment-translation.js";
+import {
   createProductCover,
   decodeProductUpload,
 } from "./digital-product-assets.js";
@@ -45,6 +49,10 @@ const visibleAuthor = {
 @Injectable()
 export class CommunityService {
   private readonly env = loadRuntimeEnv();
+  private readonly translator = new CommentTranslator({
+    apiKey: this.env.GOOGLE_TRANSLATION_API_KEY,
+    dailyCharacterLimit: this.env.TRANSLATION_DAILY_CHARACTER_LIMIT,
+  });
   private readonly storage = new S3ObjectStorage({
     accessKeyId: this.env.S3_ACCESS_KEY,
     secretAccessKey: this.env.S3_SECRET_KEY,
@@ -249,6 +257,27 @@ export class CommunityService {
       locations: locations.map((item) => item.location),
       languages: languages.map((item) => item.language),
     };
+  }
+
+  async highlights() {
+    const kinds = ["DISCUSSION", "CASTING", "EVENT"] as const;
+    const groups = await Promise.all(
+      kinds.map(async (kind) => {
+        const posts = await prisma.communityPost.findMany({
+          where: {
+            kind,
+            deletedAt: null,
+            moderationStatus: "APPROVED",
+            author: visibleAuthor,
+          },
+          include: postInclude,
+          orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+          take: 3,
+        });
+        return [kind, posts.map((post) => this.serialize(post))] as const;
+      }),
+    );
+    return { groups: Object.fromEntries(groups) };
   }
 
   async mine(user: CurrentUser) {
@@ -648,11 +677,34 @@ export class CommunityService {
           username: comment.user.profile?.username,
           displayName: comment.user.profile?.displayName ?? "Author",
           tier: comment.user.profile?.tier ?? "VIEWER",
+          avatarUrl: comment.user.profile?.avatarAssetKey
+            ? publicAssetUrl(this.env, comment.user.profile.avatarAssetKey)
+            : null,
         },
       })),
+      translationAvailable:
+        Boolean(this.env.GOOGLE_TRANSLATION_API_KEY) &&
+        this.env.TRANSLATION_DAILY_CHARACTER_LIMIT > 0,
       total,
       page,
     };
+  }
+
+  async translateComment(id: string, body: unknown) {
+    requireUuid(id);
+    const language = translationLanguage(asRecord(body).language);
+    const comment = await prisma.comment.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+        user: { status: "ACTIVE", profile: { deletedAt: null } },
+      },
+    });
+    if (!comment) throw new NotFoundException({ code: "COMMENT_NOT_FOUND" });
+    if (comment.photoId) await this.commentTarget("PHOTO", comment.photoId);
+    else if (comment.postId) await this.commentTarget("POST", comment.postId);
+    else throw new NotFoundException({ code: "COMMENT_NOT_FOUND" });
+    return this.translator.translate(comment.body, language);
   }
 
   async comment(user: CurrentUser, kind: string, id: string, body: unknown) {

@@ -1,5 +1,5 @@
 export interface FeedFilters {
-  kind: "PHOTO" | "VIDEO";
+  kind: "ALL" | "PHOTO" | "VIDEO";
   category: string;
   location: string;
   from: string;
@@ -17,7 +17,8 @@ export function matchesFeedFilters(
   filters: FeedFilters,
   locale: string,
 ) {
-  if (work.video !== (filters.kind === "VIDEO")) return false;
+  if (filters.kind !== "ALL" && work.video !== (filters.kind === "VIDEO"))
+    return false;
   if (filters.category !== "all" && work.category !== filters.category)
     return false;
   if (filters.location !== "all" && work.location !== filters.location)

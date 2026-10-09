@@ -24,6 +24,13 @@ export const runtimeEnvSchema = z.object({
   FACEBOOK_CLIENT_SECRET: optionalSecret,
   GOOGLE_CLIENT_ID: optionalSecret,
   GOOGLE_CLIENT_SECRET: optionalSecret,
+  GOOGLE_TRANSLATION_API_KEY: optionalSecret,
+  TRANSLATION_DAILY_CHARACTER_LIMIT: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(10000000)
+    .default(200000),
   INSTAGRAM_CLIENT_ID: optionalSecret,
   INSTAGRAM_CLIENT_SECRET: optionalSecret,
   MARKETPLACE_ENABLED: booleanString.default(false),
