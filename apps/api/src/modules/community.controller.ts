@@ -55,6 +55,17 @@ export class CommunityController {
       body,
     );
   }
+  @Patch("posts/:id") async update(
+    @Req() request: CookieRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    return this.community.update(
+      await this.auth.requireUserFromRequest(request),
+      id,
+      body,
+    );
+  }
   @Delete("posts/:id") async remove(
     @Req() request: CookieRequest,
     @Param("id") id: string,

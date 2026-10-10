@@ -39,9 +39,8 @@ export function boundedText(value: string, max: number) {
   return value;
 }
 
-export function parseCommunityPost(body: unknown) {
+export function parseCommunityPostEdit(body: unknown) {
   const record = asRecord(body);
-  const kind = communityKind(record.kind);
   const startsAt = new Date(requiredString(record, "startsAt"));
   const end = optionalString(record, "endsAt");
   const endsAt = end ? new Date(end) : null;
@@ -53,10 +52,21 @@ export function parseCommunityPost(body: unknown) {
   )
     throw new BadRequestException({ code: "COMMUNITY_DATES_INVALID" });
   return {
-    kind,
     startsAt,
     endsAt,
     language,
+    title: boundedText(requiredString(record, "title"), 180),
+    body: boundedText(requiredString(record, "body"), 10000),
+    location: boundedText(requiredString(record, "location"), 180),
+    coverDataUrl: optionalString(record, "coverDataUrl"),
+  };
+}
+
+export function parseCommunityPost(body: unknown) {
+  const record = asRecord(body);
+  return {
+    kind: communityKind(record.kind),
+    ...parseCommunityPostEdit(body),
     sourceType: optionalEnum(record, "sourceType", [
       "PHOTO",
       "POST",
@@ -71,10 +81,6 @@ export function parseCommunityPost(body: unknown) {
     locale: /^[a-z]{2}$/.test(String(record.locale))
       ? String(record.locale)
       : "en",
-    title: boundedText(requiredString(record, "title"), 180),
-    body: boundedText(requiredString(record, "body"), 10000),
-    location: boundedText(requiredString(record, "location"), 180),
-    coverDataUrl: optionalString(record, "coverDataUrl"),
   };
 }
 

@@ -27,6 +27,8 @@ import {
   Camera,
   Star,
   GraduationCap,
+  Pencil,
+  Save,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -142,6 +144,20 @@ function useTitle(kind: Kind) {
 }
 function errorText(error: unknown, t: ReturnType<typeof useWords>) {
   const code = (error as { code?: string })?.code;
+  if (code === "POST_CHANGED")
+    return t(
+      "Публикация была изменена. Обновите страницу и повторите правку.",
+      "The post has changed. Refresh the page and edit it again.",
+    );
+  if (
+    code === "PRODUCT_COVER_INVALID" ||
+    code === "PRODUCT_FILE_INVALID" ||
+    (error instanceof Error && error.message === "image")
+  )
+    return t(
+      "Выберите изображение JPEG, PNG, WebP или AVIF размером до 5 МБ.",
+      "Choose a JPEG, PNG, WebP or AVIF image up to 5 MB.",
+    );
   if (code === "PRO_REQUIRED")
     return t(
       "Публикация мероприятий доступна по подписке Pro.",
@@ -181,11 +197,13 @@ function Dialog({
   close,
   children,
   className = "",
+  closeDisabled = false,
 }: {
   title: string;
   close(): void;
   children: ReactNode;
   className?: string;
+  closeDisabled?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -196,6 +214,7 @@ function Dialog({
     };
   }, []);
   function dismiss() {
+    if (closeDisabled) return;
     ref.current?.close();
     close();
   }
@@ -226,6 +245,7 @@ function Dialog({
           type="button"
           className="icon-button"
           aria-label="Close"
+          disabled={closeDisabled}
           onClick={dismiss}
         >
           <X size={20} />
@@ -414,11 +434,13 @@ export function SuggestionsPage() {
 function PostComposer({
   kind,
   source,
+  post,
   close,
   saved,
 }: {
   kind: Kind;
   source?: Source;
+  post?: Post;
   close(): void;
   saved?(): void;
 }) {
@@ -428,13 +450,32 @@ function PostComposer({
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [sent, setSent] = useState(false);
+  const [coverFile, setCoverFile] = useState<File>();
+  const [coverPreview, setCoverPreview] = useState(post?.coverUrl ?? "");
+  useEffect(() => {
+    if (!coverFile) {
+      setCoverPreview(post?.coverUrl ?? "");
+      return;
+    }
+    const url = URL.createObjectURL(coverFile);
+    setCoverPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [coverFile, post?.coverUrl]);
+  const dateTimeValue = (value: string) => {
+    const date = new Date(value);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+  };
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || sent) return;
     const form = new FormData(event.currentTarget);
     setBusy(true);
+    setFeedback("");
     try {
-      await request("/community/posts", {
-        method: "POST",
+      await request("/community/posts" + (post ? "/" + post.id : ""), {
+        method: post ? "PATCH" : "POST",
         body: JSON.stringify({
           kind,
           locale,
@@ -446,17 +487,16 @@ function PostComposer({
           endsAt: form.get("endsAt")
             ? new Date(String(form.get("endsAt"))).toISOString()
             : undefined,
-          coverDataUrl: source
-            ? undefined
-            : await imageData(
-                (form.get("cover") as File)?.size
-                  ? (form.get("cover") as File)
-                  : undefined,
-              ),
+          coverDataUrl: source ? undefined : await imageData(coverFile),
           sourceType: source?.type,
           sourceId: source?.id,
         }),
       });
+      if (post) {
+        saved?.();
+        close();
+        return;
+      }
       setSent(true);
       setFeedback(
         t(
@@ -472,7 +512,12 @@ function PostComposer({
     }
   }
   return (
-    <Dialog title={title} close={close}>
+    <Dialog
+      title={post ? t("Редактировать публикацию", "Edit post") : title}
+      className="community-post-editor"
+      close={close}
+      closeDisabled={busy}
+    >
       <form className="community-form" onSubmit={submit}>
         {source ? (
           <div className="community-source">
@@ -491,52 +536,76 @@ function PostComposer({
             name="title"
             required
             maxLength={180}
-            defaultValue={source?.title ?? ""}
+            defaultValue={post?.title ?? source?.title ?? ""}
           />
         </label>
         <label>
           {source
             ? t("Ваш вопрос или претензия", "Your question or concern")
             : t("Описание", "Description")}
-          <textarea name="body" rows={5} maxLength={10000} required />
+          <textarea
+            name="body"
+            rows={5}
+            maxLength={10000}
+            defaultValue={post?.body ?? ""}
+            required
+          />
         </label>
         {!source ? (
           <label>
             {t("Обложка (до 5 МБ)", "Cover (up to 5 MB)")}
+            {coverPreview ? (
+              <img
+                className="community-editor-cover"
+                src={coverPreview}
+                alt={t("Обложка публикации", "Post cover")}
+              />
+            ) : null}
             <input
               name="cover"
               type="file"
               accept="image/jpeg,image/png,image/webp,image/avif"
-              required
+              required={!post}
+              onChange={(event) => setCoverFile(event.target.files?.[0])}
             />
           </label>
         ) : null}
         <div className="community-fields">
           <label>
             {t("Локация", "Location")}
-            <input name="location" maxLength={180} required />
+            <input
+              name="location"
+              maxLength={180}
+              defaultValue={post?.location ?? ""}
+              required
+            />
           </label>
           <label>
             {t("Язык", "Language")}
-            <LanguageSelect name="language" defaultValue={locale} />
+            <LanguageSelect
+              name="language"
+              defaultValue={post?.language ?? locale}
+            />
           </label>
           <label>
             {t("Дата", "Date")}
             <input
               name="startsAt"
               type="datetime-local"
-              defaultValue={new Date(
-                Date.now() - new Date().getTimezoneOffset() * 60000,
-              )
-                .toISOString()
-                .slice(0, 16)}
+              defaultValue={dateTimeValue(
+                post?.startsAt ?? new Date().toISOString(),
+              )}
               required
             />
           </label>
           {kind === "EVENT" ? (
             <label>
               {t("Окончание", "End date")}
-              <input name="endsAt" type="datetime-local" />
+              <input
+                name="endsAt"
+                type="datetime-local"
+                defaultValue={post?.endsAt ? dateTimeValue(post.endsAt) : ""}
+              />
             </label>
           ) : null}
         </div>
@@ -545,12 +614,41 @@ function PostComposer({
           className="primary-action"
           disabled={busy || sent}
         >
-          <Send size={17} />
-          {t("На модерацию", "Submit for review")}
+          {post ? <Save size={17} /> : <Send size={17} />}
+          {post
+            ? t("Сохранить", "Save")
+            : t("На модерацию", "Submit for review")}
         </button>
         <Feedback>{feedback}</Feedback>
       </form>
     </Dialog>
+  );
+}
+function EditPostButton({ post, saved }: { post: Post; saved(): void }) {
+  const { isAdmin } = useCommunity();
+  const t = useWords();
+  const [open, setOpen] = useState(false);
+  if (!isAdmin) return null;
+  return (
+    <>
+      <button
+        type="button"
+        className="icon-button"
+        title={t("Редактировать публикацию", "Edit post")}
+        aria-label={t("Редактировать публикацию", "Edit post")}
+        onClick={() => setOpen(true)}
+      >
+        <Pencil size={17} />
+      </button>
+      {open ? (
+        <PostComposer
+          kind={post.kind}
+          post={post}
+          close={() => setOpen(false)}
+          saved={saved}
+        />
+      ) : null}
+    </>
   );
 }
 function LanguageSelect(props: SelectHTMLAttributes<HTMLSelectElement>) {
@@ -1269,6 +1367,10 @@ export function CommunityBoard({
                 >
                   <Share2 size={17} />
                 </button>
+                <EditPostButton
+                  post={post}
+                  saved={() => setVersion((v) => v + 1)}
+                />
                 {userId === post.author.id ? (
                   <button
                     type="button"
@@ -1556,6 +1658,10 @@ function AdminPostQueue({ kind }: { kind: Kind }) {
               <div>
                 <h3>{post.title}</h3>
                 <AuthorLink author={post.author} />
+                <EditPostButton
+                  post={post}
+                  saved={() => setVersion((v) => v + 1)}
+                />
                 <p>{post.body}</p>
                 <small>
                   {post.location} · {post.language} ·{" "}

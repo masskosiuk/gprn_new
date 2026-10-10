@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
+import sharp from "sharp";
 import { prisma } from "@gprn/db";
 import { S3ObjectStorage } from "@gprn/storage";
 import { CommunityService } from "./community.service.js";
@@ -38,6 +39,273 @@ const forbidden = (error: unknown) =>
   (error as { getStatus(): number }).getStatus() === 403;
 const missing = (error: unknown) =>
   (error as { getStatus(): number }).getStatus() === 404;
+
+const postEditInput = {
+  title: "Updated event",
+  body: "Updated description",
+  location: "Paris",
+  language: "fr",
+  startsAt: "2026-11-27T14:00:00Z",
+  endsAt: "2026-11-27T18:00:00Z",
+};
+const administrator = { ...actor, roles: ["ADMIN"] };
+function postEditFixture(t: TestContext) {
+  // Prisma delegates expose methods through a proxy rather than descriptors.
+  const replace = (target: object, name: string, method: unknown) => {
+    const record = target as Record<string, unknown>;
+    const previous = record[name];
+    record[name] = method;
+    t.after(() => {
+      record[name] = previous;
+    });
+  };
+  const prior = {
+    id,
+    authorId: "de000002-0000-4000-8000-000000000002",
+    kind: "EVENT",
+    title: "Original event",
+    body: "Original description",
+    location: "Tokyo",
+    language: "en",
+    startsAt: new Date("2026-11-01T14:00:00Z"),
+    endsAt: null,
+    coverAssetKey: "demo/community/shared.webp",
+    sourceType: "PHOTO",
+    sourceId: id,
+    sourcePath: "/ru/profile?photo=" + id,
+    sourceCoverUrl: "https://images.invalid/source.jpg",
+    moderationStatus: "APPROVED",
+    moderationReason: null,
+    demoKey: "community-v1-event",
+    deletedAt: null as Date | null,
+    createdAt: new Date("2026-10-01T14:00:00Z"),
+    updatedAt: new Date("2026-10-01T14:00:00Z"),
+  };
+  const state = {
+    prior: prior as typeof prior | null,
+    stored: { ...prior },
+    count: 1,
+    failTransaction: false,
+    failUpload: false,
+    finds: 0,
+    writes: [] as { where: unknown; data: Record<string, unknown> }[],
+    audits: [] as Record<string, unknown>[],
+    uploads: [] as { key: string; body: Buffer; contentType: string }[],
+    deleted: [] as string[],
+  };
+  replace(prisma.communityPost, "findUnique", async () => {
+    state.finds++;
+    return state.prior;
+  });
+  replace(
+    prisma.communityPost,
+    "updateMany",
+    async (args: { where: unknown; data: Record<string, unknown> }) => {
+      state.writes.push(args);
+      if (state.count) Object.assign(state.stored, args.data);
+      return { count: state.count };
+    },
+  );
+  replace(prisma.communityPost, "findUniqueOrThrow", async () => ({
+    ...state.stored,
+    author: {
+      profile: {
+        username: "demo.author",
+        displayName: "Demo Author",
+        tier: "STAR",
+      },
+    },
+    _count: { comments: 3 },
+  }));
+  replace(
+    prisma.auditLog,
+    "create",
+    async ({ data }: { data: Record<string, unknown> }) => {
+      state.audits.push(data);
+    },
+  );
+  replace(
+    prisma,
+    "$transaction",
+    async (callback: (tx: unknown) => Promise<unknown>) => {
+      if (state.failTransaction) throw new Error("transaction failed");
+      return callback({
+        communityPost: prisma.communityPost,
+        auditLog: prisma.auditLog,
+      });
+    },
+  );
+  replace(
+    S3ObjectStorage.prototype,
+    "putObject",
+    async (upload: (typeof state.uploads)[number]) => {
+      state.uploads.push(upload);
+      if (state.failUpload) throw new Error("upload failed");
+    },
+  );
+  replace(
+    S3ObjectStorage.prototype,
+    "deleteObject",
+    async (_bucket: string, key: string) => {
+      state.deleted.push(key);
+    },
+  );
+  return state;
+}
+async function postEditCover() {
+  const buffer = await sharp({
+    create: { width: 40, height: 24, channels: 3, background: "#789abc" },
+  })
+    .png()
+    .toBuffer();
+  return "data:image/png;base64," + buffer.toString("base64");
+}
+
+test("community editing denies ordinary users, including the original author, before accessing data", async (t) => {
+  const fixture = postEditFixture(t);
+  const service = new CommunityService();
+  for (const user of [actor, { ...actor, id: fixture.stored.authorId }])
+    await assert.rejects(service.update(user, id, postEditInput), forbidden);
+  assert.equal(fixture.finds, 0);
+  assert.equal(fixture.uploads.length, 0);
+  assert.equal(fixture.writes.length, 0);
+});
+
+test("admin text edits persist publicly, preserve authorship, demo and moderation, and are audited", async (t) => {
+  const fixture = postEditFixture(t);
+  const { post } = await new CommunityService().update(administrator, id, {
+    ...postEditInput,
+    authorId: administrator.id,
+    kind: "CASTING",
+    moderationStatus: "REJECTED",
+    demoKey: null,
+    coverAssetKey: "private/untrusted.jpg",
+    sourcePath: "https://untrusted.invalid",
+  });
+  assert.equal(post.title, postEditInput.title);
+  assert.equal(post.body, postEditInput.body);
+  assert.equal(post.author.id, fixture.prior!.authorId);
+  assert.equal(post.kind, "EVENT");
+  assert.equal(post.status, "APPROVED");
+  assert.equal(post.isDemo, true);
+  assert.equal(post.sourcePath, fixture.prior!.sourcePath);
+  assert.equal(post.commentCount, 3);
+  assert.match(post.coverUrl!, /shared\.webp$/);
+  assert.equal(fixture.uploads.length, 0);
+  assert.equal(fixture.deleted.length, 0);
+  assert.deepEqual(Object.keys(fixture.writes[0]!.data).sort(), [
+    "body",
+    "endsAt",
+    "language",
+    "location",
+    "startsAt",
+    "title",
+  ]);
+  assert.deepEqual(fixture.writes[0]!.where, {
+    id,
+    deletedAt: null,
+    updatedAt: fixture.prior!.updatedAt,
+  });
+  assert.equal(fixture.audits[0]!.actorUserId, administrator.id);
+  assert.equal(fixture.audits[0]!.action, "community.updated");
+  assert.equal(
+    (fixture.audits[0]!.previous as { title: string }).title,
+    "Original event",
+  );
+  assert.equal(
+    (fixture.audits[0]!.next as { title: string }).title,
+    postEditInput.title,
+  );
+});
+
+test("admin cover edits upload a new WebP without deleting shared source images", async (t) => {
+  const fixture = postEditFixture(t);
+  const { post } = await new CommunityService().update(administrator, id, {
+    ...postEditInput,
+    coverDataUrl: await postEditCover(),
+  });
+  const upload = fixture.uploads[0]!;
+  assert.equal(fixture.uploads.length, 1);
+  assert.match(
+    upload.key,
+    new RegExp(
+      `^community/${fixture.prior!.authorId}/${id}/cover-[a-f0-9-]+\\.webp$`,
+    ),
+  );
+  assert.equal(upload.contentType, "image/webp");
+  assert.equal((await sharp(upload.body).metadata()).format, "webp");
+  assert.ok(post.coverUrl!.endsWith(upload.key));
+  assert.equal(fixture.deleted.length, 0);
+  assert.equal("coverDataUrl" in fixture.writes[0]!.data, false);
+});
+
+test("failed and conflicting edits clean up only their newly uploaded cover", async (t) => {
+  const fixture = postEditFixture(t);
+  const service = new CommunityService();
+  const input = { ...postEditInput, coverDataUrl: await postEditCover() };
+  fixture.failTransaction = true;
+  await assert.rejects(
+    service.update(administrator, id, input),
+    /transaction failed/,
+  );
+  fixture.failTransaction = false;
+  fixture.count = 0;
+  await assert.rejects(
+    service.update(administrator, id, input),
+    (error: unknown) => (error as { getStatus(): number }).getStatus() === 409,
+  );
+  fixture.failUpload = true;
+  await assert.rejects(
+    service.update(administrator, id, input),
+    /upload failed/,
+  );
+  assert.deepEqual(
+    fixture.deleted,
+    fixture.uploads.map((upload) => upload.key),
+  );
+  assert.equal(new Set(fixture.deleted).size, 3);
+  assert.equal(fixture.audits.length, 0);
+  assert.equal(fixture.stored.title, "Original event");
+});
+
+test("admin editing rejects missing, deleted, malformed posts and invalid images before writing", async (t) => {
+  const fixture = postEditFixture(t);
+  const service = new CommunityService();
+  const badRequest = (error: unknown) =>
+    (error as { getStatus(): number }).getStatus() === 400;
+  await assert.rejects(
+    service.update(administrator, "not-a-uuid", postEditInput),
+    badRequest,
+  );
+  for (const invalid of [
+    { ...postEditInput, title: " " },
+    { ...postEditInput, body: "x".repeat(10001) },
+    { ...postEditInput, language: "invalid" },
+    { ...postEditInput, startsAt: "not-a-date" },
+    { ...postEditInput, endsAt: "2026-01-01" },
+    { ...postEditInput, coverDataUrl: "data:image/png;base64,YmFk" },
+    {
+      ...postEditInput,
+      coverDataUrl: "data:image/png;base64," + "A".repeat(7 * 1024 * 1024),
+    },
+  ])
+    await assert.rejects(
+      service.update(administrator, id, invalid),
+      badRequest,
+    );
+  fixture.prior!.deletedAt = new Date();
+  await assert.rejects(
+    service.update(administrator, id, postEditInput),
+    missing,
+  );
+  fixture.prior = null;
+  await assert.rejects(
+    service.update(administrator, id, postEditInput),
+    missing,
+  );
+  assert.equal(fixture.writes.length, 0);
+  assert.equal(fixture.uploads.length, 0);
+});
 function sourceResolver() {
   return new CommunityService() as unknown as {
     source(

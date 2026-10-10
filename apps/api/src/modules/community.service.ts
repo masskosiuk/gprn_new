@@ -9,6 +9,7 @@ import {
 } from "@gprn/domain";
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   HttpException,
   Injectable,
@@ -36,6 +37,7 @@ import {
   checkPublicationAccess,
   communityKind,
   parseCommunityPost,
+  parseCommunityPostEdit,
   parseInquiry,
   requireUuid,
 } from "./community-policy.js";
@@ -465,6 +467,72 @@ export class CommunityService {
           include: postInclude,
         });
       });
+      return { post: this.serialize(post) };
+    } catch (error) {
+      if (key)
+        await this.storage
+          .deleteObject(this.env.S3_BUCKET_PUBLIC, key)
+          .catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async update(user: CurrentUser, id: string, body: unknown) {
+    requirePermission(user, "report:moderate");
+    requireUuid(id);
+    const { coverDataUrl, ...input } = parseCommunityPostEdit(body);
+    const prior = await prisma.communityPost.findUnique({ where: { id } });
+    if (!prior || prior.deletedAt)
+      throw new NotFoundException({ code: "POST_NOT_FOUND" });
+    const cover = coverDataUrl
+      ? await createProductCover(
+          decodeProductUpload(coverDataUrl, 5 * 1024 * 1024),
+        )
+      : null;
+    const key = cover
+      ? `community/${prior.authorId}/${id}/cover-${randomUUID()}.webp`
+      : undefined;
+    try {
+      if (cover && key)
+        await this.storage.putObject({
+          bucket: this.env.S3_BUCKET_PUBLIC,
+          key,
+          body: cover.buffer,
+          contentType: "image/webp",
+        });
+      const post = await prisma.$transaction(async (tx) => {
+        const result = await tx.communityPost.updateMany({
+          where: { id, deletedAt: null, updatedAt: prior.updatedAt },
+          data: { ...input, ...(key ? { coverAssetKey: key } : {}) },
+        });
+        if (!result.count)
+          throw new ConflictException({ code: "POST_CHANGED" });
+        const saved = await tx.communityPost.findUniqueOrThrow({
+          where: { id },
+          include: postInclude,
+        });
+        const snapshot = (post: typeof prior) => ({
+          title: post.title,
+          body: post.body,
+          location: post.location,
+          language: post.language,
+          startsAt: post.startsAt.toISOString(),
+          endsAt: post.endsAt?.toISOString() ?? null,
+          coverAssetKey: post.coverAssetKey,
+        });
+        await tx.auditLog.create({
+          data: {
+            actorUserId: user.id,
+            action: "community.updated",
+            targetType: "community_post",
+            targetId: id,
+            previous: snapshot(prior),
+            next: snapshot(saved),
+          },
+        });
+        return saved;
+      });
+      // Previous covers may also belong to a source photo or another discussion.
       return { post: this.serialize(post) };
     } catch (error) {
       if (key)
