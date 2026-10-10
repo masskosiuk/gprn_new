@@ -49,9 +49,42 @@ docker compose --env-file .env.production -f docker-compose.production.yml run -
 docker compose --env-file .env.production -f docker-compose.production.yml up -d --no-build --no-deps --force-recreate api web worker
 ```
 
-Продолжайте только после успешной миграции `0011_community`.
+Продолжайте только после успешного применения всех миграций, включая
+`0011_community` и `0012_discussion_source_covers`.
 Цепочка команд останавливается при ошибке резервного копирования, сборки или миграции.
 Она добавляет таблицы и поля, не удаляет аккаунты, материалы и старые комментарии.
+
+При последующих обновлениях также запускайте `run --rm --no-deps migrate`
+перед пересозданием API. Флаг `up --no-deps` пропускает зависимость `migrate`:
+новый образ может требовать ещё не применённую миграцию из предыдущего релиза.
+Успешный ответ `/health` сам по себе не подтверждает совместимость схемы БД.
+
+## Ошибка 500 В Разделах Сообщества
+
+Если после обновления API мероприятия, дискуссии, поиск и последние публикации
+возвращают 500, сначала проверьте наличие поля из миграции `0012`.
+Следующая команда в **PuTTY / SSH-терминале сервера** только читает схему БД:
+
+```bash
+cd /opt/gprn && \
+docker compose --env-file .env.production -f docker-compose.production.yml exec -T postgres psql -U gprn -d gprn -Atc "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='community_posts' AND column_name='sourceCoverUrl');"
+```
+
+Результат `f` означает, что поле отсутствует. В уже собранном образе есть
+миграция, добавляющая только `community_posts.sourceCoverUrl`; для её применения
+повторная сборка, пересоздание контента и демо-наполнение не нужны.
+Запускается кратковременный одноразовый контейнер Prisma с доступом к рабочей БД;
+`--rm` удаляет его после завершения, фонового мониторинга и автозапуска нет.
+
+```bash
+cd /opt/gprn && \
+docker compose --env-file .env.production -f docker-compose.production.yml run --rm --no-deps migrate
+```
+
+После успешной миграции повторите запрос мероприятий из раздела проверки ниже.
+Если поле уже существует (`t`) или миграция завершилась с ошибкой, не выполняйте
+`migrate reset`, `db push --accept-data-loss` и не удаляйте тома. Нужна отдельная
+диагностика причины 500 по серверным журналам; не публикуйте секреты и `.env.production`.
 
 ## Демо-Контент
 
