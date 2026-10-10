@@ -299,20 +299,9 @@
 .community-original svg {
   flex: 0 0 auto;
 }
-.community-posts--event:not(.community-posts--detail) {
-  --community-event-cover-height: 200px;
-  --community-event-card-width: calc(
-    var(--community-event-cover-height) * 16 / 7 + 2px
-  );
-  grid-template-columns: repeat(
-    3,
-    minmax(0, var(--community-event-card-width))
-  );
-}
 .community-posts--event:not(.community-posts--detail) .community-post-cover {
   width: 100%;
   aspect-ratio: 16 / 7;
-  max-height: var(--community-event-cover-height);
 }
 .community-posts--event:not(.community-posts--detail) .community-post-copy {
   padding: 14px 16px;
@@ -632,10 +621,7 @@
 }
 @media (max-width: 1100px) {
   .community-posts:not(.community-posts--list):not(.community-posts--detail) {
-    grid-template-columns: repeat(
-      2,
-      minmax(0, var(--community-event-card-width, 1fr))
-    );
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .community-filters,
   .community-board > .community-filters {
@@ -658,7 +644,7 @@
     justify-self: end;
   }
   .community-posts:not(.community-posts--list):not(.community-posts--detail) {
-    grid-template-columns: minmax(0, var(--community-event-card-width, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
   .community-posts--list:not(.community-posts--detail) .community-post {
     grid-template-columns: 80px minmax(0, 1fr);
