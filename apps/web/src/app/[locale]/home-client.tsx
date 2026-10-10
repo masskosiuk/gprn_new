@@ -2,6 +2,10 @@
 
 import {
   demoBattleAuthors,
+  demoExpertCovers,
+  demoExpertUsernames,
+  demoModelImages,
+  demoStudioImages,
   demoBattlePhotos,
   demoBattles,
   demoDigitalProducts,
@@ -1505,28 +1509,18 @@ const sampleImages = {
     "https://images.unsplash.com/photo-1552374196-c4e7ffc6e126?auto=format&fit=crop&w=600&h=600&q=84",
   authorLucas:
     "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=600&h=600&q=84",
-  modelAiko:
-    "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&h=600&q=84",
-  modelCamille:
-    "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=600&h=600&q=84",
-  modelDaniel:
-    "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=600&h=600&q=84",
-  modelNoor:
-    "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=600&h=600&q=84",
-  modelOlena:
-    "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=600&h=600&q=84",
+  modelAiko: demoModelImages.aiko,
+  modelCamille: demoModelImages.camille,
+  modelDaniel: demoModelImages.daniel,
+  modelNoor: demoModelImages.noor,
+  modelOlena: demoModelImages.olena,
   accountDefault:
     "https://images.unsplash.com/photo-1542206395-9feb3edaa68d?auto=format&fit=crop&w=600&h=600&q=84",
-  studioNorth:
-    "https://images.unsplash.com/photo-1768818928341-3b31b8965c6d?auto=format&fit=crop&w=1400&q=82",
-  studioSeine:
-    "https://images.unsplash.com/photo-1736580602204-b940bb0423ec?auto=format&fit=crop&w=1400&q=82",
-  studioHikari:
-    "https://images.unsplash.com/photo-1765372860684-69f0e2524694?auto=format&fit=crop&w=1400&q=82",
-  studioLuz:
-    "https://images.unsplash.com/photo-1648740678671-c37d78567ea8?auto=format&fit=crop&w=1400&q=82",
-  studioSaga:
-    "https://images.unsplash.com/photo-1780642208543-7a84b61f13ca?auto=format&fit=crop&w=1400&q=82",
+  studioNorth: demoStudioImages["north-light"],
+  studioSeine: demoStudioImages["atelier-seine"],
+  studioHikari: demoStudioImages["hikari-stage"],
+  studioLuz: demoStudioImages["luz-factory"],
+  studioSaga: demoStudioImages["saga-room"],
 } as const;
 
 function getDemoProductOffers(
@@ -2326,7 +2320,7 @@ const experts: readonly ExpertRecord[] = [
   {
     avatarUrl: sampleImages.expertIryna,
     categoryId: "documentary",
-    coverUrl: sampleImages.desert,
+    coverUrl: demoExpertCovers["demo.iryna.melnyk"],
     headlineKey: "data.expert.iryna.headline",
     id: "iryna",
     languages: ["uk", "en"],
@@ -2339,7 +2333,7 @@ const experts: readonly ExpertRecord[] = [
   {
     avatarUrl: sampleImages.expertMarcus,
     categoryId: "portrait",
-    coverUrl: sampleImages.street,
+    coverUrl: demoExpertCovers["demo.marcus.reed"],
     headlineKey: "data.expert.marcus.headline",
     id: "marcus",
     languages: ["en", "de"],
@@ -2352,7 +2346,7 @@ const experts: readonly ExpertRecord[] = [
   {
     avatarUrl: sampleImages.expertSofia,
     categoryId: "landscape",
-    coverUrl: sampleImages.mountain,
+    coverUrl: demoExpertCovers["demo.sofia.rossi"],
     headlineKey: "data.expert.sofia.headline",
     id: "sofia",
     languages: ["fr", "en"],
@@ -3904,7 +3898,7 @@ export function HomeClient({
       reviewPrice: 4500,
       serviceRating: Number(expert.rating),
       tier: "professional",
-      username: expert.id,
+      username: demoExpertUsernames[expert.id] ?? expert.id,
       verified: true,
       wins: 0,
     };
@@ -6865,51 +6859,69 @@ export function HomeClient({
           </div>
           <div className="home-activity-grid">
             {battles.slice(0, 2).map((battle) => (
-              <Link
-                className="home-battle-card"
-                href={competitionPath(locale, "battle", battle.id)}
-                key={battle.id}
-              >
-                <div className="home-battle-images">
-                  {battle.entries.map((entry) => (
-                    <img
-                      alt={
-                        entry.title ??
-                        (entry.titleKey
-                          ? t(entry.titleKey)
-                          : t("photo.selected"))
-                      }
-                      key={entry.id}
-                      src={entry.imageUrl}
-                    />
-                  ))}
-                </div>
-                <div className="home-battle-copy">
-                  <div>
-                    <span className="eyebrow">
-                      {t(
-                        battle.isDemo
-                          ? "battles.demo"
-                          : getBattleScopeKey(battle.scope),
-                      )}
-                    </span>
-                    <h2>
-                      {battle.title ??
+              <article className="home-battle-card" key={battle.id}>
+                <Link
+                  className="home-battle-link"
+                  href={competitionPath(locale, "battle", battle.id)}
+                >
+                  <div className="home-battle-images">
+                    {battle.entries.map((entry) => (
+                      <img
+                        alt={
+                          entry.title ??
+                          (entry.titleKey
+                            ? t(entry.titleKey)
+                            : t("photo.selected"))
+                        }
+                        key={entry.id}
+                        src={entry.imageUrl}
+                      />
+                    ))}
+                  </div>
+                  <div className="home-battle-copy">
+                    <div>
+                      <span className="eyebrow">
+                        {t(
+                          battle.isDemo
+                            ? "battles.demo"
+                            : getBattleScopeKey(battle.scope),
+                        )}
+                      </span>
+                      <h2>
+                        {battle.title ??
+                          (battle.titleKey
+                            ? t(battle.titleKey)
+                            : t("section.battles.title"))}
+                      </h2>
+                    </div>
+                    <div className="home-battle-meta">
+                      <span>{t(battle.statusKey)}</span>
+                      {battle.endsAt ? (
+                        <small>
+                          {t("battles.ends")}{" "}
+                          {formatDate(locale, battle.endsAt)}
+                        </small>
+                      ) : null}
+                    </div>
+                  </div>
+                </Link>
+                <div className="home-battle-discussion">
+                  <DiscussionButton
+                    compact
+                    source={{
+                      type: "BATTLE",
+                      id: battle.id,
+                      title:
+                        battle.title ??
                         (battle.titleKey
                           ? t(battle.titleKey)
-                          : t("section.battles.title"))}
-                    </h2>
-                  </div>
-                  <div className="home-battle-meta">
-                    <span>{t(battle.statusKey)}</span>
-                    {battle.endsAt ? (
-                      <small>
-                        {t("battles.ends")} {formatDate(locale, battle.endsAt)}
-                      </small>
-                    ) : null}
-                  </div>
+                          : t("section.battles.title")),
+                      image: battle.entries[0]?.imageUrl,
+                      path: competitionPath(locale, "battle", battle.id),
+                    }}
+                  />
                 </div>
-              </Link>
+              </article>
             ))}
           </div>
         </section>
@@ -8154,35 +8166,51 @@ export function HomeClient({
                 {t("battles.ends")} {formatDate(locale, battle.endsAt)}
               </small>
             ) : null}
-            <button
-              aria-label={t("common.share")}
-              className="icon-button"
-              onClick={() => {
-                void shareItem(
-                  battle.title ??
+            <div className="battle-card-actions">
+              <DiscussionButton
+                compact
+                source={{
+                  type: "BATTLE",
+                  id: battle.id,
+                  title:
+                    battle.title ??
                     (battle.titleKey
                       ? t(battle.titleKey)
                       : t("section.battles.title")),
-                  competitionPath(locale, "battle", battle.id),
-                );
-              }}
-              title={t("common.share")}
-              type="button"
-            >
-              <Share2 aria-hidden="true" size={16} />
-            </button>
-            {battle.serverBacked &&
-            battle.entries.some((entry) => entry.isMine) ? (
+                  image: battle.entries[0]?.imageUrl,
+                  path: competitionPath(locale, "battle", battle.id),
+                }}
+              />
               <button
-                aria-label={t("battles.withdraw")}
-                className="icon-button danger-icon-button"
-                onClick={() => void withdrawBattle(battle.id)}
-                title={t("battles.withdraw")}
+                aria-label={t("common.share")}
+                className="icon-button"
+                onClick={() => {
+                  void shareItem(
+                    battle.title ??
+                      (battle.titleKey
+                        ? t(battle.titleKey)
+                        : t("section.battles.title")),
+                    competitionPath(locale, "battle", battle.id),
+                  );
+                }}
+                title={t("common.share")}
                 type="button"
               >
-                <X aria-hidden="true" size={16} />
+                <Share2 aria-hidden="true" size={16} />
               </button>
-            ) : null}
+              {battle.serverBacked &&
+              battle.entries.some((entry) => entry.isMine) ? (
+                <button
+                  aria-label={t("battles.withdraw")}
+                  className="icon-button danger-icon-button"
+                  onClick={() => void withdrawBattle(battle.id)}
+                  title={t("battles.withdraw")}
+                  type="button"
+                >
+                  <X aria-hidden="true" size={16} />
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -8267,6 +8295,16 @@ export function HomeClient({
   function renderChallengeActions(challenge: ChallengeRecord): ReactNode {
     return (
       <div className="challenge-actions">
+        <DiscussionButton
+          compact
+          source={{
+            type: "CHALLENGE",
+            id: challenge.id,
+            title: challenge.title ?? t(challenge.titleKey),
+            image: challenge.coverUrl,
+            path: competitionPath(locale, "challenge", challenge.id),
+          }}
+        />
         <span>
           {t(
             challenge.mediaType === "VIDEO"
@@ -8793,6 +8831,23 @@ export function HomeClient({
                       </span>
                     ))}
                   </div>
+                  <div className="entity-card-actions">
+                    <DiscussionButton
+                      compact
+                      source={{
+                        type: "PROFILE",
+                        id: demoExpertUsernames[expert.id] ?? expert.id,
+                        title: t(expert.nameKey),
+                        image: expert.coverUrl,
+                        path:
+                          getSectionHref(locale, "profile") +
+                          "?author=" +
+                          encodeURIComponent(
+                            demoExpertUsernames[expert.id] ?? expert.id,
+                          ),
+                      }}
+                    />
+                  </div>
                 </div>
               </article>
             ))}
@@ -9027,19 +9082,32 @@ export function HomeClient({
                     </strong>
                   </span>
                 </div>
-                <button
-                  className="primary-action compact full-width"
-                  onClick={() =>
-                    openCommerceDialog({
-                      author: getModelCommerceAuthor(model),
-                      kind: "service",
-                    })
-                  }
-                  type="button"
-                >
-                  <Send aria-hidden="true" size={15} />
-                  {t("models.book")}
-                </button>
+                <div className="entity-card-actions">
+                  <DiscussionButton
+                    compact
+                    source={{
+                      type: "MODEL",
+                      id: model.id,
+                      title: t(model.nameKey),
+                      image: model.avatarUrl,
+                      path:
+                        getSectionHref(locale, "models") + "?model=" + model.id,
+                    }}
+                  />
+                  <button
+                    className="primary-action compact full-width"
+                    onClick={() =>
+                      openCommerceDialog({
+                        author: getModelCommerceAuthor(model),
+                        kind: "service",
+                      })
+                    }
+                    type="button"
+                  >
+                    <Send aria-hidden="true" size={15} />
+                    {t("models.book")}
+                  </button>
+                </div>
               </div>
             </article>
           ))}
@@ -9068,6 +9136,17 @@ export function HomeClient({
               <div>
                 <span className="eyebrow">{t("models.profile")}</span>
                 <h1>{t(model.nameKey)}</h1>
+                <DiscussionButton
+                  compact
+                  source={{
+                    type: "MODEL",
+                    id: model.id,
+                    title: t(model.nameKey),
+                    image: model.avatarUrl,
+                    path:
+                      getSectionHref(locale, "models") + "?model=" + model.id,
+                  }}
+                />
                 <ReportButton
                   type="MODEL"
                   id={model.id}
@@ -9371,6 +9450,19 @@ export function HomeClient({
                       )}{" "}
                       {t("studios.reviews")}
                     </span>
+                    <DiscussionButton
+                      compact
+                      source={{
+                        type: "STUDIO",
+                        id: studio.id,
+                        title: t(studio.nameKey),
+                        image: studio.imageUrl,
+                        path:
+                          getSectionHref(locale, "studios") +
+                          "?studio=" +
+                          studio.id,
+                      }}
+                    />
                     <button
                       className="secondary-action compact"
                       onClick={() => openStudioReview(studio.id)}
@@ -9458,6 +9550,19 @@ export function HomeClient({
               <div>
                 <span className="eyebrow">{t("studios.profile")}</span>
                 <h1>{t(studio.nameKey)}</h1>
+                <DiscussionButton
+                  compact
+                  source={{
+                    type: "STUDIO",
+                    id: studio.id,
+                    title: t(studio.nameKey),
+                    image: studio.imageUrl,
+                    path:
+                      getSectionHref(locale, "studios") +
+                      "?studio=" +
+                      studio.id,
+                  }}
+                />
                 <ReportButton
                   type="STUDIO"
                   id={studio.id}
@@ -9746,6 +9851,19 @@ export function HomeClient({
                         image={author.coverUrl}
                         avatarUrl={author.avatarUrl}
                       />
+                      <DiscussionButton
+                        compact
+                        source={{
+                          type: "PROFILE",
+                          id: author.username,
+                          title: getPublicAuthorName(author, locale),
+                          image: author.coverUrl ?? author.avatarUrl,
+                          path:
+                            getSectionHref(locale, "profile") +
+                            "?author=" +
+                            encodeURIComponent(author.username),
+                        }}
+                      />
                       <ReportButton
                         type="PROFILE"
                         id={author.username}
@@ -9973,6 +10091,22 @@ export function HomeClient({
                       {currentProfile.location}
                     </span>
                     <span>@{currentProfile.username}</span>
+                  </div>
+                  <div className="entity-card-actions">
+                    <DiscussionButton
+                      compact
+                      source={{
+                        type: "PROFILE",
+                        id: currentProfile.username,
+                        title: currentProfile.name,
+                        image:
+                          currentProfile.coverUrl ?? currentProfile.avatarUrl,
+                        path:
+                          getSectionHref(locale, "profile") +
+                          "?author=" +
+                          encodeURIComponent(currentProfile.username),
+                      }}
+                    />
                   </div>
                 </div>
               </div>

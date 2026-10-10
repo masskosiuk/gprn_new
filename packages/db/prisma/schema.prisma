@@ -1088,6 +1088,7 @@ model CommunityPost {
   sourceType       String?
   sourceId         String?
   sourcePath       String?
+  sourceCoverUrl   String?
   moderationStatus ModerationStatus @default(PENDING)
   moderationReason String?
   demoKey          String?          @unique

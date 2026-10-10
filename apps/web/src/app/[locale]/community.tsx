@@ -33,7 +33,15 @@ import Link from "next/link";
 type Request = <T>(path: string, init?: RequestInit) => Promise<T>;
 type Kind = "EVENT" | "DISCUSSION" | "CASTING";
 type Source = {
-  type: "PHOTO" | "POST" | "PROFILE" | "PRODUCT";
+  type:
+    | "PHOTO"
+    | "POST"
+    | "PROFILE"
+    | "PRODUCT"
+    | "MODEL"
+    | "STUDIO"
+    | "BATTLE"
+    | "CHALLENGE";
   id: string;
   title: string;
   image?: string;

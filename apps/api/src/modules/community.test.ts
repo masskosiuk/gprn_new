@@ -4,7 +4,12 @@ import { prisma } from "@gprn/db";
 import { S3ObjectStorage } from "@gprn/storage";
 import { CommunityService } from "./community.service.js";
 import { demoCommunityPosts } from "../scripts/demo-community-catalog.js";
-import { demoBattleAuthors } from "@gprn/domain";
+import {
+  demoBattleAuthors,
+  demoExpertCovers,
+  demoModelImages,
+  demoStudioImages,
+} from "@gprn/domain";
 import type { CurrentUser } from "./auth.service.js";
 
 Object.assign(process.env, {
@@ -31,6 +36,282 @@ const actor = {
 } as unknown as CurrentUser;
 const forbidden = (error: unknown) =>
   (error as { getStatus(): number }).getStatus() === 403;
+const missing = (error: unknown) =>
+  (error as { getStatus(): number }).getStatus() === 404;
+function sourceResolver() {
+  return new CommunityService() as unknown as {
+    source(
+      type: string,
+      id: string,
+      locale: string,
+    ): Promise<{
+      sourceType: string;
+      sourceId: string;
+      sourcePath: string;
+      coverAssetKey: string | null;
+      sourceCoverUrl: string | null;
+    }>;
+  };
+}
+
+test("model and studio discussions use the same covers and IDs as their catalogs", async () => {
+  const service = sourceResolver();
+  for (const [type, directory, route] of [
+    ["MODEL", demoModelImages, "models?model"],
+    ["STUDIO", demoStudioImages, "studios?studio"],
+  ] as const) {
+    for (const [key, cover] of Object.entries(directory)) {
+      const source = await service.source(type, key, "ru");
+      assert.equal(source.sourceCoverUrl, cover);
+      assert.equal(source.coverAssetKey, null);
+      assert.equal(source.sourcePath, `/ru/${route}=${key}`);
+      assert.equal(source.sourceType, type);
+      assert.equal(source.sourceId, key);
+    }
+    for (const invalid of ["missing", "__proto__", "constructor", "toString"])
+      await assert.rejects(service.source(type, invalid, "ru"), missing);
+  }
+});
+
+test("challenge discussions accept catalog slugs and UUIDs and reject hidden sources", async () => {
+  const find = prisma.challenge.findFirst;
+  let visible = true;
+  let query: unknown;
+  prisma.challenge.findFirst = (async (args: unknown) => {
+    query = args;
+    return visible
+      ? {
+          id,
+          slug: "cinema-without-budget",
+          coverUrl: "https://images.invalid/challenge.jpg",
+        }
+      : null;
+  }) as unknown as typeof find;
+  try {
+    const service = sourceResolver();
+    for (const key of [id, "cinema-without-budget"]) {
+      const source = await service.source("CHALLENGE", key, "en");
+      assert.equal(
+        source.sourcePath,
+        "/en/challenges?challenge=cinema-without-budget",
+      );
+      assert.equal(
+        source.sourceCoverUrl,
+        "https://images.invalid/challenge.jpg",
+      );
+      const where = (query as { where: Record<string, unknown> }).where;
+      assert.deepEqual(where.status, {
+        in: ["UPCOMING", "ACTIVE", "COMPLETED"],
+      });
+      assert.equal(where[key === id ? "id" : "slug"], key);
+    }
+    visible = false;
+    await assert.rejects(service.source("CHALLENGE", "hidden", "en"), missing);
+  } finally {
+    prisma.challenge.findFirst = find;
+  }
+});
+
+test("battle discussion covers cannot expose private or unmoderated entries", async () => {
+  const find = prisma.battle.findFirst;
+  let visible = true;
+  prisma.battle.findFirst = (async (query: {
+    where: { id: string; OR: unknown[] };
+    include: { entries: { where: unknown; take: number; orderBy: unknown } };
+  }) => {
+    assert.equal(query.where.id, id);
+    const entry = {
+      moderationStatus: "APPROVED",
+      photo: {
+        deletedAt: null,
+        status: "PUBLISHED",
+        moderationStatus: "APPROVED",
+        visibility: "PUBLIC",
+        owner: {
+          status: "ACTIVE",
+          profile: { visibility: "PUBLIC", deletedAt: null },
+        },
+      },
+    };
+    assert.deepEqual(query.include.entries.where, entry);
+    assert.deepEqual(query.where.OR, [
+      { status: { in: ["OPEN", "CLOSED"] } },
+      { status: "DRAFT", entries: { some: entry, every: entry } },
+    ]);
+    assert.equal(query.include.entries.take, 1);
+    assert.deepEqual(query.include.entries.orderBy, { slot: "asc" });
+    return visible
+      ? {
+          entries: [
+            {
+              photo: {
+                assets: [
+                  {
+                    type: "ORIGINAL",
+                    contentType: "image/jpeg",
+                    storageKey: "private/original.jpg",
+                  },
+                  {
+                    type: "THUMBNAIL",
+                    contentType: "image/webp",
+                    storageKey: "battle/preview.webp",
+                  },
+                ],
+              },
+            },
+          ],
+        }
+      : null;
+  }) as unknown as typeof find;
+  try {
+    const service = sourceResolver();
+    const source = await service.source("BATTLE", id, "ru");
+    assert.equal(source.coverAssetKey, "battle/preview.webp");
+    assert.equal(source.sourcePath, "/ru/battles?battle=" + id);
+    visible = false;
+    await assert.rejects(service.source("BATTLE", id, "ru"), missing);
+    await assert.rejects(service.source("BATTLE", "not-a-uuid", "ru"));
+  } finally {
+    prisma.battle.findFirst = find;
+  }
+});
+
+test("master discussion sources preserve real usernames and require a public active profile", async () => {
+  const find = prisma.profile.findFirst;
+  let visible = true;
+  prisma.profile.findFirst = (async (args: { where: { username: string } }) => {
+    assert.deepEqual(args.where, {
+      username: "iryna",
+      visibility: "PUBLIC",
+      deletedAt: null,
+      user: { status: "ACTIVE" },
+    });
+    return visible
+      ? {
+          username: "iryna",
+          coverAssetKey: null,
+          avatarAssetKey: "profile/avatar.webp",
+        }
+      : null;
+  }) as unknown as typeof find;
+  try {
+    const service = sourceResolver();
+    const source = await service.source("PROFILE", "iryna", "ru");
+    assert.equal(source.sourcePath, "/ru/profile?author=iryna");
+    assert.equal(source.coverAssetKey, "profile/avatar.webp");
+    visible = false;
+    await assert.rejects(service.source("PROFILE", "iryna", "ru"), missing);
+  } finally {
+    prisma.profile.findFirst = find;
+  }
+});
+
+test("demo expert discussions retain catalog covers when no profile image is stored", async () => {
+  const find = prisma.profile.findFirst;
+  prisma.profile.findFirst = (async (args: {
+    where: { username: string };
+  }) => ({
+    username: args.where.username,
+    coverAssetKey: null,
+    avatarAssetKey: null,
+  })) as unknown as typeof find;
+  try {
+    const service = sourceResolver();
+    for (const [username, cover] of Object.entries(demoExpertCovers)) {
+      const source = await service.source("PROFILE", username, "ru");
+      assert.equal(source.sourceCoverUrl, cover);
+      assert.equal(source.sourcePath, "/ru/profile?author=" + username);
+    }
+    assert.equal(
+      (await service.source("PROFILE", "another.author", "ru")).sourceCoverUrl,
+      null,
+    );
+  } finally {
+    prisma.profile.findFirst = find;
+  }
+});
+
+test("a discussion of another post preserves an inherited source cover", async () => {
+  const find = prisma.communityPost.findUniqueOrThrow;
+  prisma.communityPost.findUniqueOrThrow = (async () => ({
+    coverAssetKey: null,
+    sourceCoverUrl: demoModelImages.aiko,
+  })) as unknown as typeof find;
+  try {
+    const service = sourceResolver() as ReturnType<typeof sourceResolver> & {
+      one(id: string): Promise<{ post: { kind: string } }>;
+    };
+    service.one = async () => ({ post: { kind: "DISCUSSION" } });
+    const source = await service.source("POST", id, "ru");
+    assert.equal(source.sourceCoverUrl, demoModelImages.aiko);
+    assert.equal(source.sourcePath, "/ru/discussions?post=" + id);
+  } finally {
+    prisma.communityPost.findUniqueOrThrow = find;
+  }
+});
+
+test("card discussions persist their server-resolved source and remain pending moderation", async () => {
+  const profile = prisma.profile.findUnique;
+  const find = prisma.communityPost.findFirst;
+  const count = prisma.communityPost.count;
+  const transaction = prisma.$transaction;
+  const create = prisma.communityPost.create;
+  prisma.profile.findUnique = (async () => ({
+    proUntil: null,
+  })) as unknown as typeof profile;
+  prisma.communityPost.findFirst = (async () => null) as typeof find;
+  prisma.communityPost.count = (async () => 0) as typeof count;
+  prisma.communityPost.create = (async ({
+    data,
+  }: {
+    data: Record<string, unknown>;
+  }) => {
+    assert.equal(data.sourceType, "MODEL");
+    assert.equal(data.sourceId, "aiko");
+    assert.equal(data.sourceCoverUrl, demoModelImages.aiko);
+    assert.equal(data.sourcePath, "/ru/models?model=aiko");
+    assert.equal(data.authorId, actor.id);
+    assert.equal(data.body, "Question about this portfolio");
+    assert.equal("moderationStatus" in data, false);
+    return {
+      ...data,
+      moderationStatus: "PENDING",
+      author: { profile: actor.profile },
+      _count: { comments: 0 },
+      createdAt: new Date(),
+    };
+  }) as unknown as typeof create;
+  prisma.$transaction = (async (callback: (tx: unknown) => Promise<unknown>) =>
+    callback({
+      profile: prisma.profile,
+      communityPost: prisma.communityPost,
+      $executeRaw: async () => 1,
+    })) as unknown as typeof transaction;
+  try {
+    const { post } = await new CommunityService().create(actor, {
+      kind: "DISCUSSION",
+      title: "Portfolio discussion",
+      body: "Question about this portfolio",
+      language: "ru",
+      locale: "ru",
+      location: "Tokyo",
+      startsAt: new Date().toISOString(),
+      sourceType: "MODEL",
+      sourceId: "aiko",
+      coverDataUrl: "invalid-client-cover",
+      sourceCoverUrl: "https://untrusted.invalid/cover.jpg",
+      sourcePath: "https://untrusted.invalid",
+    });
+    assert.equal(post.status, "PENDING");
+    assert.equal(post.coverUrl, demoModelImages.aiko);
+  } finally {
+    prisma.profile.findUnique = profile;
+    prisma.communityPost.findFirst = find;
+    prisma.communityPost.count = count;
+    prisma.communityPost.create = create;
+    prisma.$transaction = transaction;
+  }
+});
 
 test("home highlights contain only public approved posts in newest-publication order", async () => {
   const find = prisma.communityPost.findMany;

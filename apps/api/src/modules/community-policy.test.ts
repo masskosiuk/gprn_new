@@ -94,6 +94,27 @@ test("posts validate kinds, text limits, language and date ranges", () => {
     (e) => status(e, 400),
   );
 });
+test("discussion card sources are accepted without trusting client covers or links", () => {
+  for (const sourceType of [
+    "PROFILE",
+    "MODEL",
+    "STUDIO",
+    "BATTLE",
+    "CHALLENGE",
+  ]) {
+    const parsed = parseCommunityPost({
+      ...post,
+      sourceType,
+      sourceId: "source",
+      sourcePath: "https://untrusted.invalid",
+      sourceCoverUrl: "https://untrusted.invalid/cover.jpg",
+    });
+    assert.equal(parsed.sourceType, sourceType);
+    assert.equal("sourcePath" in parsed, false);
+    assert.equal("sourceCoverUrl" in parsed, false);
+  }
+});
+
 test("reports cannot send administrators to an external or authenticated URL", () => {
   const report = {
     kind: "REPORT",

@@ -86,6 +86,52 @@
   font-size: 13px;
   padding: 8px 10px;
 }
+.entity-card-actions,
+.battle-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.entity-card-actions {
+  margin-top: 10px;
+}
+.entity-card-actions > .primary-action {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+:is(
+    .entity-card-actions,
+    .battle-card-actions,
+    .challenge-actions,
+    .home-battle-discussion,
+    .studio-card-footer,
+    .entity-profile-head,
+    .profile-commerce-actions
+  )
+  .community-discuss {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  flex: 0 0 32px;
+}
+:is(
+    .entity-card-actions,
+    .battle-card-actions,
+    .challenge-actions,
+    .home-battle-discussion,
+    .studio-card-footer,
+    .entity-profile-head,
+    .profile-commerce-actions
+  )
+  .community-discuss:hover {
+  color: var(--accent);
+  background: var(--panel-strong);
+}
 .community-comments {
   margin-top: 12px;
 }

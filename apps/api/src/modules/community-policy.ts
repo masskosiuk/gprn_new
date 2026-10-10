@@ -62,6 +62,10 @@ export function parseCommunityPost(body: unknown) {
       "POST",
       "PROFILE",
       "PRODUCT",
+      "MODEL",
+      "STUDIO",
+      "BATTLE",
+      "CHALLENGE",
     ] as const),
     sourceId: optionalString(record, "sourceId"),
     locale: /^[a-z]{2}$/.test(String(record.locale))

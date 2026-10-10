@@ -3,6 +3,11 @@ import { loadRuntimeEnv } from "@gprn/config";
 import { prisma, type Prisma } from "@gprn/db";
 import { S3ObjectStorage } from "@gprn/storage";
 import {
+  demoExpertCovers,
+  demoModelImages,
+  demoStudioImages,
+} from "@gprn/domain";
+import {
   BadRequestException,
   ForbiddenException,
   HttpException,
@@ -77,7 +82,7 @@ export class CommunityService {
       isDemo: Boolean(post.demoKey),
       coverUrl: post.coverAssetKey
         ? publicAssetUrl(this.env, post.coverAssetKey)
-        : null,
+        : (post.sourceCoverUrl ?? null),
       commentCount: post._count.comments,
       author: {
         id: post.authorId,
@@ -115,6 +120,7 @@ export class CommunityService {
     if (!type || !id) throw new BadRequestException({ code: "SOURCE_INVALID" });
     let sourcePath: string;
     let coverAssetKey: string | null = null;
+    let sourceCoverUrl: string | null = null;
     if (type === "PHOTO") {
       requireUuid(id);
       const photo = await prisma.photo.findFirst({
@@ -147,7 +153,73 @@ export class CommunityService {
         where: { id },
       });
       coverAssetKey = original.coverAssetKey;
+      sourceCoverUrl = original.sourceCoverUrl;
       sourcePath = `/${locale}/${post.kind === "EVENT" ? "events" : post.kind === "CASTING" ? "search" : "discussions"}?post=${id}`;
+    } else if (type === "MODEL" || type === "STUDIO") {
+      const directory: Readonly<Record<string, string>> =
+        type === "MODEL" ? demoModelImages : demoStudioImages;
+      if (!Object.hasOwn(directory, id))
+        throw new NotFoundException({ code: "SOURCE_NOT_FOUND" });
+      sourceCoverUrl = directory[id] ?? null;
+      sourcePath = `/${locale}/${type === "MODEL" ? "models?model" : "studios?studio"}=${encodeURIComponent(id)}`;
+    } else if (type === "CHALLENGE") {
+      const challenge = await prisma.challenge.findFirst({
+        where: {
+          ...(/^[0-9a-f-]{36}$/i.test(id)
+            ? { id: requireUuid(id) }
+            : { slug: id }),
+          status: { in: ["UPCOMING", "ACTIVE", "COMPLETED"] },
+        },
+      });
+      if (!challenge) throw new NotFoundException({ code: "SOURCE_NOT_FOUND" });
+      sourceCoverUrl = challenge.coverUrl;
+      sourcePath = `/${locale}/challenges?challenge=${encodeURIComponent(challenge.slug || challenge.id)}`;
+    } else if (type === "BATTLE") {
+      requireUuid(id);
+      const approvedEntry = {
+        moderationStatus: "APPROVED" as const,
+        photo: {
+          deletedAt: null,
+          status: "PUBLISHED" as const,
+          moderationStatus: "APPROVED" as const,
+          visibility: "PUBLIC" as const,
+          owner: visibleAuthor,
+        },
+      };
+      const battle = await prisma.battle.findFirst({
+        where: {
+          id,
+          OR: [
+            { status: { in: ["OPEN", "CLOSED"] } },
+            {
+              status: "DRAFT",
+              entries: { some: approvedEntry, every: approvedEntry },
+            },
+          ],
+        },
+        include: {
+          entries: {
+            where: approvedEntry,
+            orderBy: { slot: "asc" },
+            take: 1,
+            include: { photo: { include: { assets: true } } },
+          },
+        },
+      });
+      if (!battle) throw new NotFoundException({ code: "SOURCE_NOT_FOUND" });
+      const assets = battle.entries[0]?.photo.assets ?? [];
+      coverAssetKey =
+        assets.find(
+          (asset) =>
+            asset.contentType.startsWith("image/") &&
+            asset.type === "THUMBNAIL",
+        )?.storageKey ??
+        assets.find(
+          (asset) =>
+            asset.contentType.startsWith("image/") && asset.type === "DISPLAY",
+        )?.storageKey ??
+        null;
+      sourcePath = `/${locale}/battles?battle=${id}`;
     } else if (type === "PROFILE") {
       const profile = await prisma.profile.findFirst({
         where: {
@@ -159,8 +231,11 @@ export class CommunityService {
       });
       if (!profile) throw new NotFoundException({ code: "SOURCE_NOT_FOUND" });
       coverAssetKey = profile.coverAssetKey ?? profile.avatarAssetKey;
+      if (!coverAssetKey && Object.hasOwn(demoExpertCovers, profile.username))
+        sourceCoverUrl =
+          demoExpertCovers[profile.username as keyof typeof demoExpertCovers];
       sourcePath = `/${locale}/profile?author=${encodeURIComponent(profile.username)}`;
-    } else {
+    } else if (type === "PRODUCT") {
       requireUuid(id);
       const product = await prisma.marketplaceProduct.findFirst({
         where: {
@@ -188,8 +263,18 @@ export class CommunityService {
         throw new NotFoundException({ code: "SOURCE_NOT_FOUND" });
       coverAssetKey = product.previewAssetKey;
       sourcePath = `/${locale}/marketplace?product=${id}`;
+    } else {
+      throw new BadRequestException({ code: "SOURCE_INVALID" });
     }
-    return { sourceType: type, sourceId: id, sourcePath, coverAssetKey };
+    if (sourceCoverUrl && !/^(?:https?:\/\/|\/(?!\/))/.test(sourceCoverUrl))
+      sourceCoverUrl = null;
+    return {
+      sourceType: type,
+      sourceId: id,
+      sourcePath,
+      coverAssetKey,
+      sourceCoverUrl,
+    };
   }
 
   async list(query: Record<string, string | undefined>) {

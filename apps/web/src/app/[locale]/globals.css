@@ -2416,7 +2416,8 @@ img {
 .challenge-actions {
   align-items: center;
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .challenge-top {
@@ -2441,7 +2442,7 @@ img {
 }
 
 .home-competition-card:has(.home-competition-link:focus-visible),
-.home-battle-card:focus-visible {
+.home-battle-card:has(.home-battle-link:focus-visible) {
   outline: 3px solid var(--accent);
   outline-offset: 3px;
 }
@@ -2570,10 +2571,22 @@ img {
 }
 
 .home-battle-card {
+  position: relative;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
+}
+
+.home-battle-link {
+  display: block;
+  color: inherit;
+}
+
+.home-battle-discussion {
+  position: absolute;
+  right: 14px;
+  bottom: 16px;
 }
 
 .home-battle-images {
@@ -2597,7 +2610,7 @@ img {
   display: flex;
   gap: 18px;
   justify-content: space-between;
-  padding: 18px;
+  padding: 18px 60px 18px 18px;
 }
 
 .home-battle-copy h2 {
@@ -6107,7 +6120,7 @@ img {
     text-align: left;
   }
 
-  .battle-status .icon-button {
+  .battle-status .battle-card-actions {
     grid-column: 2;
     grid-row: 1 / span 2;
   }
