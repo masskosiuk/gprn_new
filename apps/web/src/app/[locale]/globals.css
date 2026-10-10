@@ -6532,6 +6532,38 @@ img {
   display: grid;
   min-width: 0;
   overflow: hidden;
+  position: relative;
+}
+
+.product-title-trigger {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+}
+.product-title-trigger::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.product-title-trigger:hover {
+  color: var(--accent-strong);
+}
+.product-title-trigger:focus-visible {
+  outline: none;
+}
+.product-title-trigger:focus-visible::after {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+.profile-product-tile .product-card-actions,
+.profile-product-tile .community-publication-tools,
+.profile-product-body > a {
+  position: relative;
+  z-index: 2;
 }
 
 .is-lut .profile-product-tile {
@@ -6651,15 +6683,8 @@ img {
   color: var(--muted);
 }
 
-.product-dialog-backdrop {
-  align-items: center;
+.product-dialog::backdrop {
   background: rgb(0 0 0 / 70%);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  padding: 20px;
-  position: fixed;
-  z-index: 120;
 }
 
 .product-dialog {
@@ -6672,7 +6697,52 @@ img {
   max-width: 620px;
   overflow-y: auto;
   padding: 24px;
-  width: 100%;
+  width: calc(100vw - 40px);
+}
+
+.product-dialog--preview {
+  max-width: 1100px;
+}
+.product-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.product-detail-cover,
+.product-detail-copy {
+  min-width: 0;
+}
+.product-detail-cover .profile-product-preview {
+  aspect-ratio: auto;
+  background: var(--panel-strong);
+}
+.product-detail-cover .profile-product-preview > img {
+  height: auto;
+  max-height: 64dvh;
+  object-fit: contain;
+}
+.product-detail-copy {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+.product-detail-copy p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.product-detail-copy > a {
+  justify-self: start;
+}
+.product-detail-copy > button {
+  justify-self: start;
+  max-width: 100%;
+}
+.product-detail-price {
+  font-size: 22px;
 }
 
 .product-dialog > header,
@@ -6687,9 +6757,13 @@ img {
 .product-dialog h2 {
   font-size: 22px;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 .product-dialog > header {
   margin-bottom: 20px;
+}
+.product-dialog > header > button {
+  flex: 0 0 auto;
 }
 .product-editor fieldset {
   border: 0;
@@ -6754,6 +6828,12 @@ img {
   grid-template-columns: 1fr 1fr;
 }
 
+@media (max-width: 800px) {
+  .product-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+}
 @media (max-width: 680px) {
   .profile-products-heading:has(.product-create-action) {
     grid-template-columns: 44px minmax(0, 1fr);
@@ -6762,12 +6842,10 @@ img {
     grid-column: 1 / -1;
     justify-self: start;
   }
-  .product-dialog-backdrop {
-    padding: 10px;
-  }
   .product-dialog {
     max-height: calc(100dvh - 20px);
     padding: 16px;
+    width: calc(100vw - 20px);
   }
   .product-editor > footer {
     flex-wrap: wrap;

@@ -66,74 +66,61 @@ function ProductDialog({
   title,
   close,
   children,
+  className = "",
+  closeDisabled = false,
 }: {
   title: string;
   close: () => void;
   children: ReactNode;
+  className?: string;
+  closeDisabled?: boolean;
 }) {
-  const dialog = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(close);
-  closeRef.current = close;
+  const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    dialog.current?.focus();
-    const keydown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeRef.current();
-      if (event.key !== "Tab") return;
-      const controls = Array.from(
-        dialog.current?.querySelectorAll<HTMLElement>(
-          "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), a[href]",
-        ) ?? [],
-      );
-      const first = controls[0];
-      const last = controls.at(-1);
-      if (
-        event.shiftKey &&
-        (document.activeElement === first ||
-          document.activeElement === dialog.current)
-      ) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
-      }
-    };
-    document.addEventListener("keydown", keydown);
-    return () => {
-      document.removeEventListener("keydown", keydown);
-      previous?.focus();
-    };
+    const element = dialog.current;
+    element?.showModal();
+    return () => element?.close();
   }, []);
+  function dismiss() {
+    if (closeDisabled) return;
+    dialog.current?.close();
+    close();
+  }
   return (
-    <div
-      className="product-dialog-backdrop"
+    <dialog
+      aria-label={title}
+      className={`product-dialog ${className}`}
+      ref={dialog}
+      onCancel={(event) => {
+        event.preventDefault();
+        dismiss();
+      }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) close();
+        if (event.target !== event.currentTarget) return;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        if (
+          event.clientX < bounds.left ||
+          event.clientX > bounds.right ||
+          event.clientY < bounds.top ||
+          event.clientY > bounds.bottom
+        )
+          dismiss();
       }}
     >
-      <div
-        aria-label={title}
-        aria-modal="true"
-        className="product-dialog"
-        role="dialog"
-        ref={dialog}
-        tabIndex={-1}
-      >
-        <header>
-          <h2>{title}</h2>
-          <button
-            aria-label="Close"
-            className="icon-button"
-            onClick={close}
-            type="button"
-          >
-            <X size={20} />
-          </button>
-        </header>
-        {children}
-      </div>
-    </div>
+      <header>
+        <h2>{title}</h2>
+        <button
+          aria-label="Close"
+          className="icon-button"
+          disabled={closeDisabled}
+          onClick={dismiss}
+          type="button"
+        >
+          <X size={20} />
+        </button>
+      </header>
+      {children}
+    </dialog>
   );
 }
 
@@ -237,6 +224,7 @@ function ProductEditor({
   return (
     <ProductDialog
       title={t(offer ? "product.edit" : "product.add")}
+      closeDisabled={busy}
       close={() => {
         if (!busy) close();
       }}
@@ -571,6 +559,17 @@ export function DigitalProductSection({
       style: "currency",
       currency: "USD",
     }).format(value / 100);
+  const titleOf = (offer: DigitalProductOffer) =>
+    offer.isDemo && offer.titleKey
+      ? t(offer.titleKey)
+      : (offer.title ?? (offer.titleKey ? t(offer.titleKey) : ""));
+  const formatsOf = (offer: DigitalProductOffer) =>
+    [...new Set(offer.files?.map((file) => file.format) ?? [])].join(" · ");
+  const preview = (offer: DigitalProductOffer) => {
+    setError("");
+    setSelected(offer);
+    setDownloads(Boolean(canManage || purchased || offer.owned));
+  };
   const begin = async (offer: DigitalProductOffer) => {
     setError("");
     setSelected(offer);
@@ -646,13 +645,8 @@ export function DigitalProductSection({
       {!offers.length && <p className="empty-state">{t("product.empty")}</p>}
       <div className="profile-product-grid">
         {offers.map((offer) => {
-          const title =
-            offer.isDemo && offer.titleKey
-              ? t(offer.titleKey)
-              : (offer.title ?? (offer.titleKey ? t(offer.titleKey) : ""));
-          const formats = [
-            ...new Set(offer.files?.map((file) => file.format) ?? []),
-          ].join(" · ");
+          const title = titleOf(offer);
+          const formats = formatsOf(offer);
           return (
             <article className="profile-product-tile" key={offer.id}>
               <ProductCover
@@ -670,7 +664,16 @@ export function DigitalProductSection({
                     <small>{t("product.hidden")}</small>
                   )}
                 </span>
-                <h3>{title}</h3>
+                <h3>
+                  <button
+                    className="product-title-trigger"
+                    type="button"
+                    aria-haspopup="dialog"
+                    onClick={() => preview(offer)}
+                  >
+                    {title}
+                  </button>
+                </h3>
                 {offer.seller ? (
                   <Link
                     href={
@@ -774,72 +777,119 @@ export function DigitalProductSection({
       )}
       {selected && (
         <ProductDialog
-          title={t(downloads ? "product.download" : "product.purchase")}
+          title={titleOf(selected)}
+          className="product-dialog--preview"
+          closeDisabled={busy}
           close={() => {
             if (!busy) setSelected(undefined);
           }}
         >
-          <h3>
-            {selected.title ?? (selected.titleKey ? t(selected.titleKey) : "")}
-          </h3>
-          {downloads ? (
-            <ul className="product-file-list">
-              {selected.files?.map((file) => (
-                <li key={file.id}>
-                  <span>{file.name}</span>
-                  <a
-                    className="secondary-action compact"
-                    href={`${apiRoot}/digital-products/${selected.id}/files/${file.id}`}
-                    download
+          <div className="product-detail-grid">
+            <div className="product-detail-cover">
+              <ProductCover
+                offer={selected}
+                title={titleOf(selected)}
+                paletteLabel={t("product.colors")}
+                formats={formatsOf(selected)}
+              />
+            </div>
+            <div className="product-detail-copy">
+              <span className="product-kind-label">
+                <Icon size={16} />
+                {t(isLut ? "marketplace.lut" : "marketplace.preset")}
+                {selected.isDemo && <small>{t("product.demo")}</small>}
+              </span>
+              {selected.seller && (
+                <Link
+                  href={`/${locale}/profile?author=${encodeURIComponent(selected.seller.username)}`}
+                >
+                  {selected.seller.displayName}
+                </Link>
+              )}
+              {selected.description && <p>{selected.description}</p>}
+              {selected.files && (
+                <p>
+                  {t("product.fileCount")}: {selected.files.length} ·{" "}
+                  {formatsOf(selected)}
+                </p>
+              )}
+              <strong className="product-detail-price">
+                {selected.owned
+                  ? t("product.purchased")
+                  : selected.priceMinor === 0
+                    ? t("marketplace.free")
+                    : money(selected.priceMinor)}
+              </strong>
+              {downloads ? (
+                <ul className="product-file-list">
+                  {selected.files?.map((file) => (
+                    <li key={file.id}>
+                      <span>{file.name}</span>
+                      <a
+                        className="secondary-action compact"
+                        href={`${apiRoot}/digital-products/${selected.id}/files/${file.id}`}
+                        download
+                      >
+                        <Download size={17} />
+                        {t("marketplace.download")}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <>
+                  <button
+                    className="primary-action compact"
+                    disabled={busy || !selected.files?.length}
+                    type="button"
+                    onClick={async () => {
+                      setBusy(true);
+                      setError("");
+                      try {
+                        if (await purchase(selected)) setDownloads(true);
+                        else setSelected(undefined);
+                      } catch (failure) {
+                        setError(
+                          t(
+                            failure instanceof ApiRequestError &&
+                              failure.code === "INSUFFICIENT_FUNDS"
+                              ? "wallet.insufficient"
+                              : "product.failed",
+                          ),
+                        );
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
                   >
-                    <Download size={17} />
-                    {t("marketplace.download")}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <>
-              <p>{money(selected.priceMinor)}</p>
-              <button
-                className="primary-action compact"
-                disabled={busy}
-                type="button"
-                onClick={async () => {
-                  setBusy(true);
-                  setError("");
-                  try {
-                    if (await purchase(selected)) setDownloads(true);
-                    else setSelected(undefined);
-                  } catch (failure) {
-                    setError(
-                      t(
-                        failure instanceof ApiRequestError &&
-                          failure.code === "INSUFFICIENT_FUNDS"
-                          ? "wallet.insufficient"
-                          : "product.failed",
-                      ),
-                    );
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                <ShoppingBag size={17} />
-                {t("product.purchase")}
-              </button>
-            </>
-          )}
-          {error && (
-            <p role="alert" className="form-feedback is-error">
-              {error}
-            </p>
-          )}
+                    {selected.isDemo || selected.priceMinor === 0 ? (
+                      <Download size={17} />
+                    ) : (
+                      <ShoppingBag size={17} />
+                    )}
+                    {t(
+                      selected.isDemo
+                        ? "product.demoDownload"
+                        : selected.priceMinor === 0
+                          ? "marketplace.download"
+                          : "product.purchase",
+                    )}
+                  </button>
+                </>
+              )}
+              {error && (
+                <p role="alert" className="form-feedback is-error">
+                  {error}
+                </p>
+              )}
+            </div>
+          </div>
         </ProductDialog>
       )}
       {removing && archive && (
         <ProductDialog
           title={t("product.remove")}
+          closeDisabled={busy}
           close={() => {
             if (!busy) setRemoving(undefined);
           }}
