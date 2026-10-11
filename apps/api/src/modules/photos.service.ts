@@ -175,9 +175,9 @@ const photoInclude = {
   reviews: photoEngagementInclude.reviews,
   _count: {
     select: {
+      comments: photoEngagementInclude._count.select.comments,
       battleEntries: true,
       challengeEntries: true,
-      comments: true,
       disputesAsSubject: true,
       likes: true,
       moodboardItems: true,

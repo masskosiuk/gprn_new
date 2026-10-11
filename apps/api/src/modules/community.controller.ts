@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
@@ -13,6 +14,7 @@ import {
 import { ApiTags } from "@nestjs/swagger";
 import { AuthService } from "./auth.service.js";
 import { CommunityService } from "./community.service.js";
+import { InteractionsService } from "./interactions.service.js";
 import type { CookieRequest } from "./http.types.js";
 
 @ApiTags("community")
@@ -21,6 +23,7 @@ export class CommunityController {
   constructor(
     private readonly auth: AuthService,
     private readonly community: CommunityService,
+    private readonly interactions: InteractionsService,
   ) {}
 
   @Get("posts") list(@Query() query: Record<string, string | undefined>) {
@@ -37,7 +40,7 @@ export class CommunityController {
     @Param("username") username: string,
     @Body() body: unknown,
   ) {
-    return this.community.contact(
+    return this.interactions.contact(
       await this.auth.requireUserFromRequest(request),
       username,
       body,
@@ -91,7 +94,9 @@ export class CommunityController {
       body,
     );
   }
-  @Get("inquiries") async inquiries(@Req() request: CookieRequest) {
+  @Get("inquiries")
+  @Header("Cache-Control", "private, no-store")
+  async inquiries(@Req() request: CookieRequest) {
     return this.community.inquiries(
       await this.auth.requireUserFromRequest(request),
     );
@@ -105,7 +110,9 @@ export class CommunityController {
       body,
     );
   }
-  @Get("admin/inquiries") async adminInquiries(
+  @Get("admin/inquiries")
+  @Header("Cache-Control", "private, no-store")
+  async adminInquiries(
     @Req() request: CookieRequest,
     @Query("kind") kind?: string,
   ) {

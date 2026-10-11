@@ -12,7 +12,18 @@ export type PhotoReviewScores = Record<(typeof reviewCriteria)[number], number>;
 
 export const photoEngagementInclude = {
   _count: {
-    select: { likes: true, moodboardItems: true, reviews: true, savedBy: true },
+    select: {
+      likes: true,
+      moodboardItems: true,
+      reviews: true,
+      savedBy: true,
+      comments: {
+        where: {
+          deletedAt: null,
+          user: { status: "ACTIVE", profile: { deletedAt: null } },
+        },
+      },
+    },
   },
   reviews: {
     select: {
@@ -45,6 +56,7 @@ export function photoEngagementResponse(photo: {
     likes: number;
     moodboardItems: number;
     reviews: number;
+    comments?: number;
   };
   reviews: readonly PhotoReviewScores[];
 }) {
@@ -54,6 +66,7 @@ export function photoEngagementResponse(photo: {
       likes: photo._count.likes,
       moodboards: photo._count.moodboardItems,
       reviews: photo._count.reviews,
+      comments: photo._count.comments ?? 0,
     },
     reviewScores: aggregatePhotoReviews(photo.reviews),
   };

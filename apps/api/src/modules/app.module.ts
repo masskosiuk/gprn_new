@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
 import { CommunityController } from "./community.controller.js";
 import { CommunityService } from "./community.service.js";
+import { InteractionsService } from "./interactions.service.js";
+import { InteractionsController } from "./interactions.controller.js";
 
 import { AuthController } from "./auth.controller.js";
 import { AuthService } from "./auth.service.js";
@@ -42,6 +44,7 @@ import { SocialConnectionsService } from "./social-connections.service.js";
 
 @Module({
   controllers: [
+    InteractionsController,
     CommunityController,
     DigitalProductsController,
     AdminController,
@@ -65,6 +68,7 @@ import { SocialConnectionsService } from "./social-connections.service.js";
     SocialConnectionsController,
   ],
   providers: [
+    InteractionsService,
     CommunityService,
     DigitalProductsService,
     AdminService,

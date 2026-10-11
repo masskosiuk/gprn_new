@@ -6,6 +6,7 @@ import {
   demoExpertUsernames,
   demoModelImages,
   demoStudioImages,
+  demoStudioRates,
   demoBattlePhotos,
   demoBattles,
   demoDigitalProducts,
@@ -96,6 +97,8 @@ import { ProfileStats } from "./profile-stats";
 import { ServerMarketplace } from "./server-marketplace";
 import {
   CommunityProvider,
+  CommentButton,
+  StudioBookingButton,
   CommunityBoard,
   SuggestionsPage,
   Comments,
@@ -107,6 +110,11 @@ import {
   AdminCommunitySections,
   ProControl,
 } from "./community";
+import { MyInteractions } from "./interactions";
+import {
+  filterStudioPrices,
+  type StudioPriceOrder,
+} from "../../lib/studio-price";
 import {
   ProfileLocationPicker,
   type LocationOption,
@@ -342,6 +350,7 @@ interface ServerPhotoPayload {
   } | null;
   readonly categorySlug?: string | null;
   readonly counts?: {
+    readonly comments?: number;
     readonly bookmarks: number;
     readonly likes: number;
     readonly moodboards: number;
@@ -712,6 +721,7 @@ interface ProfileForm {
 }
 
 interface PhotoRecord {
+  readonly commentCount?: number;
   readonly mediaType?: "PHOTO" | "VIDEO";
   readonly videoSrc?: string;
   readonly authorId?: string;
@@ -1191,6 +1201,10 @@ const dateInputPlaceholders: Record<SupportedLocale, string> = {
 };
 
 const sectionMeta: Record<Exclude<SectionId, "home">, SectionMeta> = {
+  interactions: {
+    introKey: "section.interactions.intro",
+    titleKey: "section.interactions.title",
+  },
   feed: { introKey: "section.feed.intro", titleKey: "section.feed.title" },
   events: {
     introKey: "section.events.intro",
@@ -2375,7 +2389,7 @@ const studios: readonly StudioRecord[] = [
       sampleImages.city,
       sampleImages.street,
     ],
-    hourlyRateMinor: 8500,
+    hourlyRateMinor: demoStudioRates["north-light"]!.hourlyRateMinor,
     id: "north-light",
     imageUrl: sampleImages.studioNorth,
     nameKey: "studios.data.northLight",
@@ -2406,7 +2420,7 @@ const studios: readonly StudioRecord[] = [
       sampleImages.night,
       sampleImages.architecture,
     ],
-    hourlyRateMinor: 14500,
+    hourlyRateMinor: demoStudioRates["atelier-seine"]!.hourlyRateMinor,
     id: "atelier-seine",
     imageUrl: sampleImages.studioSeine,
     nameKey: "studios.data.atelierSeine",
@@ -2433,7 +2447,7 @@ const studios: readonly StudioRecord[] = [
     descriptionKey: "studios.data.hikariStage.description",
     equipment: ["flash", "continuousLight", "greenScreen", "freightElevator"],
     galleryUrls: [sampleImages.city, sampleImages.tram, sampleImages.night],
-    hourlyRateMinor: 16800,
+    hourlyRateMinor: demoStudioRates["hikari-stage"]!.hourlyRateMinor,
     id: "hikari-stage",
     imageUrl: sampleImages.studioHikari,
     nameKey: "studios.data.hikariStage",
@@ -2464,7 +2478,7 @@ const studios: readonly StudioRecord[] = [
       sampleImages.desert,
       sampleImages.architecture,
     ],
-    hourlyRateMinor: 9200,
+    hourlyRateMinor: demoStudioRates["luz-factory"]!.hourlyRateMinor,
     id: "luz-factory",
     imageUrl: sampleImages.studioLuz,
     nameKey: "studios.data.luzFactory",
@@ -2495,7 +2509,7 @@ const studios: readonly StudioRecord[] = [
       sampleImages.night,
       sampleImages.street,
     ],
-    hourlyRateMinor: 10400,
+    hourlyRateMinor: demoStudioRates["saga-room"]!.hourlyRateMinor,
     id: "saga-room",
     imageUrl: sampleImages.studioSaga,
     nameKey: "studios.data.sagaRoom",
@@ -2830,6 +2844,10 @@ export function HomeClient({
   const [modelRatingFilter, setModelRatingFilter] =
     useState<MinimumRatingFilter>("all");
   const [studioSearch, setStudioSearch] = useState("");
+  const [studioPriceMin, setStudioPriceMin] = useState("");
+  const [studioPriceMax, setStudioPriceMax] = useState("");
+  const [studioPriceOrder, setStudioPriceOrder] =
+    useState<StudioPriceOrder>("default");
   const [studioCountryFilter, setStudioCountryFilter] =
     useState<CountryFilter>("all");
   const [studioCityFilter, setStudioCityFilter] =
@@ -3238,30 +3256,35 @@ export function HomeClient({
       model.rating >= minimumRating
     );
   });
-  const visibleStudios = studios.filter((studio) => {
-    const query = studioSearch.trim().toLocaleLowerCase(locale);
-    const searchableText = [
-      t(studio.nameKey),
-      getLocationLabel(studio.cityId, locale),
-      ...studio.equipment.map((equipment) =>
-        t(`studios.equipment.${equipment}` as MessageKey),
-      ),
-    ]
-      .join(" ")
-      .toLocaleLowerCase(locale);
-    const minimumRating =
-      studioRatingFilter === "all" ? 0 : Number(studioRatingFilter);
+  const visibleStudios = filterStudioPrices(
+    studios.filter((studio) => {
+      const query = studioSearch.trim().toLocaleLowerCase(locale);
+      const searchableText = [
+        t(studio.nameKey),
+        getLocationLabel(studio.cityId, locale),
+        ...studio.equipment.map((equipment) =>
+          t(`studios.equipment.${equipment}` as MessageKey),
+        ),
+      ]
+        .join(" ")
+        .toLocaleLowerCase(locale);
+      const minimumRating =
+        studioRatingFilter === "all" ? 0 : Number(studioRatingFilter);
 
-    return (
-      (!query || searchableText.includes(query)) &&
-      (studioCountryFilter === "all" ||
-        studio.countryId === studioCountryFilter) &&
-      (studioCityFilter === "all" || studio.cityId === studioCityFilter) &&
-      (studioEquipmentFilter === "all" ||
-        studio.equipment.includes(studioEquipmentFilter)) &&
-      studio.rating >= minimumRating
-    );
-  });
+      return (
+        (!query || searchableText.includes(query)) &&
+        (studioCountryFilter === "all" ||
+          studio.countryId === studioCountryFilter) &&
+        (studioCityFilter === "all" || studio.cityId === studioCityFilter) &&
+        (studioEquipmentFilter === "all" ||
+          studio.equipment.includes(studioEquipmentFilter)) &&
+        studio.rating >= minimumRating
+      );
+    }),
+    studioPriceMin,
+    studioPriceMax,
+    studioPriceOrder,
+  );
   const studioMapMarkers = useMemo<readonly PhotoMapMarker[]>(
     () =>
       visibleStudios.map((studio) => {
@@ -6344,6 +6367,20 @@ export function HomeClient({
           </nav>
 
           <div className={`header-tools${isMobileMenuOpen ? " is-open" : ""}`}>
+            {serverUser ? (
+              <Link
+                href={getSectionHref(locale, "interactions")}
+                className="header-interactions-link"
+                aria-label={t("nav.interactions")}
+                title={t("nav.interactions")}
+                aria-current={
+                  initialSection === "interactions" ? "page" : undefined
+                }
+              >
+                <MessageCircle size={18} />
+                <span>{t("nav.interactions")}</span>
+              </Link>
+            ) : null}
             <button
               aria-label={theme === "dark" ? t("theme.light") : t("theme.dark")}
               aria-pressed={theme === "dark"}
@@ -7001,6 +7038,9 @@ export function HomeClient({
           <CommunityBoard kind="CASTING" initialPostId={initialPostId} />
         ) : null}
         {sectionId === "suggestions" ? <SuggestionsPage /> : null}
+        {sectionId === "interactions" ? (
+          <MyInteractions key={serverUser?.id ?? "guest"} />
+        ) : null}
         {sectionId === "video" ? renderVideoPage() : null}
         {sectionId === "models" ? renderModelsPage() : null}
         {sectionId === "battles" ? renderBattlesPage() : null}
@@ -7878,11 +7918,9 @@ export function HomeClient({
               </span>
             </button>
             {photo.serverBacked && photo.published ? (
-              <button
-                type="button"
-                className="icon-button"
-                title={locale === "ru" ? "Комментарии" : "Comments"}
-                aria-label={locale === "ru" ? "Комментарии" : "Comments"}
+              <CommentButton
+                id={photo.id}
+                count={photo.commentCount ?? 0}
                 onClick={() => {
                   setPhotoReviewOpen(false);
                   setImagePreview({
@@ -7892,9 +7930,7 @@ export function HomeClient({
                     videoSrc: photo.videoSrc,
                   });
                 }}
-              >
-                <MessageCircle size={22} />
-              </button>
+              />
             ) : null}
             <button
               aria-label={isSaved ? t("discover.unsave") : t("discover.save")}
@@ -9385,10 +9421,58 @@ export function HomeClient({
               </select>
             </label>
           </div>
+          <div className="studio-price-filters">
+            <label className="form-field compact-field">
+              <span>
+                {locale === "ru" ? "Цена от, $/час" : "Min price, $/hour"}
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={studioPriceMin}
+                onChange={(e) => setStudioPriceMin(e.target.value)}
+              />
+            </label>
+            <label className="form-field compact-field">
+              <span>
+                {locale === "ru" ? "Цена до, $/час" : "Max price, $/hour"}
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={studioPriceMax}
+                onChange={(e) => setStudioPriceMax(e.target.value)}
+              />
+            </label>
+            <label className="form-field compact-field">
+              <span>{locale === "ru" ? "Сортировка" : "Sort by"}</span>
+              <select
+                value={studioPriceOrder}
+                onChange={(e) =>
+                  setStudioPriceOrder(e.target.value as StudioPriceOrder)
+                }
+              >
+                <option value="default">
+                  {locale === "ru" ? "По умолчанию" : "Default"}
+                </option>
+                <option value="asc">
+                  {locale === "ru" ? "Сначала дешевле" : "Price: low to high"}
+                </option>
+                <option value="desc">
+                  {locale === "ru" ? "Сначала дороже" : "Price: high to low"}
+                </option>
+              </select>
+            </label>
+          </div>
           <button
             className="secondary-action compact directory-reset"
             onClick={() => {
               setStudioSearch("");
+              setStudioPriceMin("");
+              setStudioPriceMax("");
+              setStudioPriceOrder("default");
               setStudioCountryFilter("all");
               setStudioCityFilter("all");
               setStudioRatingFilter("all");
@@ -9458,6 +9542,18 @@ export function HomeClient({
                         <small>{t(labelKey)}</small>
                       </div>
                     ))}
+                  </div>
+                  <div className="studio-card-booking">
+                    <span>
+                      <strong>
+                        {formatMoney(studio.hourlyRateMinor, locale)}
+                      </strong>{" "}
+                      / {locale === "ru" ? "час" : "hour"}
+                    </span>
+                    <StudioBookingButton
+                      id={studio.id}
+                      name={t(studio.nameKey)}
+                    />
                   </div>
                   <div className="studio-card-footer">
                     <span>
@@ -9594,19 +9690,7 @@ export function HomeClient({
                   </span>
                 </div>
               </div>
-              <button
-                className="primary-action compact"
-                onClick={() =>
-                  openCommerceDialog({
-                    author: getStudioCommerceAuthor(studio),
-                    kind: "service",
-                  })
-                }
-                type="button"
-              >
-                <Send aria-hidden="true" size={16} />
-                {t("studios.book")}
-              </button>
+              <StudioBookingButton id={studio.id} name={t(studio.nameKey)} />
             </div>
             <div className="entity-stat-grid">
               <div>
@@ -11957,6 +12041,7 @@ export function HomeClient({
               key={imagePreview.photoId}
               kind="PHOTO"
               id={imagePreview.photoId}
+              count={previewWork?.commentCount ?? 0}
               initiallyOpen
             />
           ) : null}
@@ -12881,16 +12966,23 @@ function mapServerNotification(
         ? String(payload?.message ?? "")
         : notification.type === "COMMUNITY_MODERATION"
           ? `${title}: ${String(payload?.status ?? "")} ${reason}`
-          : null;
+          : notification.type === "INTERACTION_UPDATED"
+            ? `${locale === "ru" ? "Статус взаимодействия" : "Interaction status"}: ${String(payload?.status ?? "")}`
+            : null;
   const href =
-    notification.type === "MEMBER_MESSAGE" &&
-    typeof payload?.senderUsername === "string"
-      ? `/${locale}/profile?author=${encodeURIComponent(payload.senderUsername)}`
-      : notification.type === "COMMUNITY_REPLY"
-        ? `/${locale}/suggestions`
-        : notification.type === "COMMUNITY_MODERATION"
-          ? `/${locale}/${payload?.kind === "EVENT" ? "events" : payload?.kind === "CASTING" ? "search" : "discussions"}`
-          : undefined;
+    typeof payload?.threadId === "string"
+      ? `/${locale}/interactions?thread=${encodeURIComponent(payload.threadId)}`
+      : typeof payload?.requestId === "string" &&
+          notification.type.startsWith("service_")
+        ? `/${locale}/interactions?order=${encodeURIComponent(payload.requestId)}`
+        : notification.type === "MEMBER_MESSAGE" &&
+            typeof payload?.senderUsername === "string"
+          ? `/${locale}/profile?author=${encodeURIComponent(payload.senderUsername)}`
+          : notification.type === "COMMUNITY_REPLY"
+            ? `/${locale}/interactions?inquiry=${encodeURIComponent(String(payload?.inquiryId ?? ""))}`
+            : notification.type === "COMMUNITY_MODERATION"
+              ? `/${locale}/${payload?.kind === "EVENT" ? "events" : payload?.kind === "CASTING" ? "search" : "discussions"}`
+              : undefined;
 
   return {
     createdAt: notification.createdAt,
@@ -12945,6 +13037,7 @@ function mapServerPhoto(
     authorTier: ownerTier,
     authorUsername: ownerUsername,
     bookmarkCount: photo.counts?.bookmarks ?? 0,
+    commentCount: photo.counts?.comments ?? 0,
     categoryId: normalizeServerCategory(
       photo.category?.slug ?? photo.categorySlug,
     ),

@@ -9,6 +9,7 @@ import {
 } from "@nestjs/common";
 
 import type { CurrentUser } from "./auth.service.js";
+import { requireUuid } from "./community-policy.js";
 import { publicAssetUrl } from "./serialization.js";
 import {
   asRecord,
@@ -58,6 +59,69 @@ const promotionPrices = {
 @Injectable()
 export class PlatformService {
   private readonly env = loadRuntimeEnv();
+
+  async requests(user: CurrentUser, pageValue = "1") {
+    const page = Number(pageValue);
+    if (!Number.isInteger(page) || page < 1 || page > 10000)
+      throw new BadRequestException({ code: "INVALID_PAGE" });
+    const where = { OR: [{ customerId: user.id }, { providerId: user.id }] };
+    const [requests, total] = await Promise.all([
+      prisma.serviceRequest.findMany({
+        where,
+        include: {
+          customer: {
+            select: {
+              profile: { select: { displayName: true, username: true } },
+            },
+          },
+          provider: {
+            select: {
+              profile: { select: { displayName: true, username: true } },
+            },
+          },
+        },
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        take: 30,
+        skip: (page - 1) * 30,
+      }),
+      prisma.serviceRequest.count({ where }),
+    ]);
+    return {
+      requests: requests.map(({ customer, provider, ...request }) => ({
+        ...serializeMoneyRecord(request),
+        customer: customer.profile,
+        provider: provider.profile,
+      })),
+      total,
+      page,
+    };
+  }
+
+  async requestDetail(user: CurrentUser, id: string, pageValue = "1") {
+    requireUuid(id);
+    const page = Number(pageValue);
+    if (!Number.isInteger(page) || page < 1 || page > 10000)
+      throw new BadRequestException({ code: "INVALID_PAGE" });
+    const request = await prisma.serviceRequest.findFirst({
+      where: { id, OR: [{ customerId: user.id }, { providerId: user.id }] },
+    });
+    if (!request) throw new NotFoundException({ code: "REQUEST_NOT_FOUND" });
+    const [messages, total] = await Promise.all([
+      prisma.serviceMessage.findMany({
+        where: { requestId: id },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 50,
+        skip: (page - 1) * 50,
+      }),
+      prisma.serviceMessage.count({ where: { requestId: id } }),
+    ]);
+    return {
+      request: serializeMoneyRecord(request),
+      messages: messages.reverse(),
+      total,
+      page,
+    };
+  }
 
   async dashboard(user: CurrentUser) {
     const [wallet, requests, promotions, donations, bookmarks, moodboards] =

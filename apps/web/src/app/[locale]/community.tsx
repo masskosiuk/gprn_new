@@ -29,8 +29,11 @@ import {
   GraduationCap,
   Pencil,
   Save,
+  CalendarDays,
 } from "lucide-react";
 import Link from "next/link";
+import { createPortal } from "react-dom";
+import { demoStudioRates } from "@gprn/domain";
 
 type Request = <T>(path: string, init?: RequestInit) => Promise<T>;
 type Kind = "EVENT" | "DISCUSSION" | "CASTING";
@@ -99,11 +102,16 @@ type Context = {
   root: string;
 };
 const CommunityContext = createContext<Context | null>(null);
+const CommentCountsContext = createContext<{
+  counts: Record<string, number>;
+  update(key: string, count: number): void;
+}>({ counts: {}, update: () => undefined });
 export function CommunityProvider({
   children,
   request,
   ...value
 }: Omit<Context, "request"> & { request: Request; children: ReactNode }) {
+  const [counts, setCounts] = useState<Record<string, number>>({});
   return (
     <CommunityContext.Provider
       value={{
@@ -111,11 +119,23 @@ export function CommunityProvider({
         request: <T,>(path: string, init: RequestInit = {}) =>
           request<T>(path, {
             ...init,
-            signal: init.signal ?? AbortSignal.timeout(15000),
+            signal: init.signal
+              ? AbortSignal.any([init.signal, AbortSignal.timeout(15000)])
+              : AbortSignal.timeout(15000),
           }),
       }}
     >
-      {children}
+      <CommentCountsContext.Provider
+        value={{
+          counts,
+          update: (key, count) =>
+            setCounts((current) =>
+              current[key] === count ? current : { ...current, [key]: count },
+            ),
+        }}
+      >
+        {children}
+      </CommentCountsContext.Provider>
     </CommunityContext.Provider>
   );
 }
@@ -144,6 +164,11 @@ function useTitle(kind: Kind) {
 }
 function errorText(error: unknown, t: ReturnType<typeof useWords>) {
   const code = (error as { code?: string })?.code;
+  if (code === "THREAD_CLOSED")
+    return t(
+      "Этот диалог закрыт. Откройте «Мои взаимодействия», чтобы посмотреть историю.",
+      "This conversation is closed. Open My interactions to view its history.",
+    );
   if (code === "POST_CHANGED")
     return t(
       "Публикация была изменена. Обновите страницу и повторите правку.",
@@ -218,7 +243,7 @@ function Dialog({
     ref.current?.close();
     close();
   }
-  return (
+  return createPortal(
     <dialog
       className={`community-dialog ${className}`}
       aria-label={title}
@@ -252,7 +277,8 @@ function Dialog({
         </button>
       </header>
       {children}
-    </dialog>
+    </dialog>,
+    document.body,
   );
 }
 function Feedback({ children }: { children: string }) {
@@ -615,9 +641,7 @@ function PostComposer({
           disabled={busy || sent}
         >
           {post ? <Save size={17} /> : <Send size={17} />}
-          {post
-            ? t("Сохранить", "Save")
-            : t("На модерацию", "Submit for review")}
+          {post ? t("Сохранить", "Save") : t("Отправить", "Send")}
         </button>
         <Feedback>{feedback}</Feedback>
       </form>
@@ -711,10 +735,12 @@ export function PublicationTools({
   source,
   reportType,
   comments = true,
+  commentCount = 0,
 }: {
   source: Source;
   reportType?: string;
   comments?: boolean;
+  commentCount?: number;
 }) {
   return (
     <div className="community-publication-tools">
@@ -727,13 +753,52 @@ export function PublicationTools({
         />
       </div>
       {comments && (source.type === "PHOTO" || source.type === "POST") ? (
-        <Comments kind={source.type} id={source.id} />
+        <Comments kind={source.type} id={source.id} count={commentCount} />
       ) : null}
     </div>
   );
 }
 
 type Comment = { id: string; body: string; createdAt: string; author: Author };
+function CommentCount({
+  kind,
+  id,
+  count,
+}: {
+  kind: "PHOTO" | "POST";
+  id: string;
+  count: number;
+}) {
+  const { counts } = useContext(CommentCountsContext);
+  return <span>{counts[kind + ":" + id] ?? count}</span>;
+}
+export function CommentButton({
+  kind = "PHOTO",
+  id,
+  count = 0,
+  onClick,
+}: {
+  kind?: "PHOTO" | "POST";
+  id: string;
+  count?: number;
+  onClick(): void;
+}) {
+  const t = useWords();
+  const { counts } = useContext(CommentCountsContext);
+  const total = counts[kind + ":" + id] ?? count;
+  return (
+    <button
+      type="button"
+      className="photo-counter-action community-comment-counter"
+      title={t("Комментарии", "Comments")}
+      aria-label={t("Комментарии", "Comments") + ": " + total}
+      onClick={onClick}
+    >
+      <MessageCircle size={22} aria-hidden="true" />
+      <span>{total}</span>
+    </button>
+  );
+}
 function CommentRow({
   comment,
   busy,
@@ -843,18 +908,21 @@ export function Comments({
   kind,
   id,
   initiallyOpen = false,
+  count = 0,
 }: {
   kind: "PHOTO" | "POST";
   id: string;
   initiallyOpen?: boolean;
+  count?: number;
 }) {
   const { request, userId, login, isAdmin, locale } = useCommunity();
   const t = useWords();
+  const counter = useContext(CommentCountsContext);
   const [open, setOpen] = useState(initiallyOpen);
   const [items, setItems] = useState<Comment[]>([]);
   const [translationAvailable, setTranslationAvailable] = useState(false);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState(count);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [version, setVersion] = useState(0);
@@ -880,6 +948,7 @@ export function Comments({
         setItems(data.comments);
         setTranslationAvailable(Boolean(data.translationAvailable));
         setTotal(data.total);
+        counter.update(kind + ":" + id, data.total);
         setFeedback("");
       })
       .catch((e) => {
@@ -935,7 +1004,7 @@ export function Comments({
       >
         <MessageCircle size={20} />
         {t("Комментарии", "Comments")}
-        {open ? " (" + total + ")" : ""}
+        {" (" + (counter.counts[kind + ":" + id] ?? total) + ")"}
       </button>
       {open ? (
         <div id={"comment-list-" + id} className="community-comments-content">
@@ -1326,7 +1395,11 @@ export function CommunityBoard({
                       }
                     >
                       <MessageCircle size={16} />
-                      <span>{post.commentCount}</span>
+                      <CommentCount
+                        kind="POST"
+                        id={post.id}
+                        count={post.commentCount}
+                      />
                     </Link>
                     <DiscussionButton
                       compact
@@ -1385,6 +1458,7 @@ export function CommunityBoard({
               </div>
               {!isCompactList ? (
                 <PublicationTools
+                  commentCount={post.commentCount}
                   source={{
                     type: "POST",
                     id: post.id,
@@ -1970,6 +2044,7 @@ export function InteractionMenu({
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [sent, setSent] = useState(false);
+  const [threadId, setThreadId] = useState("");
   const options: [string, string, typeof MessageCircle][] = [
     ["SHOOT", t("Предложить съёмку", "Propose a shoot"), Camera],
     ["REVIEW", t("Заказать оценку", "Request a review"), Star],
@@ -2049,13 +2124,15 @@ export function InteractionMenu({
               className="community-form"
               onSubmit={async (e) => {
                 e.preventDefault();
+                if (busy || sent) return;
                 const body = new FormData(e.currentTarget).get("body");
                 setBusy(true);
                 try {
-                  await request(
+                  const result = await request<{ threadId: string }>(
                     "/community/contact/" + encodeURIComponent(username),
                     { method: "POST", body: JSON.stringify({ topic, body }) },
                   );
+                  setThreadId(result.threadId);
                   setSent(true);
                   setFeedback(
                     t(
@@ -2083,6 +2160,13 @@ export function InteractionMenu({
                 {t("Отправить", "Send")}
               </button>
               <Feedback>{feedback}</Feedback>
+              {sent && threadId ? (
+                <Link
+                  href={`/${locale}/interactions?thread=${encodeURIComponent(threadId)}`}
+                >
+                  {t("Открыть переписку", "Open conversation")}
+                </Link>
+              ) : null}
             </form>
           )}
         </Dialog>
@@ -2101,6 +2185,77 @@ export function InteractionMenu({
           close={() => setDiscussion(false)}
         />
       ) : null}
+    </>
+  );
+}
+
+export function StudioBookingButton({
+  id,
+  name,
+}: {
+  id: string;
+  name: string;
+}) {
+  const { locale } = useCommunity();
+  const t = useWords();
+  const [open, setOpen] = useState(false);
+  const [hours, setHours] = useState(1);
+  const rate = demoStudioRates[id]?.hourlyRateMinor ?? 0;
+  return (
+    <>
+      <button
+        type="button"
+        className="primary-action compact"
+        onClick={() => setOpen(true)}
+      >
+        <CalendarDays size={16} />
+        {t("Заказать", "Request booking")}
+      </button>
+      {open && (
+        <Dialog title={name} close={() => setOpen(false)}>
+          <p>
+            {t(
+              "Демо-студия. Это пример формы: заявка не отправляется, бронирование и оплата недоступны.",
+              "Demo studio. This is a sample form: no request is sent, and booking and payment are unavailable.",
+            )}
+          </p>
+          <div className="community-form">
+            <label>
+              {t(
+                "Дата и время (ваш часовой пояс)",
+                "Date and time (your time zone)",
+              )}
+              <input type="datetime-local" name="startsAt" required />
+            </label>
+            <label>
+              {t("Часов", "Hours")}
+              <input
+                type="number"
+                min={1}
+                max={24}
+                step={1}
+                required
+                value={hours}
+                onChange={(e) => setHours(Number(e.target.value))}
+              />
+            </label>
+            <strong>
+              {new Intl.NumberFormat(locale, {
+                style: "currency",
+                currency: "USD",
+              }).format((rate * (hours || 0)) / 100)}
+            </strong>
+            <label>
+              {t("Пожелания к съёмке", "Shoot requirements")}
+              <textarea name="body" required maxLength={5000} rows={3} />
+            </label>
+            <button type="button" className="primary-action" disabled>
+              <Send size={18} />
+              {t("Демо: отправка недоступна", "Demo: sending unavailable")}
+            </button>
+          </div>
+        </Dialog>
+      )}
     </>
   );
 }

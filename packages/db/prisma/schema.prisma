@@ -308,6 +308,9 @@ model User {
   communityPosts          CommunityPost[]
   communityInquiries      CommunityInquiry[]
   comments                Comment[]
+  interactionsStarted     InteractionThread[]  @relation("interaction_initiator")
+  interactionsReceived    InteractionThread[]  @relation("interaction_recipient")
+  interactionMessages     InteractionMessage[]
 
   @@index([status])
   @@map("users")
@@ -1135,6 +1138,39 @@ model Notification {
 
   @@index([userId, status, createdAt])
   @@map("notifications")
+}
+
+model InteractionThread {
+  id              String               @id @default(uuid()) @db.Uuid
+  initiatorId     String               @db.Uuid
+  recipientId     String               @db.Uuid
+  topic           String
+  status          String               @default("OPEN")
+  initiatorReadAt DateTime?
+  recipientReadAt DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  initiator       User                 @relation("interaction_initiator", fields: [initiatorId], references: [id], onDelete: Restrict)
+  recipient       User                 @relation("interaction_recipient", fields: [recipientId], references: [id], onDelete: Restrict)
+  messages        InteractionMessage[]
+
+  @@index([initiatorId, updatedAt])
+  @@index([recipientId, updatedAt])
+  @@map("interaction_threads")
+}
+
+model InteractionMessage {
+  id        String            @id @default(uuid()) @db.Uuid
+  threadId  String            @db.Uuid
+  authorId  String            @db.Uuid
+  body      String
+  createdAt DateTime          @default(now())
+  thread    InteractionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author    User              @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([threadId, createdAt, id])
+  @@index([authorId, createdAt])
+  @@map("interaction_messages")
 }
 
 model SellerProfile {

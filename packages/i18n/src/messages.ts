@@ -31,6 +31,10 @@ const baseMessages = {
   "section.search.intro":
     "Find collaborators and clients for a specific shoot or creative project.",
   "nav.suggestions": "Suggestions",
+  "nav.interactions": "My interactions",
+  "section.interactions.title": "My interactions",
+  "section.interactions.intro":
+    "Messages, requests, orders and replies from administration.",
   "section.suggestions.title": "Suggestions",
   "section.suggestions.intro":
     "Send your ideas to the team. Replies are delivered to your account.",
@@ -1173,6 +1177,10 @@ const ruMessages: Partial<MessageMap> = {
   "section.search.intro":
     "Объявления о поиске мастеров, моделей и клиентов под конкретную съёмку или творческий проект.",
   "nav.suggestions": "Предложения",
+  "nav.interactions": "Мои взаимодействия",
+  "section.interactions.title": "Мои взаимодействия",
+  "section.interactions.intro":
+    "Переписка, запросы, заказы и ответы администрации.",
   "section.suggestions.title": "Предложения",
   "section.suggestions.intro":
     "Отправьте команде текст и изображение. Ответ придёт в ваш аккаунт.",
@@ -2214,6 +2222,10 @@ const ukMessages: Partial<MessageMap> = {
   "section.search.intro":
     "Оголошення про пошук майстрів, моделей та клієнтів для конкретної зйомки чи творчого проєкту.",
   "nav.suggestions": "Пропозиції",
+  "nav.interactions": "Мої взаємодії",
+  "section.interactions.title": "Мої взаємодії",
+  "section.interactions.intro":
+    "Листування, запити, замовлення та відповіді адміністрації.",
   "section.suggestions.title": "Пропозиції",
   "section.suggestions.intro":
     "Надішліть команді текст і зображення. Відповідь надійде у ваш акаунт.",

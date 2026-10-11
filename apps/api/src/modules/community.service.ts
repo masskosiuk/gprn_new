@@ -45,7 +45,16 @@ import {
 const authorInclude = { profile: true } as const;
 const postInclude = {
   author: { include: authorInclude },
-  _count: { select: { comments: { where: { deletedAt: null } } } },
+  _count: {
+    select: {
+      comments: {
+        where: {
+          deletedAt: null,
+          user: { status: "ACTIVE" as const, profile: { deletedAt: null } },
+        },
+      },
+    },
+  },
 } as const;
 type Post = Prisma.CommunityPostGetPayload<{ include: typeof postInclude }>;
 const visibleAuthor = {
@@ -921,60 +930,5 @@ export class CommunityService {
       });
     });
     return { proUntil };
-  }
-
-  async contact(user: CurrentUser, username: string, body: unknown) {
-    const input = asRecord(body);
-    const topic =
-      optionalEnum(input, "topic", [
-        "SHOOT",
-        "REVIEW",
-        "MENTORSHIP",
-        "MESSAGE",
-      ] as const) ?? "MESSAGE";
-    const message = boundedText(requiredString(input, "body"), 5000);
-    const recipient = await prisma.profile.findFirst({
-      where: {
-        username,
-        visibility: "PUBLIC",
-        deletedAt: null,
-        user: { status: "ACTIVE" },
-      },
-    });
-    if (!recipient || recipient.userId === user.id)
-      throw new BadRequestException({ code: "RECIPIENT_INVALID" });
-    await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`contact:${user.id}`}))`;
-      const count = await tx.auditLog.count({
-        where: {
-          actorUserId: user.id,
-          action: "community.message_sent",
-          createdAt: { gte: new Date(Date.now() - 3600000) },
-        },
-      });
-      if (count >= 20) throw new HttpException({ code: "RATE_LIMITED" }, 429);
-      await tx.notification.create({
-        data: {
-          userId: recipient.userId,
-          type: "MEMBER_MESSAGE",
-          payload: {
-            topic,
-            message,
-            senderId: user.id,
-            senderName: user.profile?.displayName ?? "Author",
-            senderUsername: user.profile?.username ?? "",
-          },
-        },
-      });
-      await tx.auditLog.create({
-        data: {
-          actorUserId: user.id,
-          action: "community.message_sent",
-          targetType: "user",
-          targetId: recipient.userId,
-        },
-      });
-    });
-    return { sent: true };
   }
 }

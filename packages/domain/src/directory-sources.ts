@@ -22,6 +22,16 @@ export const demoStudioImages = {
     "https://images.unsplash.com/photo-1780642208543-7a84b61f13ca?auto=format&fit=crop&w=1400&q=82",
 } as const;
 
+export const demoStudioRates: Readonly<
+  Record<string, { name: string; hourlyRateMinor: number }>
+> = {
+  "north-light": { name: "North Light", hourlyRateMinor: 8500 },
+  "atelier-seine": { name: "Atelier Seine", hourlyRateMinor: 14500 },
+  "hikari-stage": { name: "Hikari Stage", hourlyRateMinor: 16800 },
+  "luz-factory": { name: "Luz Factory", hourlyRateMinor: 9200 },
+  "saga-room": { name: "Saga Room", hourlyRateMinor: 10400 },
+};
+
 export const demoExpertUsernames: Readonly<Record<string, string>> = {
   iryna: "demo.iryna.melnyk",
   marcus: "demo.marcus.reed",

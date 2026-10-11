@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Patch,
   Post,
@@ -45,6 +46,29 @@ export class PlatformController {
     return this.platformService.createServiceRequest(
       await this.authService.requireUserFromRequest(request),
       body,
+    );
+  }
+
+  @Get("service-requests")
+  @Header("Cache-Control", "private, no-store")
+  async requests(@Req() request: CookieRequest, @Query("page") page?: string) {
+    return this.platformService.requests(
+      await this.authService.requireUserFromRequest(request),
+      page,
+    );
+  }
+
+  @Get("service-requests/:requestId")
+  @Header("Cache-Control", "private, no-store")
+  async requestDetail(
+    @Req() request: CookieRequest,
+    @Param("requestId") id: string,
+    @Query("page") page?: string,
+  ) {
+    return this.platformService.requestDetail(
+      await this.authService.requireUserFromRequest(request),
+      id,
+      page,
     );
   }
 
