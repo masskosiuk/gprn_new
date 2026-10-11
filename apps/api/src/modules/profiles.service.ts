@@ -21,8 +21,20 @@ import {
 import { asRecord, optionalEnum, optionalString } from "./validation.js";
 import { productInclude } from "./digital-product-assets.js";
 import { serializeDigitalProduct } from "./digital-products.service.js";
+import {
+  photoEngagementInclude,
+  photoEngagementResponse,
+} from "./photo-engagement.js";
 
 const visibilities = ["PUBLIC", "FOLLOWERS", "PRIVATE"] as const;
+
+const profilePhotoInclude = {
+  ...photoEngagementInclude,
+  assets: true,
+  category: true,
+  location: { include: { city: true } },
+  provenance: true,
+} as const;
 
 type ProfileRecord = Prisma.ProfileGetPayload<{
   include: {
@@ -35,12 +47,7 @@ type ProfileRecord = Prisma.ProfileGetPayload<{
         achievements: { include: { achievement: true } };
         expertProfile: { include: { services: true } };
         photos: {
-          include: {
-            assets: true;
-            category: true;
-            location: { include: { city: true } };
-            provenance: true;
-          };
+          include: typeof profilePhotoInclude;
         };
         ratings: true;
       };
@@ -80,12 +87,7 @@ export class ProfilesService {
               },
             },
             photos: {
-              include: {
-                assets: true,
-                category: true,
-                location: { include: { city: true } },
-                provenance: true,
-              },
+              include: profilePhotoInclude,
               orderBy: { publishedAt: "desc" },
               where: {
                 deletedAt: null,
@@ -138,12 +140,7 @@ export class ProfilesService {
               },
             },
             photos: {
-              include: {
-                assets: true,
-                category: true,
-                location: { include: { city: true } },
-                provenance: true,
-              },
+              include: profilePhotoInclude,
               orderBy: { createdAt: "desc" },
               where: { deletedAt: null },
             },
@@ -432,6 +429,13 @@ export class ProfilesService {
       displayName: profile.displayName,
       followers: profile.user._count.followers,
       following: profile.user._count.following,
+      publicPhotoCount: profile.user.photos.filter(
+        (photo) =>
+          photo.status === "PUBLISHED" &&
+          photo.visibility === "PUBLIC" &&
+          photo.moderationStatus === "APPROVED" &&
+          !photo.title.startsWith("__profile_"),
+      ).length,
       id: profile.id,
       lutOffer: profile.lutSalesEnabled
         ? {
@@ -471,6 +475,7 @@ export class ProfilesService {
             : null,
           createdAt: photo.createdAt.toISOString(),
           ...mediaAssetResponse(this.env, photo.assets),
+          ...photoEngagementResponse(photo),
           id: photo.id,
           location: photo.location
             ? {
@@ -499,6 +504,7 @@ export class ProfilesService {
           provenanceStatus: photo.provenance?.status ?? null,
           publishedAt: photo.publishedAt?.toISOString() ?? null,
           status: photo.status,
+          moderationStatus: photo.moderationStatus,
           title: photo.title,
           visibility: photo.visibility,
         };

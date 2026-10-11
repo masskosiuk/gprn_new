@@ -16,6 +16,11 @@ import sharp, { type Metadata } from "sharp";
 import type { CurrentUser } from "./auth.service.js";
 import { parsePhotoTitle, requirePhotoTitleAccess } from "./photo-title.js";
 import {
+  aggregatePhotoReviews,
+  photoEngagementInclude,
+  type PhotoReviewScores,
+} from "./photo-engagement.js";
+import {
   formatStoredCityLabel,
   type LocationSelection,
   LocationsService,
@@ -80,6 +85,7 @@ interface PublishPhotoInput {
 }
 
 interface PhotoRecord {
+  readonly reviews?: readonly PhotoReviewScores[];
   readonly _count?: {
     readonly battleEntries: number;
     readonly challengeEntries: number;
@@ -166,6 +172,7 @@ interface ImageRenditions {
 }
 
 const photoInclude = {
+  reviews: photoEngagementInclude.reviews,
   _count: {
     select: {
       battleEntries: true,
@@ -1072,6 +1079,7 @@ export class PhotosService {
         reviews: photo._count?.reviews ?? 0,
       },
       description: photo.description,
+      reviewScores: aggregatePhotoReviews(photo.reviews ?? []),
       id: photo.id,
       location: photo.location
         ? {

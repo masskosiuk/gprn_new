@@ -2,22 +2,16 @@ import { loadRuntimeEnv } from "@gprn/config";
 import { prisma } from "@gprn/db";
 import { Injectable } from "@nestjs/common";
 import { mediaCatalogFilter } from "./media-catalog.js";
+import {
+  photoEngagementInclude,
+  photoEngagementResponse,
+} from "./photo-engagement.js";
 
 import {
   dateToIso,
   publicAssetUrl,
   mediaAssetResponse,
 } from "./serialization.js";
-
-const reviewCriteria = [
-  "composition",
-  "lighting",
-  "technicalQuality",
-  "storytelling",
-  "originality",
-  "color",
-  "emotionalImpact",
-] as const;
 
 @Injectable()
 export class DiscoverService {
@@ -28,14 +22,7 @@ export class DiscoverService {
     const [photos, photographers] = await Promise.all([
       prisma.photo.findMany({
         include: {
-          _count: {
-            select: {
-              likes: true,
-              moodboardItems: true,
-              reviews: true,
-              savedBy: true,
-            },
-          },
+          ...photoEngagementInclude,
           assets: true,
           category: true,
           location: { include: { city: true } },
@@ -45,17 +32,6 @@ export class DiscoverService {
             },
           },
           provenance: true,
-          reviews: {
-            select: {
-              color: true,
-              composition: true,
-              emotionalImpact: true,
-              lighting: true,
-              originality: true,
-              storytelling: true,
-              technicalQuality: true,
-            },
-          },
         },
         orderBy: {
           publishedAt: "desc",
@@ -122,12 +98,7 @@ export class DiscoverService {
       photos: photos.map((photo) => {
         return {
           categorySlug: photo.category?.slug ?? null,
-          counts: {
-            bookmarks: photo._count.savedBy,
-            likes: photo._count.likes,
-            moodboards: photo._count.moodboardItems,
-            reviews: photo._count.reviews,
-          },
+          ...photoEngagementResponse(photo),
           ...mediaAssetResponse(this.env, photo.assets),
           id: photo.id,
           location: photo.location
@@ -159,18 +130,6 @@ export class DiscoverService {
           ownerUsername: photo.owner.profile?.username ?? "photographer",
           provenanceStatus: photo.provenance?.status ?? null,
           publishedAt: dateToIso(photo.publishedAt),
-          reviewScores:
-            photo.reviews.length > 0
-              ? (Object.fromEntries(
-                  reviewCriteria.map((criterion) => [
-                    criterion,
-                    photo.reviews.reduce(
-                      (total, review) => total + review[criterion],
-                      0,
-                    ) / photo.reviews.length,
-                  ]),
-                ) as Record<(typeof reviewCriteria)[number], number>)
-              : null,
           title: photo.title,
         };
       }),

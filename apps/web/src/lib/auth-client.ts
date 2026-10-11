@@ -36,7 +36,12 @@ export async function requestJson<T>(
 
   let response: Response;
   try {
-    response = await fetcher(url, { ...init, credentials: "include", headers });
+    response = await fetcher(url, {
+      cache: "no-store",
+      ...init,
+      credentials: "include",
+      headers,
+    });
   } catch {
     throw new ApiRequestError(null);
   }

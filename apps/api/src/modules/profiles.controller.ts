@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Param,
+  Patch,
+  Req,
+} from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 
 import { AuthService } from "./auth.service.js";
@@ -11,10 +19,11 @@ import { ProfilesService } from "./profiles.service.js";
 export class ProfilesController {
   constructor(
     private readonly authService: AuthService,
-    private readonly profilesService: ProfilesService
+    private readonly profilesService: ProfilesService,
   ) {}
 
   @Get("me")
+  @Header("Cache-Control", "no-store")
   async mine(@Req() request: CookieRequest) {
     const user = await this.authService.requireUserFromRequest(request);
     return this.profilesService.getMine(user);
@@ -28,6 +37,7 @@ export class ProfilesController {
   }
 
   @Get(":username")
+  @Header("Cache-Control", "no-store")
   getPublic(@Param("username") username: string) {
     return this.profilesService.getPublic(username.toLowerCase());
   }

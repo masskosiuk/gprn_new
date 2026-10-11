@@ -21,6 +21,15 @@ const json = (body: unknown, status = 200) =>
     status,
   });
 
+test("profile and session reads bypass stale browser response caches", async () => {
+  const fetcher: typeof fetch = async (_url, init) => {
+    assert.equal(init?.cache, "no-store");
+    assert.equal(init?.credentials, "include");
+    return json({ profile: { username: "author" } });
+  };
+  await requestJson("https://example.invalid/profiles/author", {}, fetcher);
+});
+
 test("a gateway error is an API outage, not a missing account or Google configuration", async () => {
   const fetcher: typeof fetch = async () => new Response("", { status: 502 });
   await assert.rejects(

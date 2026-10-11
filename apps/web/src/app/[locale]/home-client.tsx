@@ -113,6 +113,10 @@ import {
 } from "./profile-location-picker";
 import { isVideoWork, mergeMediaWorks } from "../../lib/media-kind";
 import { matchesFeedFilters } from "../../lib/feed-filter";
+import {
+  canonicalProfileUsername,
+  recoverableProfileImages,
+} from "../../lib/profile-source";
 import { PhotoTitleEditor } from "./photo-title-editor";
 import {
   DigitalProductSection,
@@ -123,6 +127,7 @@ import {
   sharedCompetitionId,
 } from "../../lib/competition-links";
 import {
+  ApiRequestError,
   authErrorKey,
   googleProviderStatus,
   googleUnavailableKey,
@@ -269,6 +274,7 @@ interface LocalNotification {
 }
 
 interface AccountRecord {
+  readonly publicPhotoCount?: number;
   readonly digitalProducts?: readonly DigitalProductOffer[];
   readonly digitalPurchases?: readonly DigitalProductOffer[];
   readonly availableForHire: boolean;
@@ -374,6 +380,7 @@ interface ServerPhotoPayload {
 }
 
 interface ServerProfilePayload {
+  readonly publicPhotoCount?: number;
   readonly digitalProducts?: readonly DigitalProductOffer[];
   readonly digitalPurchases?: readonly DigitalProductOffer[];
   readonly lutSalesEnabled?: boolean;
@@ -991,9 +998,7 @@ interface CommerceForm {
   readonly referenceUrl: string;
 }
 
-const accountStorageKey = "gprn.account.v2";
 const sessionStorageKey = "gprn.session.v2";
-const photosStorageKey = "gprn.photos.v2";
 const battleVotesStorageKey = "gprn.battleVotes.v2";
 const challengeEntriesStorageKey = "gprn.challengeEntries.v2";
 const seasonJoinedStorageKey = "gprn.seasonJoined.v2";
@@ -1003,7 +1008,6 @@ const likedVideosStorageKey = "gprn.likedVideos.v1";
 const moodboardStorageKey = "gprn.moodboard.v2";
 const wishlistStorageKey = "gprn.marketWishlist.v2";
 const notificationsStorageKey = "gprn.notifications.v2";
-const photoReviewsStorageKey = "gprn.photoReviews.v2";
 const studioReviewsStorageKey = "gprn.studioReviews.v1";
 const serviceOrdersStorageKey = "gprn.serviceOrders.v1";
 const promotionsStorageKey = "gprn.promotions.v1";
@@ -2624,6 +2628,8 @@ export function HomeClient({
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const languageMenuRef = useRef<HTMLDivElement>(null);
   const openedInitialPhotoRef = useRef<string | null>(null);
+  const activeServerUserId = useRef<string | null>(null);
+  const sessionRequestId = useRef(0);
   const [isHydrated, setHydrated] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -2657,6 +2663,8 @@ export function HomeClient({
     useState<GoogleAuthStatus>("LOADING");
   const [globalFeedback, setGlobalFeedback] = useState<Feedback | null>(null);
   const [account, setAccount] = useState<AccountRecord | null>(null);
+  const [legacyImagesBusy, setLegacyImagesBusy] = useState(false);
+  const [legacyProfileRecord, setLegacyProfileRecord] = useState<unknown>(null);
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
   const [serverUser, setServerUser] = useState<ServerSessionUser | null>(null);
   const [adminOverview, setAdminOverview] =
@@ -2718,8 +2726,12 @@ export function HomeClient({
     useState<PublicAuthorProfile | null>(null);
   const [serverPublicProfileLoaded, setServerPublicProfileLoaded] =
     useState(false);
-  const [serverDemoProducts, setServerDemoProducts] =
-    useState<readonly DigitalProductOffer[]>();
+  const [serverPublicPhotos, setServerPublicPhotos] = useState<PhotoRecord[]>(
+    [],
+  );
+  const [serverPublicProfileError, setServerPublicProfileError] =
+    useState(false);
+  const [publicProfileRetry, setPublicProfileRetry] = useState(0);
   const [selectedPhotoId, setSelectedPhotoId] = useState<string>("");
   const [photoFeedback, setPhotoFeedback] = useState<Feedback | null>(null);
   const [photoPendingDeletion, setPhotoPendingDeletion] =
@@ -2916,7 +2928,16 @@ export function HomeClient({
   ]);
 
   const currentProfile =
-    account && sessionEmail === account.email ? account : null;
+    serverUser && account && serverUser.email === account.email
+      ? account
+      : null;
+  const legacyProfileImages =
+    isHydrated && currentProfile
+      ? recoverableProfileImages(currentProfile, legacyProfileRecord)
+      : null;
+  const publicProfileUsername = initialAuthorId
+    ? canonicalProfileUsername(initialAuthorId)
+    : undefined;
   const isAdministrator = Boolean(
     serverUser?.roles.some(
       (role) => role === "ADMIN" || role === "SUPER_ADMIN",
@@ -2950,11 +2971,12 @@ export function HomeClient({
     }));
     return mergeMediaWorks([
       ...uploadedPhotos,
+      ...serverPublicPhotos,
       ...serverPhotos,
       ...curatedPhotos,
       ...(hasServerFeed ? [] : samples),
     ]);
-  }, [serverPhotos, uploadedPhotos, hasServerFeed]);
+  }, [serverPhotos, serverPublicPhotos, uploadedPhotos, hasServerFeed]);
   const publicPhotos = useMemo(
     () =>
       allPhotos.filter(
@@ -3293,22 +3315,9 @@ export function HomeClient({
     setTheme(resolvedTheme);
     document.documentElement.dataset.theme = resolvedTheme;
 
-    const storedAccount = readLocalStorage<AccountRecord | null>(
-      accountStorageKey,
-      null,
-    );
-    setAccount(
-      storedAccount
-        ? { ...storedAccount, tier: storedAccount.tier ?? "viewer" }
-        : null,
-    );
+    setLegacyProfileRecord(readLocalStorage<unknown>("gprn.account.v2", null));
+
     setSessionEmail(readLocalStorage<string | null>(sessionStorageKey, null));
-    setUploadedPhotos(
-      readLocalStorage<PhotoRecord[]>(photosStorageKey, []).map((photo) => ({
-        ...photo,
-        published: Boolean(photo.published),
-      })),
-    );
     setBattleVotes(
       normalizeStoredBattleVotes(
         readLocalStorage<Record<string, BattleEvaluationRecord | string>>(
@@ -3329,13 +3338,6 @@ export function HomeClient({
     setNotifications(
       readLocalStorage<LocalNotification[]>(notificationsStorageKey, []),
     );
-    setPhotoReviews({
-      ...samplePhotoReviews,
-      ...readLocalStorage<Record<string, PhotoReviewRecord[]>>(
-        photoReviewsStorageKey,
-        {},
-      ),
-    });
     setStudioReviews(
       readLocalStorage<Record<string, StudioScores[]>>(
         studioReviewsStorageKey,
@@ -3373,24 +3375,8 @@ export function HomeClient({
       return;
     }
 
-    writeLocalStorage(accountStorageKey, account);
-  }, [account, isHydrated]);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
     writeLocalStorage(sessionStorageKey, sessionEmail);
   }, [isHydrated, sessionEmail]);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    writeLocalStorage(photosStorageKey, uploadedPhotos);
-  }, [isHydrated, uploadedPhotos]);
 
   useEffect(() => {
     if (!isHydrated) {
@@ -3454,14 +3440,6 @@ export function HomeClient({
 
     writeLocalStorage(notificationsStorageKey, notifications);
   }, [isHydrated, notifications]);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    writeLocalStorage(photoReviewsStorageKey, photoReviews);
-  }, [isHydrated, photoReviews]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -3570,44 +3548,62 @@ export function HomeClient({
   }, [isHydrated]);
 
   useEffect(() => {
-    if (!isHydrated || initialSection !== "profile" || !initialAuthorId) {
-      setServerPublicProfile(null);
-      setServerPublicProfileLoaded(false);
+    setServerPublicProfile(null);
+    setServerPublicPhotos([]);
+    setServerPublicProfileLoaded(false);
+    setServerPublicProfileError(false);
+    if (!isHydrated || initialSection !== "profile" || !publicProfileUsername) {
       return;
     }
-
-    const isDemoAuthor =
-      publicAuthorProfiles.some((author) => author.id === initialAuthorId) ||
-      experts.some((expert) => expert.id === initialAuthorId);
-
-    if (!isDemoAuthor) {
-      setServerPublicProfileLoaded(false);
-      void loadServerPublicProfile(initialAuthorId);
-    }
-  }, [initialAuthorId, initialSection, isHydrated]);
-
-  useEffect(() => {
-    setServerDemoProducts(undefined);
-    if (
-      !isHydrated ||
-      initialSection !== "profile" ||
-      !initialAuthorId ||
-      !demoDigitalProducts.some((offer) => offer.author === initialAuthorId)
-    )
-      return;
+    const controller = new AbortController();
     let cancelled = false;
-    void apiRequest<{ products: readonly DigitalProductOffer[] }>(
-      `/digital-products/demo/${encodeURIComponent(initialAuthorId)}`,
-      { signal: AbortSignal.timeout(15_000) },
+    void apiRequest<{ profile: ServerProfilePayload }>(
+      `/profiles/${encodeURIComponent(publicProfileUsername)}`,
+      {
+        signal: AbortSignal.any([
+          controller.signal,
+          AbortSignal.timeout(15_000),
+        ]),
+      },
     )
       .then((response) => {
-        if (!cancelled) setServerDemoProducts(response.products);
+        if (cancelled) return;
+        const profile = response.profile;
+        setServerPublicProfile(mapServerPublicProfile(profile, locale));
+        setServerPublicPhotos(
+          profile.photos
+            .map((photo) =>
+              mapServerPhoto(photo, undefined, {
+                displayName: profile.displayName,
+                tier: profile.tier,
+                username: profile.username,
+              }),
+            )
+            .filter((photo): photo is PhotoRecord =>
+              Boolean(photo && !photo.profileAsset),
+            ),
+        );
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        if (!cancelled)
+          setServerPublicProfileError(
+            !(error instanceof ApiRequestError && error.status === 404),
+          );
+      })
+      .finally(() => {
+        if (!cancelled) setServerPublicProfileLoaded(true);
+      });
     return () => {
       cancelled = true;
+      controller.abort();
     };
-  }, [initialAuthorId, initialSection, isHydrated]);
+  }, [
+    publicProfileUsername,
+    initialSection,
+    isHydrated,
+    locale,
+    publicProfileRetry,
+  ]);
 
   useEffect(() => {
     if (initialSection !== "admin" || !isAdministrator) return;
@@ -3919,7 +3915,9 @@ export function HomeClient({
   }
 
   function getPhotoCriterionScores(photo: PhotoRecord): BattleScores | null {
-    const reviews = photoReviews[photo.id] ?? [];
+    const reviews =
+      photoReviews[photo.id] ??
+      (photo.serverBacked ? [] : (samplePhotoReviews[photo.id] ?? []));
     if (reviews.length > 0) {
       return Object.fromEntries(
         battleCriteria.map(({ id }) => [
@@ -3930,6 +3928,7 @@ export function HomeClient({
       ) as BattleScores;
     }
 
+    if (photo.serverBacked) return photo.criterionScores ?? null;
     if (photo.criterionScores) return photo.criterionScores;
 
     if (photo.score <= 0) return null;
@@ -4131,7 +4130,9 @@ export function HomeClient({
   function handleLanguageChange(nextLocale: SupportedLocale): void {
     setLanguageMenuOpen(false);
     writeLocaleCookie(nextLocale);
-    router.push(getSectionHref(nextLocale, initialSection));
+    router.push(
+      getSectionHref(nextLocale, initialSection) + window.location.search,
+    );
   }
 
   async function handlePhotoChange(
@@ -4255,8 +4256,8 @@ export function HomeClient({
   async function uploadProfileImage(
     file: File,
     kind: "avatar" | "cover",
-  ): Promise<void> {
-    if (!currentProfile || !serverUser) return;
+  ): Promise<boolean> {
+    if (!currentProfile || !serverUser) return false;
 
     try {
       const dataUrl = await readFileAsDataUrl(file);
@@ -4285,12 +4286,17 @@ export function HomeClient({
         ),
         method: "PATCH",
       });
-      setAccount({
-        ...currentProfile,
-        ...(kind === "avatar"
-          ? { avatarUrl: uploaded.src }
-          : { coverUrl: uploaded.src }),
-      });
+      if (activeServerUserId.current !== serverUser.id) return false;
+      setAccount((current) =>
+        current?.email === currentProfile.email
+          ? {
+              ...current,
+              ...(kind === "avatar"
+                ? { avatarUrl: uploaded.src }
+                : { coverUrl: uploaded.src }),
+            }
+          : current,
+      );
       setUploadedPhotos((current) => [
         { ...uploaded, profileAsset: true },
         ...current.filter((photo) => photo.id !== uploaded.id),
@@ -4299,8 +4305,67 @@ export function HomeClient({
         kind: "success",
         text: t(kind === "avatar" ? "photo.avatarSaved" : "profile.coverSaved"),
       });
+      return true;
     } catch {
       setGlobalFeedback({ kind: "error", text: t("photo.invalid") });
+      return false;
+    }
+  }
+
+  async function restoreLegacyProfileImages(): Promise<void> {
+    if (
+      !currentProfile ||
+      !serverUser ||
+      !legacyProfileImages ||
+      legacyImagesBusy
+    )
+      return;
+    setLegacyImagesBusy(true);
+    try {
+      for (const kind of ["avatar", "cover"] as const) {
+        if (activeServerUserId.current !== serverUser.id) break;
+        const src =
+          legacyProfileImages[kind === "avatar" ? "avatarUrl" : "coverUrl"];
+        if (!src) continue;
+        const existing = uploadedPhotos.find(
+          (photo) => photo.isMine && photo.src === src && !isVideoWork(photo),
+        );
+        if (existing) {
+          await apiRequest("/profiles/me", {
+            method: "PATCH",
+            body: JSON.stringify(
+              kind === "avatar"
+                ? { avatarPhotoId: existing.id }
+                : { coverPhotoId: existing.id },
+            ),
+          });
+        } else {
+          // Legacy embedded images are local data; never fetch arbitrary saved URLs.
+          if (
+            !/^data:image\/(png|jpeg|webp|avif|heic|heif|tiff);base64,/i.test(
+              src,
+            ) ||
+            src.length > 25 * 1024 * 1024
+          )
+            throw new Error("Legacy image cannot be safely restored.");
+          const blob = await fetch(src).then((response) => response.blob());
+          const file = new File([blob], `profile-${kind}`, { type: blob.type });
+          if (!(await uploadProfileImage(file, kind)))
+            throw new Error("Profile image restoration failed.");
+        }
+      }
+    } catch {
+      setGlobalFeedback({
+        kind: "error",
+        text:
+          locale === "ru"
+            ? "Не удалось восстановить все изображения. Загрузите недостающий аватар или обложку заново."
+            : "Some images could not be restored. Upload the missing avatar or cover again.",
+      });
+    } finally {
+      if (activeServerUserId.current === serverUser.id)
+        await refreshServerSession();
+      setLegacyImagesBusy(false);
     }
   }
 
@@ -4427,107 +4492,105 @@ export function HomeClient({
     user: ServerSessionUser,
   ): Promise<void> {
     try {
-      const [
-        profileResponse,
-        photosResponse,
-        dashboardResponse,
-        notificationsResponse,
-      ] = await Promise.all([
-        apiRequest<{ profile: ServerProfilePayload }>("/profiles/me"),
-        apiRequest<{ photos: ServerPhotoPayload[] }>("/photos/mine"),
-        apiRequest<{
-          bookmarks: string[];
-          moodboards: readonly {
-            readonly items: readonly { photoId: string }[];
-          }[];
-          wallet: {
-            balanceMinor: string;
-            transactions: readonly {
-              id: string;
-              amountMinor: string;
-              createdAt: string;
-              type: string;
-              note?: string | null;
-            }[];
-          };
-        }>("/platform/dashboard"),
-        apiRequest<{
-          notifications: ServerNotificationPayload[];
-        }>("/notifications"),
-      ]);
-      const profile = profileResponse.profile;
+      const { profile } = await apiRequest<{ profile: ServerProfilePayload }>(
+        "/profiles/me",
+        { signal: AbortSignal.timeout(15_000) },
+      );
+      if (activeServerUserId.current !== user.id) return;
       const previousAccount =
         account?.email === user.email ? account : undefined;
-
       setAccount(
         mapServerProfileToAccount(user, profile, locale, previousAccount),
       );
       setSessionEmail(user.email);
       setUploadedPhotos(
-        photosResponse.photos
-          .map((photo) => mapServerPhoto(photo, user.id))
-          .filter((photo): photo is PhotoRecord => Boolean(photo)),
-      );
-      setSavedPhotoIds(dashboardResponse.bookmarks);
-      setWalletBalanceMinor(Number(dashboardResponse.wallet.balanceMinor));
-      setWalletTransactions(
-        dashboardResponse.wallet.transactions.map((transaction) => ({
-          id: transaction.id,
-          amountMinor: Number(transaction.amountMinor),
-          createdAt: transaction.createdAt,
-          label: transaction.note || t("wallet.transaction"),
-        })),
-      );
-      setMoodboardPhotoIds(
-        dashboardResponse.moodboards.flatMap((board) =>
-          board.items.map((item) => item.photoId),
-        ),
-      );
-      setNotifications(
-        notificationsResponse.notifications.map((notification) =>
-          mapServerNotification(notification, locale),
-        ),
-      );
-    } catch {
-      // Authentication still works if an optional profile view is unavailable.
-    }
-  }
-
-  async function loadServerPublicProfile(username: string): Promise<void> {
-    try {
-      const response = await apiRequest<{ profile: ServerProfilePayload }>(
-        `/profiles/${encodeURIComponent(username)}`,
-      );
-      const profile = response.profile;
-      setServerPublicProfile(mapServerPublicProfile(profile, locale));
-      setServerPhotos((current) => {
-        const additions = profile.photos
+        profile.photos
           .map((photo) =>
-            mapServerPhoto(photo, serverUser?.id, {
+            mapServerPhoto(photo, user.id, {
+              id: user.id,
               displayName: profile.displayName,
               tier: profile.tier,
               username: profile.username,
             }),
           )
-          .filter((photo): photo is PhotoRecord => Boolean(photo));
-        const additionIds = new Set(additions.map((photo) => photo.id));
-        return [
-          ...additions,
-          ...current.filter((photo) => !additionIds.has(photo.id)),
-        ];
-      });
+          .filter((photo): photo is PhotoRecord => Boolean(photo)),
+      );
+
+      const [photosResponse, dashboardResponse, notificationsResponse] =
+        await Promise.all([
+          apiRequest<{ photos: ServerPhotoPayload[] }>("/photos/mine", {
+            signal: AbortSignal.timeout(15_000),
+          }).catch(() => null),
+          apiRequest<{
+            bookmarks: string[];
+            moodboards: readonly {
+              readonly items: readonly { photoId: string }[];
+            }[];
+            wallet: {
+              balanceMinor: string;
+              transactions: readonly {
+                id: string;
+                amountMinor: string;
+                createdAt: string;
+                type: string;
+                note?: string | null;
+              }[];
+            };
+          }>("/platform/dashboard", {
+            signal: AbortSignal.timeout(15_000),
+          }).catch(() => null),
+          apiRequest<{
+            notifications: ServerNotificationPayload[];
+          }>("/notifications", { signal: AbortSignal.timeout(15_000) }).catch(
+            () => null,
+          ),
+        ]);
+      if (activeServerUserId.current !== user.id) return;
+      if (photosResponse)
+        setUploadedPhotos(
+          photosResponse.photos
+            .map((photo) => mapServerPhoto(photo, user.id))
+            .filter((photo): photo is PhotoRecord => Boolean(photo)),
+        );
+      if (dashboardResponse) {
+        setSavedPhotoIds(dashboardResponse.bookmarks);
+        setWalletBalanceMinor(Number(dashboardResponse.wallet.balanceMinor));
+        setWalletTransactions(
+          dashboardResponse.wallet.transactions.map((transaction) => ({
+            id: transaction.id,
+            amountMinor: Number(transaction.amountMinor),
+            createdAt: transaction.createdAt,
+            label: transaction.note || t("wallet.transaction"),
+          })),
+        );
+        setMoodboardPhotoIds(
+          dashboardResponse.moodboards.flatMap((board) =>
+            board.items.map((item) => item.photoId),
+          ),
+        );
+      }
+      if (notificationsResponse) {
+        setNotifications(
+          notificationsResponse.notifications.map((notification) =>
+            mapServerNotification(notification, locale),
+          ),
+        );
+      }
     } catch {
-      setServerPublicProfile(null);
-    } finally {
-      setServerPublicProfileLoaded(true);
+      if (activeServerUserId.current !== user.id) return;
+      setAccount(null);
+      setUploadedPhotos([]);
     }
   }
 
   async function refreshServerSession(): Promise<ServerSessionUser | null> {
+    const requestId = ++sessionRequestId.current;
     try {
       const response = await apiRequest<{ user: ServerSessionUser | null }>(
         "/auth/me",
       );
+      if (requestId !== sessionRequestId.current) return null;
+      activeServerUserId.current = response.user?.id ?? null;
       setServerUser(response.user);
       setSocialSessionReady(Boolean(response.user));
       if (response.user) {
@@ -4537,12 +4600,18 @@ export function HomeClient({
           refreshChallengeParticipation(true),
         ]);
       } else {
+        setAccount(null);
+        setUploadedPhotos([]);
         setChallengeEntries({});
         setSeasonJoined(false);
       }
       return response.user;
     } catch {
+      if (requestId !== sessionRequestId.current) return null;
+      activeServerUserId.current = null;
       setServerUser(null);
+      setAccount(null);
+      setUploadedPhotos([]);
       setSocialSessionReady(false);
       setSessionEmail(null);
       return null;
@@ -4956,8 +5025,9 @@ export function HomeClient({
     mode: AuthMode,
     email: string,
     password: string,
-    profile?: AccountRecord,
+    profile?: Pick<AccountRecord, "name" | "username">,
   ): Promise<ServerSessionUser> {
+    ++sessionRequestId.current;
     const registerBody = {
       displayName: profile?.name ?? email.split("@")[0] ?? "User",
       email,
@@ -4969,6 +5039,7 @@ export function HomeClient({
       mode,
       registerBody,
     );
+    activeServerUserId.current = response.user.id;
     setServerUser(response.user);
     return response.user;
   }
@@ -4989,23 +5060,9 @@ export function HomeClient({
         return;
       }
 
-      const passwordHash = await hashSecret(email, password);
-      const newAccount: AccountRecord = {
-        availableForHire: true,
-        battles: 0,
-        bio: t("profile.defaultBio"),
-        email,
-        followers: 128,
-        following: 42,
-        joinedAt: new Date().toISOString(),
-        location: t("profile.defaultLocation"),
+      const newAccount = {
         name,
-        passwordHash,
-        rating: 1500,
-        tier: "viewer",
         username: makeUsername(name, email),
-        website: "https://gprn.example/profile",
-        wins: 0,
       };
 
       let serverReady: ServerSessionUser;
@@ -5023,7 +5080,7 @@ export function HomeClient({
         });
         return;
       }
-      setAccount(newAccount);
+      await refreshCurrentServerData(serverReady);
       setSessionEmail(email);
       setSocialSessionReady(Boolean(serverReady));
       setAuthForm(emptyAuthForm);
@@ -5040,7 +5097,6 @@ export function HomeClient({
       return;
     }
 
-    const passwordHash = await hashSecret(email, password);
     let serverReady: ServerSessionUser;
     try {
       serverReady = await establishServerSession("login", email, password);
@@ -5048,51 +5104,7 @@ export function HomeClient({
       setAuthFeedback({ kind: "error", text: t(authErrorKey(error, "login")) });
       return;
     }
-    const localAccount = account?.email === email ? account : null;
-
-    const resolvedAccount: AccountRecord = {
-      availableForHire: localAccount?.availableForHire ?? true,
-      avatarUrl: localAccount?.avatarUrl,
-      battles: localAccount?.battles ?? 0,
-      bio: localAccount?.bio ?? t("profile.defaultBio"),
-      coverUrl: localAccount?.coverUrl,
-      detailedReviewPrice: localAccount?.detailedReviewPrice,
-      email,
-      followers: localAccount?.followers ?? 0,
-      following: localAccount?.following ?? 0,
-      joinedAt: localAccount?.joinedAt ?? new Date().toISOString(),
-      location: localAccount?.location ?? t("profile.defaultLocation"),
-      name:
-        serverReady.profile?.displayName ??
-        localAccount?.name ??
-        email.split("@")[0] ??
-        "User",
-      passwordHash,
-      lutPrice: localAccount?.lutPrice,
-      lutSalesEnabled: localAccount?.lutSalesEnabled,
-      lutTitle: localAccount?.lutTitle,
-      presetPrice: localAccount?.presetPrice,
-      presetSalesEnabled: localAccount?.presetSalesEnabled,
-      presetTitle: localAccount?.presetTitle,
-      rating:
-        serverReady.ratings.find(
-          (item) => item.scope === "GLOBAL" && item.scopeKey === "global",
-        )?.rating ??
-        localAccount?.rating ??
-        1500,
-      reviewPrice: localAccount?.reviewPrice,
-      simpleReviewPrice: localAccount?.simpleReviewPrice,
-      socialLinks: localAccount?.socialLinks,
-      tier: normalizeServerTier(serverReady.profile?.tier),
-      username:
-        serverReady.profile?.username ??
-        localAccount?.username ??
-        makeUsername(email, email),
-      website: localAccount?.website ?? "",
-      wins: localAccount?.wins ?? 0,
-    };
-
-    setAccount(resolvedAccount);
+    await refreshCurrentServerData(serverReady);
     setSessionEmail(email);
     setSocialSessionReady(Boolean(serverReady));
     setAuthForm(emptyAuthForm);
@@ -5103,9 +5115,13 @@ export function HomeClient({
   }
 
   function logOut(): void {
+    ++sessionRequestId.current;
+    activeServerUserId.current = null;
     void apiRequest("/auth/logout", { method: "POST" }).catch(() => undefined);
     setSessionEmail(null);
     setServerUser(null);
+    setAccount(null);
+    setUploadedPhotos([]);
     setWalletBalanceMinor(0);
     setWalletTransactions([]);
     setSocialSessionReady(false);
@@ -9738,29 +9754,14 @@ export function HomeClient({
     canManage = false,
     purchased = false,
   ): ReactNode {
-    const isDemo = offers?.some((offer) =>
-      demoDigitalProducts.some((demo) => demo.id === offer.id),
-    );
-    const displayed =
-      isDemo && serverDemoProducts !== undefined
-        ? serverDemoProducts.filter(
-            (offer) => offer.kind === (kind === "lut" ? "LUT" : "PRESET"),
-          )
-        : offers?.map((offer) => {
-            const demo = demoDigitalProducts.find(
-              (candidate) => candidate.id === offer.id,
-            );
-            return demo
-              ? { ...offer, imageUrl: demo.imageUrl, isDemo: true }
-              : {
-                  ...offer,
-                  owned:
-                    offer.owned ||
-                    currentProfile?.digitalPurchases?.some(
-                      (purchase) => purchase.id === offer.id,
-                    ),
-                };
-          });
+    const displayed = offers?.map((offer) => ({
+      ...offer,
+      owned:
+        offer.owned ||
+        currentProfile?.digitalPurchases?.some(
+          (purchase) => purchase.id === offer.id,
+        ),
+    }));
     return (
       <DigitalProductSection
         kind={kind}
@@ -9801,19 +9802,16 @@ export function HomeClient({
   }
 
   function renderPublicAuthorProfile(author: PublicAuthorProfile): ReactNode {
-    const authorPhotos = publicPhotos.filter(
-      (photo) => getPhotoAuthorId(photo) === author.id,
-    );
-    const authorMoodboard = publicPhotos
-      .filter((photo) => getPhotoAuthorId(photo) !== author.id)
-      .slice(0, 3);
+    const authorPhotos = serverPublicPhotos;
     return (
       <section className="profile-page">
-        <div className="profile-cover has-image">
-          {renderPreviewableImage(
-            author.coverUrl,
-            getPublicAuthorName(author, locale),
-          )}
+        <div className={`profile-cover${author.coverUrl ? " has-image" : ""}`}>
+          {author.coverUrl
+            ? renderPreviewableImage(
+                author.coverUrl,
+                getPublicAuthorName(author, locale),
+              )
+            : null}
         </div>
 
         <div className="profile-shell public-profile-shell">
@@ -9822,10 +9820,16 @@ export function HomeClient({
               <div className="profile-head">
                 <div className={`profile-avatar-frame is-tier-${author.tier}`}>
                   <div className="profile-avatar">
-                    <img
-                      alt={getPublicAuthorName(author, locale)}
-                      src={author.avatarUrl}
-                    />
+                    {author.avatarUrl ? (
+                      <img
+                        alt={getPublicAuthorName(author, locale)}
+                        src={author.avatarUrl}
+                      />
+                    ) : (
+                      <span>
+                        {getInitials(getPublicAuthorName(author, locale))}
+                      </span>
+                    )}
                   </div>
                   {renderAccountTierBadge(author.tier)}
                 </div>
@@ -9932,14 +9936,6 @@ export function HomeClient({
             ) : (
               <p className="empty-state">{t("profile.emptyAuthorPortfolio")}</p>
             )}
-
-            <div className="section-heading profile-subsection-heading">
-              <div>
-                <span className="eyebrow">{t("profile.inspiration")}</span>
-                <h2>{t("profile.moodboard")}</h2>
-              </div>
-            </div>
-            {renderMoodboardGrid(authorMoodboard)}
           </section>
         </div>
       </section>
@@ -9947,17 +9943,11 @@ export function HomeClient({
   }
 
   function renderProfilePage(): ReactNode {
-    const expertProfile = initialAuthorId
-      ? experts.find((expert) => expert.id === initialAuthorId)
-      : null;
-    const publicAuthor = initialAuthorId
-      ? (publicAuthorProfiles.find((author) => author.id === initialAuthorId) ??
-        (expertProfile
-          ? getExpertAuthor(expertProfile)
-          : serverPublicProfile?.username === initialAuthorId
-            ? serverPublicProfile
-            : null))
-      : null;
+    const publicAuthor =
+      publicProfileUsername &&
+      serverPublicProfile?.username === publicProfileUsername
+        ? serverPublicProfile
+        : null;
 
     if (publicAuthor) {
       return renderPublicAuthorProfile(publicAuthor);
@@ -9967,10 +9957,22 @@ export function HomeClient({
       return (
         <section className="page-section">
           <p className="empty-state">
-            {serverPublicProfileLoaded
-              ? t("auth.accountMissing")
-              : t("admin.loading")}
+            {serverPublicProfileError
+              ? t("auth.serverUnavailable")
+              : serverPublicProfileLoaded
+                ? t("auth.accountMissing")
+                : t("admin.loading")}
           </p>
+          {serverPublicProfileError ? (
+            <button
+              className="secondary-action compact"
+              type="button"
+              onClick={() => setPublicProfileRetry((current) => current + 1)}
+            >
+              <RefreshCw aria-hidden="true" size={16} />
+              {locale === "ru" ? "Повторить" : "Retry"}
+            </button>
+          ) : null}
         </section>
       );
     }
@@ -10114,11 +10116,27 @@ export function HomeClient({
               <ProfileStats
                 locale={locale}
                 rating={currentProfile.rating}
-                photos={profilePhotos.length}
+                photos={currentProfile.publicPhotoCount ?? profilePhotos.length}
                 wins={currentProfile.wins}
                 followers={currentProfile.followers}
               />
             </div>
+
+            {legacyProfileImages ? (
+              <div className="profile-head-actions-row">
+                <button
+                  className="secondary-action compact"
+                  type="button"
+                  disabled={legacyImagesBusy}
+                  onClick={() => void restoreLegacyProfileImages()}
+                >
+                  <Upload aria-hidden="true" size={16} />
+                  {locale === "ru"
+                    ? "Восстановить сохранённые изображения"
+                    : "Restore saved images"}
+                </button>
+              </div>
+            ) : null}
 
             {renderDigitalProductSection(
               "preset",
@@ -12889,6 +12907,7 @@ function mapServerPhoto(
   photo: ServerPhotoPayload,
   currentUserId?: string,
   ownerOverride?: {
+    readonly id?: string;
     readonly displayName: string;
     readonly tier: AdminAccountTier;
     readonly username: string;
@@ -12921,7 +12940,7 @@ function mapServerPhoto(
   const locationLongitude = photo.location?.publicLongitude ?? undefined;
 
   return {
-    authorId: photo.owner?.id,
+    authorId: photo.owner?.id ?? ownerOverride?.id,
     authorName: ownerName,
     authorTier: ownerTier,
     authorUsername: ownerUsername,
@@ -12931,7 +12950,9 @@ function mapServerPhoto(
     ),
     criterionScores,
     id: photo.id,
-    isMine: Boolean(currentUserId && photo.owner?.id === currentUserId),
+    isMine: Boolean(
+      currentUserId && (photo.owner?.id ?? ownerOverride?.id) === currentUserId,
+    ),
     locationHidden:
       photo.location?.visibility === "HIDDEN" ||
       (!locationLabel &&
@@ -13084,15 +13105,16 @@ function mapServerProfileToAccount(
     availableForHire: profile.availableForHire,
     digitalProducts: profile.digitalProducts ?? [],
     digitalPurchases: profile.digitalPurchases ?? [],
-    avatarUrl: profile.avatarUrl ?? previous?.avatarUrl,
+    avatarUrl: profile.avatarUrl ?? undefined,
     battles: globalRating?.battles ?? 0,
     bio: profile.bio ?? getMessage(locale, "profile.defaultBio"),
-    coverUrl: profile.coverUrl ?? previous?.coverUrl,
+    coverUrl: profile.coverUrl ?? undefined,
     detailedReviewPrice: profile.reviewService
       ? Number(profile.reviewService.priceMinor)
       : previous?.detailedReviewPrice,
     email: user.email,
     followers: profile.followers,
+    publicPhotoCount: profile.publicPhotoCount,
     following: profile.following,
     joinedAt: previous?.joinedAt ?? new Date().toISOString(),
     location: getServerProfileLocation(profile, locale),
@@ -13128,11 +13150,11 @@ function mapServerPublicProfile(
   );
 
   return {
-    avatarUrl: profile.avatarUrl ?? sampleImages.accountDefault,
+    avatarUrl: profile.avatarUrl ?? "",
     availableForHire: profile.availableForHire,
     bio: profile.bio ?? getMessage(locale, "profile.defaultBio"),
     completedOrders: profile.serviceReputation?.completedAsProvider ?? 0,
-    coverUrl: profile.coverUrl ?? sampleImages.street,
+    coverUrl: profile.coverUrl ?? "",
     followers: profile.followers,
     id: profile.username,
     locationId: inferLocationId(getServerProfileLocation(profile, locale)),
@@ -13267,14 +13289,13 @@ function getPhotoAuthor(photo: PhotoRecord, locale: SupportedLocale): string {
 }
 
 function getPhotoAuthorId(photo: PhotoRecord): string {
-  if (photo.isMine) {
-    return "me";
-  }
-
-  if (photo.authorUsername) return photo.authorUsername;
+  if (photo.authorUsername)
+    return canonicalProfileUsername(photo.authorUsername);
 
   if (photo.authorKey?.startsWith("data.author.")) {
-    return photo.authorKey.slice("data.author.".length);
+    return canonicalProfileUsername(
+      photo.authorKey.slice("data.author.".length),
+    );
   }
 
   return (photo.authorName ?? "guest")
