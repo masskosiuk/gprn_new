@@ -132,6 +132,28 @@ services:
     networks:
       - internal
 
+  refresh-challenge-video:
+    image: gprn-app:local
+    profiles: ["maintenance"]
+    restart: "no"
+    init: true
+    cpus: 1.0
+    mem_limit: 768m
+    command:
+      [
+        "timeout",
+        "-s",
+        "KILL",
+        "300",
+        "node",
+        "apps/api/dist/scripts/seed-demo-challenges.js",
+        "--refresh-lucas-video",
+      ]
+    env_file:
+      - .env.production
+    networks:
+      - internal
+
   seed-product-covers:
     image: gprn-app:local
     profiles: ["maintenance"]

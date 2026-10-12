@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Prisma, prisma } from "@gprn/db";
-import { demoBattleAuthors, demoChallengeWorks } from "@gprn/domain";
+import {
+  demoBattleAuthors,
+  demoChallenges,
+  demoChallengeWorks,
+} from "@gprn/domain";
 import type { DemoWorkAsset } from "./demo-challenge-seed.js";
 import {
   demoVideoRefreshStatus,
+  planDemoChallengeSeed,
   refreshDemoChallengeVideo,
   replacementVideo,
   replacementVideoRevision,
@@ -134,6 +139,53 @@ test("the replacement uses a different stock shoot from Mika's kiosk scene", () 
   assert.notEqual(first.url, replacementVideo.url);
   assert.notEqual(first.sourcePage, replacementVideo.sourcePage);
   assert(replacementVideo.sourcePage.includes("terrace-of-a-cozy"));
+});
+
+test("an ordinary seed repairs the old Lucas clip even when every challenge exists", async () => {
+  const photo = legacyPhoto();
+  const before = structuredClone(photo);
+  let reads = 0;
+  const client = {
+    challenge: {
+      async count() {
+        return demoChallenges.length;
+      },
+    },
+    photo: {
+      async findUnique({ where }: { where: { id: string } }) {
+        reads++;
+        assert.equal(where.id, replacementVideo.id);
+        return photo;
+      },
+    },
+  } as unknown as Parameters<typeof planDemoChallengeSeed>[0];
+  assert.equal(await planDemoChallengeSeed(client), "REFRESH");
+  assert.equal(reads, 1);
+  assert.deepEqual(photo, before);
+});
+
+test("seed planning skips new downloads after repair and preserves moderation", async () => {
+  const db = database();
+  await refreshDemoChallengeVideo(db.client, assets);
+  let present: number = demoChallenges.length;
+  const client = {
+    challenge: {
+      async count() {
+        return present;
+      },
+    },
+    photo: {
+      async findUnique() {
+        return db.photo;
+      },
+    },
+  } as unknown as Parameters<typeof planDemoChallengeSeed>[0];
+  assert.equal(await planDemoChallengeSeed(client), "UPDATED");
+  db.photo.moderationStatus = "REJECTED";
+  assert.equal(await planDemoChallengeSeed(client), "UNAVAILABLE");
+  present = 0;
+  assert.equal(await planDemoChallengeSeed(client), "SEED");
+  assert.equal(await planDemoChallengeSeed(client, true), "UNAVAILABLE");
 });
 
 test("replaces the clip and poster atomically without recreating participation or profiles", async () => {

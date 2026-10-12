@@ -2,11 +2,7 @@ import "dotenv/config";
 import { createHash } from "node:crypto";
 import { loadRuntimeEnv } from "@gprn/config";
 import { prisma } from "@gprn/db";
-import {
-  demoBattleAuthors,
-  demoChallenges,
-  demoChallengeWorks,
-} from "@gprn/domain";
+import { demoBattleAuthors, demoChallengeWorks } from "@gprn/domain";
 import { S3ObjectStorage } from "@gprn/storage";
 import sharp from "sharp";
 import { publicAssetUrl } from "../modules/serialization.js";
@@ -17,6 +13,7 @@ import {
 } from "./demo-challenge-seed.js";
 import {
   demoVideoRefreshStatus,
+  planDemoChallengeSeed,
   refreshDemoChallengeVideo,
   replacementVideo,
   replacementVideoInclude,
@@ -51,30 +48,17 @@ async function download(url: string, isVideo = false): Promise<Buffer> {
 
 async function main() {
   const env = loadRuntimeEnv();
-  const refreshVideo = process.argv.includes("--refresh-lucas-video");
-  if (refreshVideo) {
-    const photo = await prisma.photo.findUnique({
-      where: { id: replacementVideo.id },
-      include: replacementVideoInclude,
-    });
-    const status = demoVideoRefreshStatus(photo);
-    if (status !== "READY") {
-      console.log(
-        `Demo video: ${status}. Existing content and moderation were preserved.`,
-      );
-      return;
-    }
-  } else {
-    const present = await prisma.challenge.count({
-      where: { id: { in: demoChallenges.map((challenge) => challenge.id) } },
-    });
-    if (present === demoChallenges.length) {
-      console.log(
-        "All three demo challenges already exist. Administrative changes and moderation were preserved.",
-      );
-      return;
-    }
+  const plan = await planDemoChallengeSeed(
+    prisma,
+    process.argv.includes("--refresh-lucas-video"),
+  );
+  if (plan === "UPDATED" || plan === "UNAVAILABLE") {
+    console.log(
+      `Demo video: ${plan}. Existing content and moderation were preserved.`,
+    );
+    return;
   }
+  const refreshVideo = plan === "REFRESH";
   const storage = new S3ObjectStorage({
     accessKeyId: env.S3_ACCESS_KEY,
     secretAccessKey: env.S3_SECRET_KEY,
@@ -163,6 +147,14 @@ async function main() {
   }
   if (refreshVideo) {
     const result = await refreshDemoChallengeVideo(prisma, assets);
+    if (result !== "UNAVAILABLE") {
+      const saved = await prisma.photo.findUnique({
+        where: { id: replacementVideo.id },
+        include: replacementVideoInclude,
+      });
+      if (demoVideoRefreshStatus(saved) !== "UPDATED")
+        throw new Error("The demo video replacement could not be verified.");
+    }
     console.log(
       `Lucas's demo video: ${result}. Challenge entries, moderation, votes and profiles were preserved.`,
     );

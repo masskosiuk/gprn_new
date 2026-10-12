@@ -1,5 +1,9 @@
 import type { Prisma, prisma } from "@gprn/db";
-import { demoBattleAuthors, demoChallengeWorks } from "@gprn/domain";
+import {
+  demoBattleAuthors,
+  demoChallenges,
+  demoChallengeWorks,
+} from "@gprn/domain";
 import type { DemoWorkAsset } from "./demo-challenge-seed.js";
 
 export const replacementVideo = demoChallengeWorks.find(
@@ -24,6 +28,25 @@ const author = demoBattleAuthors.find(
 type RefreshPhoto = Prisma.PhotoGetPayload<{
   include: typeof replacementVideoInclude;
 }>;
+
+export async function planDemoChallengeSeed(
+  client: Pick<typeof prisma, "challenge" | "photo">,
+  refreshOnly = false,
+): Promise<"SEED" | "REFRESH" | "UPDATED" | "UNAVAILABLE"> {
+  if (!refreshOnly) {
+    const present = await client.challenge.count({
+      where: { id: { in: demoChallenges.map((challenge) => challenge.id) } },
+    });
+    if (present !== demoChallenges.length) return "SEED";
+  }
+  // Existing challenges still need known media repairs, not wholesale reseeding.
+  const photo = await client.photo.findUnique({
+    where: { id: replacementVideo.id },
+    include: replacementVideoInclude,
+  });
+  const status = demoVideoRefreshStatus(photo);
+  return status === "READY" ? "REFRESH" : status;
+}
 
 export function demoVideoRefreshStatus(
   photo: RefreshPhoto | null,
