@@ -5,6 +5,7 @@ import {
   Header,
   Param,
   Patch,
+  Query,
   Req,
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
@@ -21,6 +22,12 @@ export class ProfilesController {
     private readonly authService: AuthService,
     private readonly profilesService: ProfilesService,
   ) {}
+
+  @Get()
+  @Header("Cache-Control", "no-store")
+  directory(@Query() query: Record<string, unknown>) {
+    return this.profilesService.directory(query);
+  }
 
   @Get("me")
   @Header("Cache-Control", "no-store")

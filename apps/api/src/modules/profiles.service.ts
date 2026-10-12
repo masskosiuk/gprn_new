@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 
 import type { CurrentUser } from "./auth.service.js";
+import { listPublicCreators } from "./profile-directory.js";
 import {
   formatStoredCityLabel,
   LocationsService,
@@ -60,6 +61,10 @@ export class ProfilesService {
   private readonly env = loadRuntimeEnv();
 
   constructor(private readonly locationsService: LocationsService) {}
+
+  directory(query: Record<string, unknown>) {
+    return listPublicCreators(this.env, query);
+  }
 
   async getPublic(username: string) {
     const profile = await prisma.profile.findUnique({

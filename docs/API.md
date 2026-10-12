@@ -20,6 +20,7 @@ Email delivery is adapter-ready. Development may return a token, but production 
 
 ### Profiles and photos
 
+- `GET /profiles?search=&category=&country=&city=&minRating=&page=1`
 - `GET /profiles/me`
 - `PATCH /profiles/me`
 - `GET /profiles/:username`
@@ -31,6 +32,10 @@ Email delivery is adapter-ready. Development may return a token, but production 
 - `GET /categories`
 
 Device upload is active. External imports are returned as `COMING_SOON` until their provider adapters are configured.
+
+The public creator directory reads persisted profiles, excluding viewers, private/deleted profiles and inactive/deleted users. Search matches display name, username, biography and an active expert headline case-insensitively. Genre requires a public, published, approved portfolio work; country uses its slug and city uses its UUID. Optional minimum service ratings are `4`, `4.5` and `4.8`. Results contain 24 entries per page, a total and location/genre options. No email, credentials, private portfolio or browser-local profile data is returned. Profile and directory responses are `no-store`.
+
+The global leaderboard returns the top 10 persisted ratings of active users with public profiles, ordered by rating, wins and a stable tie-breaker. It includes saved profile avatars and does not fabricate rating changes or local-viewer bonuses.
 
 ### Competition
 

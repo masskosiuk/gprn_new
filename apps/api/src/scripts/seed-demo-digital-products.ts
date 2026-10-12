@@ -253,6 +253,9 @@ async function main() {
                   bio: "Demo profile. Not a real seller.",
                 },
               },
+              ratings: {
+                create: { scope: "GLOBAL", scopeKey: "global", rating: 1500 },
+              },
             },
           });
         const seller = await tx.sellerProfile.upsert({

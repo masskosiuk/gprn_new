@@ -2,8 +2,6 @@
 
 import {
   demoBattleAuthors,
-  demoExpertCovers,
-  demoExpertUsernames,
   demoModelImages,
   demoStudioImages,
   demoStudioRates,
@@ -111,6 +109,7 @@ import {
   ProControl,
 } from "./community";
 import { MyInteractions } from "./interactions";
+import { ServerExperts, ServerLeaderboard } from "./server-experts";
 import {
   filterStudioPrices,
   type StudioPriceOrder,
@@ -181,7 +180,6 @@ type BattleCriterion =
   | "color"
   | "emotionalImpact";
 type BattleScores = Record<BattleCriterion, number>;
-type LeaderboardScope = "global" | "city" | "category";
 type LocationId =
   "paris" | "kyiv" | "tokyo" | "reykjavik" | "lisbon" | "marrakech";
 type LocationFilter = "all" | string;
@@ -835,16 +833,6 @@ interface ChallengeRecord {
   readonly titleKey: MessageKey;
 }
 
-interface LeaderboardRow {
-  readonly authorId: string;
-  readonly avatarUrl: string;
-  readonly battles: number;
-  readonly change: number;
-  readonly locationId: LocationId;
-  readonly nameKey: MessageKey;
-  readonly rating: number;
-}
-
 interface LocationPin {
   readonly id: LocationId;
   readonly key: MessageKey;
@@ -860,20 +848,6 @@ interface MarketplaceProduct {
   readonly price: string;
   readonly sellerKey: MessageKey;
   readonly titleKey: MessageKey;
-}
-
-interface ExpertRecord {
-  readonly avatarUrl: string;
-  readonly categoryId: CategoryId;
-  readonly coverUrl: string;
-  readonly headlineKey: MessageKey;
-  readonly id: string;
-  readonly languages: readonly SupportedLocale[];
-  readonly locationId: LocationId;
-  readonly nameKey: MessageKey;
-  readonly rating: string;
-  readonly reviews: number;
-  readonly specialtyKey: MessageKey;
 }
 
 interface StudioRecord {
@@ -1297,13 +1271,6 @@ const battleFilters: readonly { id: BattleFilter; key: MessageKey }[] = [
   { id: "friend", key: "battles.scope.friend" },
 ];
 
-const leaderboardScopes: readonly { id: LeaderboardScope; key: MessageKey }[] =
-  [
-    { id: "global", key: "leaderboard.scope.global" },
-    { id: "city", key: "leaderboard.scope.city" },
-    { id: "category", key: "leaderboard.scope.category" },
-  ];
-
 const locationFilters: readonly { id: LocationFilter; key: MessageKey }[] = [
   { id: "all", key: "map.location.all" },
   { id: "paris", key: "map.location.paris" },
@@ -1509,12 +1476,6 @@ const sampleImages = {
     "https://images.unsplash.com/photo-1473116763249-2faaef81ccda?auto=format&fit=crop&w=1200&q=82",
   videoPosterParisMotion:
     "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=1200&q=82",
-  expertIryna:
-    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=600&h=600&q=84",
-  expertMarcus:
-    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&h=600&q=84",
-  expertSofia:
-    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&h=600&q=84",
   authorMika:
     "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=600&h=600&q=84",
   authorElena:
@@ -2217,54 +2178,6 @@ const demoChallenges: readonly ChallengeRecord[] = challengeCatalog.map(
   }),
 );
 
-const leaderboardRows: readonly LeaderboardRow[] = [
-  {
-    authorId: "mika",
-    avatarUrl: sampleImages.authorMika,
-    battles: 72,
-    change: 4,
-    locationId: "tokyo",
-    nameKey: "data.author.mika",
-    rating: 1824,
-  },
-  {
-    authorId: "elena",
-    avatarUrl: sampleImages.authorElena,
-    battles: 68,
-    change: 2,
-    locationId: "reykjavik",
-    nameKey: "data.author.elena",
-    rating: 1792,
-  },
-  {
-    authorId: "anna",
-    avatarUrl: sampleImages.authorAnna,
-    battles: 59,
-    change: 7,
-    locationId: "kyiv",
-    nameKey: "data.author.anna",
-    rating: 1711,
-  },
-  {
-    authorId: "yusuf",
-    avatarUrl: sampleImages.authorYusuf,
-    battles: 64,
-    change: -1,
-    locationId: "marrakech",
-    nameKey: "data.author.yusuf",
-    rating: 1688,
-  },
-  {
-    authorId: "joao",
-    avatarUrl: sampleImages.authorJoao,
-    battles: 45,
-    change: 3,
-    locationId: "lisbon",
-    nameKey: "data.author.joao",
-    rating: 1634,
-  },
-];
-
 const locationPins: readonly LocationPin[] = [
   {
     id: "paris",
@@ -2331,48 +2244,6 @@ const marketplaceProducts: readonly MarketplaceProduct[] = [
     price: "$29",
     sellerKey: "data.author.yusuf",
     titleKey: "data.market.preset.title",
-  },
-];
-
-const experts: readonly ExpertRecord[] = [
-  {
-    avatarUrl: sampleImages.expertIryna,
-    categoryId: "documentary",
-    coverUrl: demoExpertCovers["demo.iryna.melnyk"],
-    headlineKey: "data.expert.iryna.headline",
-    id: "iryna",
-    languages: ["uk", "en"],
-    locationId: "kyiv",
-    nameKey: "data.expert.iryna",
-    rating: "4.9",
-    reviews: 128,
-    specialtyKey: "category.documentary",
-  },
-  {
-    avatarUrl: sampleImages.expertMarcus,
-    categoryId: "portrait",
-    coverUrl: demoExpertCovers["demo.marcus.reed"],
-    headlineKey: "data.expert.marcus.headline",
-    id: "marcus",
-    languages: ["en", "de"],
-    locationId: "lisbon",
-    nameKey: "data.expert.marcus",
-    rating: "4.8",
-    reviews: 94,
-    specialtyKey: "category.portrait",
-  },
-  {
-    avatarUrl: sampleImages.expertSofia,
-    categoryId: "landscape",
-    coverUrl: demoExpertCovers["demo.sofia.rossi"],
-    headlineKey: "data.expert.sofia.headline",
-    id: "sofia",
-    languages: ["fr", "en"],
-    locationId: "paris",
-    nameKey: "data.expert.sofia",
-    rating: "4.9",
-    reviews: 156,
-    specialtyKey: "category.landscape",
   },
 ];
 
@@ -2801,8 +2672,6 @@ export function HomeClient({
     "/images/challenges/city-night.png",
   );
   const [seasonName, setSeasonName] = useState<string | null>(null);
-  const [leaderboardScope, setLeaderboardScope] =
-    useState<LeaderboardScope>("global");
   const [savedPhotoIds, setSavedPhotoIds] = useState<string[]>([]);
   const [likedPhotoIds, setLikedPhotoIds] = useState<string[]>([]);
   const [likedVideoIds, setLikedVideoIds] = useState<string[]>([]);
@@ -2826,15 +2695,6 @@ export function HomeClient({
   const [promotions, setPromotions] = useState<LocalPromotion[]>([]);
   const [listedPhotoIds, setListedPhotoIds] = useState<string[]>([]);
   const [deletionRequested, setDeletionRequested] = useState(false);
-  const [expertSearch, setExpertSearch] = useState("");
-  const [expertCategoryFilter, setExpertCategoryFilter] =
-    useState<CategoryFilter>("all");
-  const [expertCountryFilter, setExpertCountryFilter] =
-    useState<CountryFilter>("all");
-  const [expertCityFilter, setExpertCityFilter] =
-    useState<LocationFilter>("all");
-  const [expertRatingFilter, setExpertRatingFilter] =
-    useState<MinimumRatingFilter>("all");
   const [modelSearch, setModelSearch] = useState("");
   const [modelGenreFilter, setModelGenreFilter] =
     useState<ModelGenreFilter>("all");
@@ -3211,29 +3071,6 @@ export function HomeClient({
       };
     });
   }, [locale]);
-  const visibleExperts = experts.filter((expert) => {
-    const query = expertSearch.trim().toLocaleLowerCase(locale);
-    const searchableText = [
-      t(expert.nameKey),
-      t(expert.headlineKey),
-      t(expert.specialtyKey),
-      getLocationLabel(expert.locationId, locale),
-    ]
-      .join(" ")
-      .toLocaleLowerCase(locale);
-    const minimumRating =
-      expertRatingFilter === "all" ? 0 : Number(expertRatingFilter);
-
-    return (
-      (!query || searchableText.includes(query)) &&
-      (expertCategoryFilter === "all" ||
-        expert.categoryId === expertCategoryFilter) &&
-      (expertCountryFilter === "all" ||
-        locationCountries[expert.locationId] === expertCountryFilter) &&
-      (expertCityFilter === "all" || expert.locationId === expertCityFilter) &&
-      Number(expert.rating) >= minimumRating
-    );
-  });
   const visibleModels = models.filter((model) => {
     const query = modelSearch.trim().toLocaleLowerCase(locale);
     const searchableText = [
@@ -3898,29 +3735,6 @@ export function HomeClient({
         <img alt={alt} src={src} />
       </Link>
     );
-  }
-
-  function getExpertAuthor(expert: ExpertRecord): PublicAuthorProfile {
-    return {
-      avatarUrl: expert.avatarUrl,
-      availableForHire: true,
-      bioKey: expert.headlineKey,
-      completedOrders: expert.reviews,
-      coverUrl: expert.coverUrl,
-      followers: expert.reviews * 12,
-      id: expert.id,
-      luts: demoLutOffers[expert.id],
-      locationId: expert.locationId,
-      nameKey: expert.nameKey,
-      presets: demoPresetOffers[expert.id],
-      rating: Math.round(Number(expert.rating) * 320),
-      reviewPrice: 4500,
-      serviceRating: Number(expert.rating),
-      tier: "professional",
-      username: demoExpertUsernames[expert.id] ?? expert.id,
-      verified: true,
-      wins: 0,
-    };
   }
 
   function getStudioScores(studio: StudioRecord): StudioScores {
@@ -6367,20 +6181,6 @@ export function HomeClient({
           </nav>
 
           <div className={`header-tools${isMobileMenuOpen ? " is-open" : ""}`}>
-            {serverUser ? (
-              <Link
-                href={getSectionHref(locale, "interactions")}
-                className="header-interactions-link"
-                aria-label={t("nav.interactions")}
-                title={t("nav.interactions")}
-                aria-current={
-                  initialSection === "interactions" ? "page" : undefined
-                }
-              >
-                <MessageCircle size={18} />
-                <span>{t("nav.interactions")}</span>
-              </Link>
-            ) : null}
             <button
               aria-label={theme === "dark" ? t("theme.light") : t("theme.dark")}
               aria-pressed={theme === "dark"}
@@ -6544,6 +6344,18 @@ export function HomeClient({
                     <span>{t("section.admin.title")}</span>
                   </Link>
                 ) : null}
+                <Link
+                  href={getSectionHref(locale, "interactions")}
+                  className="header-interactions-link"
+                  aria-label={t("nav.interactions")}
+                  title={t("nav.interactions")}
+                  aria-current={
+                    initialSection === "interactions" ? "page" : undefined
+                  }
+                >
+                  <MessageCircle aria-hidden="true" size={18} />
+                  <span>{t("nav.interactions")}</span>
+                </Link>
                 <Link
                   className="user-pill"
                   href={getSectionHref(locale, "profile")}
@@ -8561,122 +8373,7 @@ export function HomeClient({
   }
 
   function renderLeaderboardPage(embedded = false): ReactNode {
-    const scopeOffset =
-      leaderboardScope === "global"
-        ? 0
-        : leaderboardScope === "city"
-          ? -37
-          : 24;
-    const rows = [...leaderboardRows]
-      .map((row, index) => ({
-        ...row,
-        rating: row.rating + scopeOffset - index * 3,
-      }))
-      .concat(
-        currentProfile
-          ? [
-              {
-                authorId: "me",
-                avatarUrl:
-                  currentProfile.avatarUrl ?? sampleImages.accountDefault,
-                battles:
-                  currentProfile.battles + Object.keys(battleVotes).length,
-                change: 12,
-                locationId: "kyiv" as LocationId,
-                nameKey: "common.you" as MessageKey,
-                rating:
-                  currentProfile.rating + Object.keys(battleVotes).length * 8,
-              },
-            ]
-          : [],
-      )
-      .sort((first, second) => second.rating - first.rating);
-
-    return (
-      <section className={`page-section${embedded ? " experts-ranking" : ""}`}>
-        {embedded ? (
-          <div className="section-heading">
-            <div>
-              <span className="eyebrow">{t("nav.leaderboard")}</span>
-              <h2>{t("section.leaderboard.title")}</h2>
-              <p>{t("section.leaderboard.intro")}</p>
-            </div>
-          </div>
-        ) : null}
-        <div className="segmented">
-          {leaderboardScopes.map((scope) => (
-            <button
-              className={leaderboardScope === scope.id ? "is-active" : ""}
-              key={scope.id}
-              onClick={() => {
-                setLeaderboardScope(scope.id);
-              }}
-              type="button"
-            >
-              {t(scope.key)}
-            </button>
-          ))}
-        </div>
-
-        <div className="leaderboard-table" role="table">
-          <div className="leaderboard-row is-head" role="row">
-            <span className="leaderboard-rank">{t("leaderboard.rank")}</span>
-            <span>{t("leaderboard.photographer")}</span>
-            <span className="leaderboard-reputation">
-              {t("leaderboard.reputation")}
-            </span>
-            <span className="leaderboard-change">
-              {t("leaderboard.change")}
-            </span>
-            <span className="leaderboard-battles">
-              {t("leaderboard.battles")}
-            </span>
-          </div>
-          {rows.map((row, index) => (
-            <div
-              className={`leaderboard-row${row.nameKey === "common.you" ? " is-you" : ""}`}
-              key={`${row.nameKey}-${index}`}
-              role="row"
-            >
-              <span className="leaderboard-rank">{index + 1}</span>
-              <span className="leaderboard-person">
-                {renderAuthorAvatar(
-                  row.avatarUrl,
-                  row.nameKey === "common.you" && currentProfile
-                    ? currentProfile.name
-                    : t(row.nameKey),
-                  row.authorId,
-                )}
-                <strong>
-                  {row.nameKey === "common.you" && currentProfile
-                    ? currentProfile.name
-                    : t(row.nameKey)}
-                </strong>
-                <small>{getLocationLabel(row.locationId, locale)}</small>
-              </span>
-              <span
-                className="leaderboard-reputation"
-                data-label={t("leaderboard.reputation")}
-              >
-                {numberFormatter.format(row.rating)}
-              </span>
-              <span
-                className={`leaderboard-change ${row.change >= 0 ? "positive" : "negative"}`}
-                data-label={t("leaderboard.change")}
-              >
-                {row.change >= 0 ? `+${row.change}` : row.change}
-              </span>
-              <span
-                className="leaderboard-battles"
-                data-label={t("leaderboard.battles")}
-              >
-                {numberFormatter.format(row.battles)}
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
+    return <ServerLeaderboard embedded={embedded} />;
   }
 
   function renderMarketplacePage(): ReactNode {
@@ -8733,183 +8430,7 @@ export function HomeClient({
   }
 
   function renderExpertsPage(): ReactNode {
-    return (
-      <>
-        {renderLeaderboardPage(true)}
-        <section className="page-section">
-          <div className="directory-filter-panel">
-            <div className="directory-filter-heading">
-              <div>
-                <Filter aria-hidden="true" size={20} />
-                <strong>{t("filters.title")}</strong>
-              </div>
-              <span>
-                {t("filters.found")}:{" "}
-                {numberFormatter.format(visibleExperts.length)}
-              </span>
-            </div>
-            <div className="directory-filter-fields is-experts">
-              <label className="search-box directory-search">
-                <Search aria-hidden="true" size={18} />
-                <span className="visually-hidden">{t("common.search")}</span>
-                <input
-                  onChange={(event) => setExpertSearch(event.target.value)}
-                  placeholder={t("filters.searchExperts")}
-                  type="search"
-                  value={expertSearch}
-                />
-              </label>
-              <label className="form-field compact-field">
-                <span>{t("filters.genre")}</span>
-                <select
-                  onChange={(event) =>
-                    setExpertCategoryFilter(
-                      event.target.value as CategoryFilter,
-                    )
-                  }
-                  value={expertCategoryFilter}
-                >
-                  {categoryFilters.map((filter) => (
-                    <option key={filter.id} value={filter.id}>
-                      {t(filter.key)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="form-field compact-field">
-                <span>{t("filters.country")}</span>
-                <select
-                  onChange={(event) =>
-                    setExpertCountryFilter(event.target.value as CountryFilter)
-                  }
-                  value={expertCountryFilter}
-                >
-                  {countryFilters.map((filter) => (
-                    <option key={filter.id} value={filter.id}>
-                      {t(filter.key)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="form-field compact-field">
-                <span>{t("filters.city")}</span>
-                <select
-                  onChange={(event) =>
-                    setExpertCityFilter(event.target.value as LocationFilter)
-                  }
-                  value={expertCityFilter}
-                >
-                  {locationFilters.map((filter) => (
-                    <option key={filter.id} value={filter.id}>
-                      {t(filter.key)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="form-field compact-field">
-                <span>{t("filters.minRating")}</span>
-                <select
-                  onChange={(event) =>
-                    setExpertRatingFilter(
-                      event.target.value as MinimumRatingFilter,
-                    )
-                  }
-                  value={expertRatingFilter}
-                >
-                  {minimumRatingFilters.map((filter) => (
-                    <option key={filter.id} value={filter.id}>
-                      {t(filter.key)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <button
-              className="secondary-action compact directory-reset"
-              onClick={() => {
-                setExpertSearch("");
-                setExpertCategoryFilter("all");
-                setExpertCountryFilter("all");
-                setExpertCityFilter("all");
-                setExpertRatingFilter("all");
-              }}
-              type="button"
-            >
-              <X aria-hidden="true" size={15} />
-              {t("common.reset")}
-            </button>
-          </div>
-
-          <div className="expert-grid">
-            {visibleExperts.map((expert) => (
-              <article className="expert-card" key={expert.id}>
-                <div className="expert-avatar-frame is-professional">
-                  {renderAuthorAvatar(
-                    expert.avatarUrl,
-                    t(expert.nameKey),
-                    expert.id,
-                  )}
-                  {renderProfessionalBadge()}
-                </div>
-                <div>
-                  <span className="pill">{t(expert.specialtyKey)}</span>
-                  <h2 className="author-name-line">
-                    <Link
-                      href={`${getSectionHref(locale, "profile")}?author=${expert.id}`}
-                    >
-                      {t(expert.nameKey)}
-                    </Link>
-                    {renderVerifiedBadge()}
-                  </h2>
-                  <p>{t(expert.headlineKey)}</p>
-                  <div className="meta-row">
-                    <span>
-                      <MapPin aria-hidden="true" size={14} />
-                      {getLocationLabel(expert.locationId, locale)}
-                    </span>
-                    <span>
-                      <Star aria-hidden="true" size={14} />
-                      {expert.rating} {t("experts.rating")}
-                    </span>
-                    <span>
-                      {numberFormatter.format(expert.reviews)}{" "}
-                      {t("experts.reviews")}
-                    </span>
-                  </div>
-                  <div className="language-list">
-                    {expert.languages.map((expertLocale) => (
-                      <span key={expertLocale}>
-                        {expertLocale.toUpperCase()}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="entity-card-actions">
-                    <DiscussionButton
-                      compact
-                      source={{
-                        type: "PROFILE",
-                        id: demoExpertUsernames[expert.id] ?? expert.id,
-                        title: t(expert.nameKey),
-                        image: expert.coverUrl,
-                        path:
-                          getSectionHref(locale, "profile") +
-                          "?author=" +
-                          encodeURIComponent(
-                            demoExpertUsernames[expert.id] ?? expert.id,
-                          ),
-                      }}
-                    />
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-          {visibleExperts.length === 0 ? (
-            <p className="empty-state">{t("experts.empty")}</p>
-          ) : null}
-        </section>
-      </>
-    );
+    return <ServerExperts />;
   }
 
   function getModelCommerceAuthor(model: ModelRecord): PublicAuthorProfile {
@@ -9516,6 +9037,12 @@ export function HomeClient({
                           <MapPin aria-hidden="true" size={14} />
                           {getLocationLabel(studio.cityId, locale)}
                         </span>
+                        <small className="studio-review-count">
+                          {numberFormatter.format(
+                            studio.reviews + localReviewCount,
+                          )}{" "}
+                          {t("studios.reviews")}
+                        </small>
                       </div>
                     </div>
                     <strong>
@@ -9550,39 +9077,35 @@ export function HomeClient({
                       </strong>{" "}
                       / {locale === "ru" ? "час" : "hour"}
                     </span>
-                    <StudioBookingButton
-                      id={studio.id}
-                      name={t(studio.nameKey)}
-                    />
-                  </div>
-                  <div className="studio-card-footer">
-                    <span>
-                      {numberFormatter.format(
-                        studio.reviews + localReviewCount,
-                      )}{" "}
-                      {t("studios.reviews")}
-                    </span>
-                    <DiscussionButton
-                      compact
-                      source={{
-                        type: "STUDIO",
-                        id: studio.id,
-                        title: t(studio.nameKey),
-                        image: studio.imageUrl,
-                        path:
-                          getSectionHref(locale, "studios") +
-                          "?studio=" +
-                          studio.id,
-                      }}
-                    />
-                    <button
-                      className="secondary-action compact"
-                      onClick={() => openStudioReview(studio.id)}
-                      type="button"
-                    >
-                      <Star aria-hidden="true" size={15} />
-                      {t("studios.rate")}
-                    </button>
+                    <div className="studio-card-actions">
+                      <StudioBookingButton
+                        id={studio.id}
+                        name={t(studio.nameKey)}
+                        compact
+                      />
+                      <DiscussionButton
+                        compact
+                        source={{
+                          type: "STUDIO",
+                          id: studio.id,
+                          title: t(studio.nameKey),
+                          image: studio.imageUrl,
+                          path:
+                            getSectionHref(locale, "studios") +
+                            "?studio=" +
+                            studio.id,
+                        }}
+                      />
+                      <button
+                        className="publication-icon"
+                        onClick={() => openStudioReview(studio.id)}
+                        aria-label={t("studios.rate")}
+                        title={t("studios.rate")}
+                        type="button"
+                      >
+                        <Star aria-hidden="true" size={15} />
+                      </button>
+                    </div>
                   </div>
                   {activeStudioReviewId === studio.id ? (
                     <form

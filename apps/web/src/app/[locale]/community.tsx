@@ -30,6 +30,7 @@ import {
   Pencil,
   Save,
   CalendarDays,
+  ImagePlus,
 } from "lucide-react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
@@ -352,8 +353,32 @@ function InquiryForm({
   const t = useWords();
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const imageInput = useRef<HTMLInputElement>(null);
+  const [attachment, setAttachment] = useState<{
+    name: string;
+    preview: string;
+  } | null>(null);
+  async function selectImage(input: HTMLInputElement) {
+    const file = input.files?.[0];
+    setFeedback("");
+    if (!file) {
+      setAttachment(null);
+      return;
+    }
+    try {
+      const preview = await imageData(file);
+      if (input.files?.[0] === file && preview)
+        setAttachment({ name: file.name, preview });
+    } catch (error) {
+      if (input.files?.[0] !== file) return;
+      input.value = "";
+      setAttachment(null);
+      setFeedback(errorText(error, t));
+    }
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
     if (!userId) {
       login();
       return;
@@ -377,6 +402,7 @@ function InquiryForm({
         }),
       });
       form.reset();
+      setAttachment(null);
       setFeedback(
         t(
           "Отправлено администрации. Ответ появится здесь и в уведомлениях.",
@@ -391,24 +417,72 @@ function InquiryForm({
     }
   }
   return (
-    <form className="community-form" onSubmit={submit}>
+    <form className="community-form community-inquiry-form" onSubmit={submit}>
       <label>
         {kind === "REPORT"
           ? t("Причина жалобы", "Reason for reporting")
           : t("Предложение", "Suggestion")}
-        <textarea name="body" maxLength={10000} required rows={5} />
-      </label>
-      <label>
-        {t("Изображение (до 5 МБ)", "Image (up to 5 MB)")}
-        <input
-          name="image"
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/avif"
+        <textarea
+          name="body"
+          maxLength={10000}
+          required
+          rows={6}
+          disabled={busy}
         />
       </label>
+      <div className="inquiry-attachment">
+        <span>{t("Изображение (до 5 МБ)", "Image (up to 5 MB)")}</span>
+        <div className="inquiry-attachment-row">
+          <label
+            className={`inquiry-attachment-picker${busy ? " is-disabled" : ""}`}
+          >
+            <ImagePlus size={18} aria-hidden="true" />
+            <span>
+              {attachment
+                ? t("Заменить изображение", "Replace image")
+                : t("Добавить изображение", "Add image")}
+            </span>
+            <input
+              ref={imageInput}
+              className="inquiry-attachment-input"
+              name="image"
+              type="file"
+              aria-label={t("Изображение (до 5 МБ)", "Image (up to 5 MB)")}
+              accept="image/jpeg,image/png,image/webp,image/avif"
+              disabled={busy}
+              onChange={(event) => void selectImage(event.currentTarget)}
+            />
+          </label>
+          <span className="inquiry-attachment-name">
+            {attachment?.name ?? t("Необязательно", "Optional")}
+          </span>
+          {attachment && (
+            <button
+              type="button"
+              className="icon-button inquiry-attachment-remove"
+              title={t("Убрать изображение", "Remove image")}
+              aria-label={t("Убрать изображение", "Remove image")}
+              disabled={busy}
+              onClick={() => {
+                if (imageInput.current) imageInput.current.value = "";
+                setAttachment(null);
+              }}
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
+        {attachment && (
+          <img
+            className="inquiry-attachment-preview"
+            src={attachment.preview}
+            alt={t("Прикреплённое изображение", "Attached image")}
+          />
+        )}
+      </div>
       <button className="primary-action" disabled={busy} type="submit">
         <Send size={17} />
-        {t("Отправить", "Send")}
+        {busy ? t("Отправляем…", "Sending…") : t("Отправить", "Send")}
       </button>
       <Feedback>{feedback}</Feedback>
     </form>
@@ -421,38 +495,48 @@ export function SuggestionsPage() {
   const [error, setError] = useState("");
   const [version, setVersion] = useState(0);
   useEffect(() => {
+    setItems([]);
     if (!userId) return;
     const controller = new AbortController();
+    setError("");
     request<{ inquiries: Inquiry[] }>("/community/inquiries", {
       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
     })
-      .then((result) => setItems(result.inquiries))
+      .then((result) => {
+        if (!controller.signal.aborted) setItems(result.inquiries);
+      })
       .catch((e) => {
         if (!controller.signal.aborted) setError(errorText(e, t));
       });
     return () => controller.abort();
   }, [userId, version]);
   return (
-    <section className="community-suggestions">
-      <InquiryForm kind="SUGGESTION" done={() => setVersion((v) => v + 1)} />
-      <Feedback>{error}</Feedback>
-      {items.length ? <h2>{t("Ваши обращения", "Your submissions")}</h2> : null}
-      {items.map((item) => (
-        <article className="community-inquiry" key={item.id}>
-          <small>
-            {item.kind === "REPORT"
-              ? t("Жалоба", "Report")
-              : t("Предложение", "Suggestion")}{" "}
-            · {new Date(item.createdAt).toLocaleDateString()}
-          </small>
-          <p>{item.body}</p>
-          {item.reply ? (
-            <blockquote>{item.reply}</blockquote>
-          ) : (
-            <span>{t("Ожидает ответа", "Awaiting reply")}</span>
-          )}
-        </article>
-      ))}
+    <section className="page-section community-suggestions">
+      <div className="community-suggestions-content">
+        <InquiryForm kind="SUGGESTION" done={() => setVersion((v) => v + 1)} />
+        <Feedback>{error}</Feedback>
+        {items.length ? (
+          <div className="suggestions-history">
+            <h2>{t("Ваши обращения", "Your submissions")}</h2>
+            {items.map((item) => (
+              <article className="community-inquiry" key={item.id}>
+                <small>
+                  {item.kind === "REPORT"
+                    ? t("Жалоба", "Report")
+                    : t("Предложение", "Suggestion")}{" "}
+                  · {new Date(item.createdAt).toLocaleDateString()}
+                </small>
+                <p>{item.body}</p>
+                {item.reply ? (
+                  <blockquote>{item.reply}</blockquote>
+                ) : (
+                  <span>{t("Ожидает ответа", "Awaiting reply")}</span>
+                )}
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -2192,9 +2276,11 @@ export function InteractionMenu({
 export function StudioBookingButton({
   id,
   name,
+  compact = false,
 }: {
   id: string;
   name: string;
+  compact?: boolean;
 }) {
   const { locale } = useCommunity();
   const t = useWords();
@@ -2205,11 +2291,13 @@ export function StudioBookingButton({
     <>
       <button
         type="button"
-        className="primary-action compact"
+        className={compact ? "publication-icon" : "primary-action compact"}
+        aria-label={t("Заказать", "Request booking")}
+        title={t("Заказать", "Request booking")}
         onClick={() => setOpen(true)}
       >
         <CalendarDays size={16} />
-        {t("Заказать", "Request booking")}
+        {!compact && t("Заказать", "Request booking")}
       </button>
       {open && (
         <Dialog title={name} close={() => setOpen(false)}>

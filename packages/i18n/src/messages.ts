@@ -231,8 +231,7 @@ const baseMessages = {
   "section.challenges.intro":
     "Join themed competitions, submit a file from your profile and track your entries.",
   "section.leaderboard.title": "Reputation leaderboard",
-  "section.leaderboard.intro":
-    "Compare photographers by global, city and category reputation signals.",
+  "section.leaderboard.intro": "Top 10 photographers by global reputation.",
   "section.video.title": "Video",
   "section.video.intro":
     "Explore creator videos by category, shoot location and publication date.",
@@ -247,7 +246,7 @@ const baseMessages = {
     "Buy and sell photographs, licenses, prints and creator products using your GPRN wallet.",
   "section.experts.title": "Expert reviews",
   "section.experts.intro":
-    "Find verified professional photographers by genre, location and reputation.",
+    "Find photographers by genre, location and reputation and explore their portfolios.",
   "section.studios.title": "Photo studios",
   "section.studios.intro":
     "Find a studio on the map by location, rating and technical equipment, then compare detailed community scores.",
@@ -1369,8 +1368,7 @@ const ruMessages: Partial<MessageMap> = {
   "challenge.weather-and-land.description":
     "Пейзажные и документальные работы, в которых погода становится частью истории.",
   "section.leaderboard.title": "Рейтинг репутации",
-  "section.leaderboard.intro":
-    "Сравнивайте фотографов по глобальным, городским и категорийным сигналам репутации.",
+  "section.leaderboard.intro": "Топ-10 фотографов по глобальной репутации.",
   "section.video.title": "Видео",
   "section.video.intro":
     "Ищите видео авторов по категории, месту съёмки и дате публикации.",
@@ -1382,7 +1380,7 @@ const ruMessages: Partial<MessageMap> = {
     "Покупайте и продавайте фотографии, лицензии, принты и товары авторов через кошелёк GPRN.",
   "section.experts.title": "Экспертные оценки",
   "section.experts.intro":
-    "Ищите подтверждённых профессиональных фотографов по жанру, локации и рейтингу.",
+    "Ищите фотографов по жанру, локации и рейтингу и смотрите их портфолио.",
   "section.studios.title": "Фотостудии",
   "section.studios.intro":
     "Ищите студии на карте по локации, рейтингу и техническому оснащению и сравнивайте подробные оценки.",
