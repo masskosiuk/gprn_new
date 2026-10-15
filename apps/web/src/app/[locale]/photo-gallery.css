@@ -138,14 +138,13 @@ dialog.image-lightbox::backdrop {
 }
 
 .work-lightbox {
-  background: #080808;
+  background: transparent;
   padding: 0;
 }
 
 dialog.image-lightbox.work-lightbox {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.5);
+  border: 0;
+  border-radius: 0;
   display: block;
   height: 80dvh;
   margin: auto;
@@ -179,9 +178,9 @@ dialog.image-lightbox.work-lightbox::backdrop {
 }
 
 .work-lightbox .image-lightbox-stage {
-  background: #080808;
+  background: transparent;
   height: 100%;
-  padding: 24px;
+  padding: 0;
 }
 
 .work-lightbox .image-lightbox-stage > img,
@@ -195,7 +194,6 @@ dialog.image-lightbox.work-lightbox::backdrop {
 .image-lightbox-dialog .work-lightbox-panel {
   align-self: stretch;
   background: var(--panel);
-  border-left: 1px solid var(--border);
   color: var(--foreground);
   margin: 0;
   max-width: none;
@@ -223,6 +221,28 @@ dialog.image-lightbox.work-lightbox::backdrop {
   align-items: flex-start;
   flex-direction: column;
   gap: 12px;
+}
+
+.work-lightbox-panel .photo-card-heading-main {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.work-lightbox-panel .photo-card-heading-copy {
+  flex: 1;
+}
+
+.work-lightbox-panel .photo-author-link span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.work-lightbox-panel .photo-review-action {
+  flex: 0 0 auto;
+  max-width: 55%;
 }
 
 .work-lightbox-panel .photo-card-heading-tags {
@@ -313,13 +333,19 @@ dialog.image-lightbox.work-lightbox::backdrop {
     grid-template-rows: minmax(140px, 44dvh) minmax(0, 1fr);
   }
 
-  .work-lightbox .image-lightbox-stage {
-    padding: 16px 12px;
+  .image-lightbox-dialog .work-lightbox-panel {
+    padding: 16px 16px max(20px, env(safe-area-inset-bottom));
   }
 
-  .image-lightbox-dialog .work-lightbox-panel {
-    border-left: 0;
-    border-top: 1px solid var(--border);
-    padding: 16px 16px max(20px, env(safe-area-inset-bottom));
+  .work-lightbox-panel .photo-card-heading-main {
+    flex-wrap: wrap;
+  }
+
+  .work-lightbox-panel .photo-card-heading-copy {
+    flex-basis: 140px;
+  }
+
+  .work-lightbox-panel .photo-review-action {
+    max-width: 100%;
   }
 }

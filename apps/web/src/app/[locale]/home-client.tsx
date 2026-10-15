@@ -7694,7 +7694,11 @@ export function HomeClient({
     );
   }
 
-  function renderPhotoCard(photo: PhotoRecord, detailsOnly = false): ReactNode {
+  function renderPhotoCard(
+    photo: PhotoRecord,
+    detailsOnly = false,
+    reviewAction?: ReactNode,
+  ): ReactNode {
     const gallerySection = isVideoWork(photo) ? "video" : "discover";
     const showCommerce = !["discover", "video", "feed"].includes(
       initialSection,
@@ -7704,6 +7708,36 @@ export function HomeClient({
     const isInMoodboard = moodboardPhotoIds.includes(photo.id);
     const authorProfile = publicAuthorProfiles.find(
       (author) => author.id === getPhotoAuthorId(photo),
+    );
+    const headingCopy = (
+      <div className="photo-card-heading-copy">
+        <PhotoTitleEditor
+          locale={locale}
+          title={getPhotoTitle(photo, locale)}
+          editable={Boolean(
+            photo.serverBacked && (photo.isMine || isAdministrator),
+          )}
+          onSave={(title) => renameWork(photo.id, title)}
+        />
+        <Link
+          className="photo-author-link"
+          onClick={() => {
+            if (detailsOnly) setImagePreview(null);
+          }}
+          href={
+            photo.isMine
+              ? getSectionHref(locale, "profile")
+              : `${getSectionHref(locale, "profile")}?author=${encodeURIComponent(getPhotoAuthorId(photo))}`
+          }
+        >
+          <span>{getPhotoAuthor(photo, locale)}</span>
+          {authorProfile?.verified ||
+          photo.authorTier === "professional" ||
+          photo.authorTier === "star"
+            ? renderVerifiedBadge()
+            : null}
+        </Link>
+      </div>
     );
 
     const openDiscoverWithCategory = (): void => {
@@ -7765,34 +7799,14 @@ export function HomeClient({
         {renderPhotoCriteria(photo)}
         <div className="photo-card-body">
           <div className="photo-card-heading">
-            <div className="photo-card-heading-copy">
-              <PhotoTitleEditor
-                locale={locale}
-                title={getPhotoTitle(photo, locale)}
-                editable={Boolean(
-                  photo.serverBacked && (photo.isMine || isAdministrator),
-                )}
-                onSave={(title) => renameWork(photo.id, title)}
-              />
-              <Link
-                className="photo-author-link"
-                onClick={() => {
-                  if (detailsOnly) setImagePreview(null);
-                }}
-                href={
-                  photo.isMine
-                    ? getSectionHref(locale, "profile")
-                    : `${getSectionHref(locale, "profile")}?author=${encodeURIComponent(getPhotoAuthorId(photo))}`
-                }
-              >
-                <span>{getPhotoAuthor(photo, locale)}</span>
-                {authorProfile?.verified ||
-                photo.authorTier === "professional" ||
-                photo.authorTier === "star"
-                  ? renderVerifiedBadge()
-                  : null}
-              </Link>
-            </div>
+            {detailsOnly ? (
+              <div className="photo-card-heading-main">
+                {headingCopy}
+                {reviewAction}
+              </div>
+            ) : (
+              headingCopy
+            )}
             <div className="photo-card-heading-tags">
               <button
                 aria-pressed={
@@ -8033,7 +8047,7 @@ export function HomeClient({
             : null;
           const overallScore =
             averageScore === null
-              ? "\u2014"
+              ? null
               : averageScore.toLocaleString(locale, {
                   maximumFractionDigits: 1,
                   minimumFractionDigits: 1,
@@ -8095,16 +8109,18 @@ export function HomeClient({
                       onClick={() => openPhotoPreview(photo)}
                     />
                   ) : null}
-                  <button
-                    aria-label={`${t("battles.overallScore")}: ${overallScore}`}
-                    className="photo-counter-action photo-tile-details"
-                    onClick={() => openPhotoPreview(photo)}
-                    title={`${t("battles.overallScore")}: ${overallScore} / 10`}
-                    type="button"
-                  >
-                    <Star aria-hidden="true" size={17} />
-                    <span>{overallScore}</span>
-                  </button>
+                  {overallScore !== null ? (
+                    <button
+                      aria-label={`${t("battles.overallScore")}: ${overallScore}`}
+                      className="photo-counter-action photo-tile-details"
+                      onClick={() => openPhotoPreview(photo)}
+                      title={`${t("battles.overallScore")}: ${overallScore} / 10`}
+                      type="button"
+                    >
+                      <Star aria-hidden="true" size={17} />
+                      <span>{overallScore}</span>
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </article>
@@ -11811,6 +11827,17 @@ export function HomeClient({
       currentProfile?.tier ?? (currentProfile ? "viewer" : null);
     const canSubmitDetailedReview =
       currentTier === "professional" || currentTier === "star";
+    const reviewAction =
+      imagePreview.photoId && canSubmitDetailedReview ? (
+        <button
+          className="secondary-action compact photo-review-action"
+          onClick={openDetailedPhotoReview}
+          type="button"
+        >
+          <Star aria-hidden="true" size={16} />
+          {t("photo.detailedReview")}
+        </button>
+      ) : null;
 
     return (
       <ImageLightbox
@@ -11856,20 +11883,13 @@ export function HomeClient({
             }
           >
             {previewWork ? (
-              renderPhotoCard(previewWork, true)
+              renderPhotoCard(previewWork, true, reviewAction)
             ) : (
-              <strong>{imagePreview.alt}</strong>
+              <>
+                <strong>{imagePreview.alt}</strong>
+                {reviewAction}
+              </>
             )}
-            {imagePreview.photoId && canSubmitDetailedReview ? (
-              <button
-                className="secondary-action compact"
-                onClick={openDetailedPhotoReview}
-                type="button"
-              >
-                <Star aria-hidden="true" size={16} />
-                {t("photo.detailedReview")}
-              </button>
-            ) : null}
             {hasComments && imagePreview.photoId ? (
               <Comments
                 key={imagePreview.photoId}

@@ -122,17 +122,22 @@ test("the overall star uses all criterion scores rather than likes or a stale sc
   );
 });
 
-test("unrated work displays empty scores instead of inventing a rating", () => {
+test("unrated work omits both the star and the score placeholder", () => {
   const { render, photo } = fixture(null);
   const tree = render([photo]);
-  assert.equal(
-    find(tree, "photo-tile-details")!.children[1].children[0],
-    "\u2014",
+  assert.equal(find(tree, "photo-tile-details"), undefined);
+  assert.deepEqual(
+    find(tree, "photo-tile-actions")!
+      .children.filter(Boolean)
+      .map((child: Element) => child.type),
+    ["button", "comment-button"],
   );
 });
 
 test("the overall star still opens the original work for detailed scores", () => {
-  const { render, photo, actions } = fixture(null);
+  const { render, photo, actions } = fixture(
+    Object.fromEntries(criteria.map((id) => [id, 8])),
+  );
   find(render([photo]), "photo-tile-details")!.props.onClick();
   assert.equal(actions[0], photo);
 });
@@ -144,6 +149,6 @@ test("unpublished work retains the compact overlay without an empty comments slo
   assert.equal(tree.props.className, "photo-masonry");
   assert.equal(
     find(tree, "photo-tile-actions")!.children.filter(Boolean).length,
-    2,
+    1,
   );
 });
