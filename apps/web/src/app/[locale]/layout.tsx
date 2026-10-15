@@ -9,6 +9,7 @@ import type { Metadata } from "next";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
 import "./community.css";
+import "./photo-gallery.css";
 
 interface LocaleLayoutProps {
   readonly children: React.ReactNode;

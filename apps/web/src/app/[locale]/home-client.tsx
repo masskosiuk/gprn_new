@@ -125,6 +125,7 @@ import {
   recoverableProfileImages,
 } from "../../lib/profile-source";
 import { PhotoTitleEditor } from "./photo-title-editor";
+import { ImageLightbox } from "./image-lightbox";
 import {
   DigitalProductSection,
   type DigitalProductOffer,
@@ -2825,6 +2826,14 @@ export function HomeClient({
     () => new Intl.NumberFormat(locale),
     [locale],
   );
+  const compactNumberFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(locale, {
+        notation: "compact",
+        maximumFractionDigits: 1,
+      }),
+    [locale],
+  );
   const allPhotos = useMemo<readonly PhotoRecord[]>(() => {
     const samples: PhotoRecord[] = demoChallengeWorks.map((work) => ({
       id: work.id,
@@ -3536,6 +3545,7 @@ export function HomeClient({
 
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key === "Escape") {
+        if (document.querySelector("dialog[open]")) return;
         setAuthOpen(false);
         setAddPhotoOpen(false);
         setImagePreview(null);
@@ -3715,6 +3725,19 @@ export function HomeClient({
     );
   }
 
+  function openPhotoPreview(photo: PhotoRecord): void {
+    setPhotoReviewOpen(false);
+    setPhotoReviewComment("");
+    setPhotoReviewScores({ ...defaultBattleScores });
+    setImagePreview({
+      alt: getPhotoTitle(photo, locale),
+      photoId: photo.id,
+      src: getLargeImageSource(photo.src),
+      videoSrc: photo.videoSrc,
+    });
+    if (photo.serverBacked) void loadPhotoReviews(photo.id);
+  }
+
   function renderAuthorAvatar(
     src: string,
     alt: string,
@@ -3878,6 +3901,7 @@ export function HomeClient({
   }
 
   function openAuth(mode: AuthMode): void {
+    setImagePreview(null);
     setAuthMode(mode);
     setAuthFeedback(null);
     setAuthOpen(true);
@@ -5289,6 +5313,7 @@ export function HomeClient({
             }
           : photo;
       setServerPhotos((current) => current.map(updateCounts));
+      setServerPublicPhotos((current) => current.map(updateCounts));
       setUploadedPhotos((current) => current.map(updateCounts));
     } catch {
       setGlobalFeedback({ kind: "error", text: t("common.signInRequired") });
@@ -5333,6 +5358,7 @@ export function HomeClient({
   }
 
   function openCommerceDialog(dialog: Exclude<CommerceDialog, null>): void {
+    setImagePreview(null);
     if (!currentProfile) {
       openAuth("login");
       setGlobalFeedback({ kind: "error", text: t("common.signInRequired") });
@@ -7510,7 +7536,48 @@ export function HomeClient({
     );
   }
 
-  function renderPhotoCard(photo: PhotoRecord): ReactNode {
+  function renderPhotoCriteria(photo: PhotoRecord): ReactNode {
+    const scores = getPhotoCriterionScores(photo);
+    return (
+      <div
+        aria-label={t("photo.detailedScores")}
+        className="criterion-results photo-card-criteria"
+      >
+        {battleCriteria.map(({ Icon, id, labelKey }) => {
+          const isOpen =
+            activePhotoCriterion?.photoId === photo.id &&
+            activePhotoCriterion.criterionId === id;
+          const value = scores?.[id];
+          const formatted =
+            value === undefined
+              ? "\u2014"
+              : value.toLocaleString(locale, {
+                  maximumFractionDigits: 1,
+                  minimumFractionDigits: 1,
+                });
+          return (
+            <button
+              aria-label={`${t(labelKey)}: ${value === undefined ? t("common.no") : formatted}`}
+              className={`criterion-score${isOpen ? " is-open" : ""}`}
+              key={id}
+              onClick={() =>
+                setActivePhotoCriterion(
+                  isOpen ? null : { criterionId: id, photoId: photo.id },
+                )
+              }
+              type="button"
+            >
+              <Icon aria-hidden="true" />
+              <strong>{formatted}</strong>
+              <span className="criterion-tooltip">{t(labelKey)}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function renderPhotoCard(photo: PhotoRecord, detailsOnly = false): ReactNode {
     const gallerySection = isVideoWork(photo) ? "video" : "discover";
     const showCommerce = !["discover", "video", "feed"].includes(
       initialSection,
@@ -7521,9 +7588,9 @@ export function HomeClient({
     const authorProfile = publicAuthorProfiles.find(
       (author) => author.id === getPhotoAuthorId(photo),
     );
-    const criterionScores = getPhotoCriterionScores(photo);
 
     const openDiscoverWithCategory = (): void => {
+      if (detailsOnly) setImagePreview(null);
       setFeedKind(isVideoWork(photo) ? "VIDEO" : "PHOTO");
       setCategoryFilter(photo.categoryId);
 
@@ -7536,6 +7603,7 @@ export function HomeClient({
 
     const openDiscoverWithLocation = (): void => {
       if (photo.locationHidden || !photo.locationId) return;
+      if (detailsOnly) setImagePreview(null);
       setFeedKind(isVideoWork(photo) ? "VIDEO" : "PHOTO");
       setDiscoverLocationFilter(photo.locationId);
 
@@ -7548,12 +7616,12 @@ export function HomeClient({
 
     return (
       <article
-        className="photo-card"
+        className={`photo-card${detailsOnly ? " photo-card--details" : ""}`}
         data-photo-id={photo.id}
         data-media-type={isVideoWork(photo) ? "VIDEO" : "PHOTO"}
         key={photo.id}
       >
-        {photo.videoSrc ? (
+        {detailsOnly ? null : photo.videoSrc ? (
           <div className="video-card-media">
             <video
               aria-label={getPhotoTitle(photo, locale)}
@@ -7571,54 +7639,13 @@ export function HomeClient({
             photo.id,
           )
         )}
-        {demoChallengeWorks.some((work) => work.id === photo.id) ? (
+        {!detailsOnly &&
+        demoChallengeWorks.some((work) => work.id === photo.id) ? (
           <span className="stock-credit photo-stock-credit">
             {t("challenge.stockExample")}
           </span>
         ) : null}
-        <div
-          aria-label={t("photo.detailedScores")}
-          className="criterion-results photo-card-criteria"
-        >
-          {battleCriteria.map(({ Icon, id, labelKey }) => {
-            const isOpen =
-              activePhotoCriterion?.photoId === photo.id &&
-              activePhotoCriterion.criterionId === id;
-            const value = criterionScores?.[id];
-
-            return (
-              <button
-                aria-label={`${t(labelKey)}: ${
-                  value === undefined
-                    ? t("common.no")
-                    : value.toLocaleString(locale, {
-                        maximumFractionDigits: 1,
-                        minimumFractionDigits: 1,
-                      })
-                }`}
-                className={`criterion-score${isOpen ? " is-open" : ""}`}
-                key={id}
-                onClick={() => {
-                  setActivePhotoCriterion(
-                    isOpen ? null : { criterionId: id, photoId: photo.id },
-                  );
-                }}
-                type="button"
-              >
-                <Icon aria-hidden="true" />
-                <strong>
-                  {value === undefined
-                    ? "—"
-                    : value.toLocaleString(locale, {
-                        maximumFractionDigits: 1,
-                        minimumFractionDigits: 1,
-                      })}
-                </strong>
-                <span className="criterion-tooltip">{t(labelKey)}</span>
-              </button>
-            );
-          })}
-        </div>
+        {renderPhotoCriteria(photo)}
         <div className="photo-card-body">
           <div className="photo-card-heading">
             <div className="photo-card-heading-copy">
@@ -7632,6 +7659,9 @@ export function HomeClient({
               />
               <Link
                 className="photo-author-link"
+                onClick={() => {
+                  if (detailsOnly) setImagePreview(null);
+                }}
                 href={
                   photo.isMine
                     ? getSectionHref(locale, "profile")
@@ -7699,7 +7729,10 @@ export function HomeClient({
               <button
                 aria-label={t("photo.delete")}
                 className="icon-button photo-delete-action"
-                onClick={() => setPhotoPendingDeletion(photo)}
+                onClick={() => {
+                  if (detailsOnly) setImagePreview(null);
+                  setPhotoPendingDeletion(photo);
+                }}
                 title={t("photo.delete")}
                 type="button"
               >
@@ -7733,15 +7766,7 @@ export function HomeClient({
               <CommentButton
                 id={photo.id}
                 count={photo.commentCount ?? 0}
-                onClick={() => {
-                  setPhotoReviewOpen(false);
-                  setImagePreview({
-                    alt: getPhotoTitle(photo, locale),
-                    photoId: photo.id,
-                    src: getLargeImageSource(photo.src),
-                    videoSrc: photo.videoSrc,
-                  });
-                }}
+                onClick={() => openPhotoPreview(photo)}
               />
             ) : null}
             <button
@@ -7878,28 +7903,94 @@ export function HomeClient({
     );
   }
 
-  function renderMoodboardGrid(photos: readonly PhotoRecord[]): ReactNode {
+  function renderPhotoMasonry(photos: readonly PhotoRecord[]): ReactNode {
     return (
-      <div className="moodboard-tile-grid">
+      <div className="photo-masonry">
         {photos.map((photo) => {
-          const authorId = getPhotoAuthorId(photo);
-          const profileHref = getSectionHref(locale, "profile");
-          const href = photo.isMine
-            ? `${profileHref}?photo=${encodeURIComponent(photo.id)}`
-            : `${profileHref}?author=${encodeURIComponent(authorId)}&photo=${encodeURIComponent(photo.id)}`;
           const title = getPhotoTitle(photo, locale);
+          const isLiked = likedPhotoIds.includes(photo.id);
+          const scores = getPhotoCriterionScores(photo);
+          const averageScore = scores
+            ? Object.values(scores).reduce((sum, score) => sum + score, 0) /
+              battleCriteria.length
+            : null;
 
           return (
-            <Link
-              aria-label={`${title} · ${getPhotoAuthor(photo, locale)}`}
-              className="moodboard-tile"
-              href={href}
+            <article
+              className="photo-tile"
+              data-photo-id={photo.id}
+              data-media-type={isVideoWork(photo) ? "VIDEO" : "PHOTO"}
               key={photo.id}
-              rel="noopener noreferrer"
-              target="_blank"
             >
-              <img alt={title} src={photo.src} />
-            </Link>
+              <button
+                aria-label={`${t("photo.openPreview")}: ${title}`}
+                className="photo-tile-open"
+                onClick={() => openPhotoPreview(photo)}
+                type="button"
+              >
+                <img
+                  alt={title}
+                  decoding="async"
+                  loading="lazy"
+                  src={photo.src}
+                />
+                {isVideoWork(photo) ? (
+                  <Video
+                    aria-hidden="true"
+                    className="photo-tile-video"
+                    size={20}
+                  />
+                ) : null}
+              </button>
+              <div className="photo-tile-overlay">
+                <div className="photo-tile-actions publication-actions">
+                  <button
+                    aria-label={isLiked ? t("photo.unlike") : t("photo.like")}
+                    aria-pressed={isLiked}
+                    className={`photo-counter-action${isLiked ? " is-active" : ""}`}
+                    onClick={() => toggleLikePhoto(photo.id)}
+                    title={isLiked ? t("photo.unlike") : t("photo.like")}
+                    type="button"
+                  >
+                    <Heart
+                      aria-hidden="true"
+                      fill={isLiked ? "currentColor" : "none"}
+                      size={17}
+                    />
+                    <span>
+                      {compactNumberFormatter.format(
+                        photo.votes + (isLiked && !photo.serverBacked ? 1 : 0),
+                      )}
+                    </span>
+                  </button>
+                  {photo.serverBacked && photo.published ? (
+                    <CommentButton
+                      compactCount
+                      id={photo.id}
+                      count={photo.commentCount ?? 0}
+                      onClick={() => openPhotoPreview(photo)}
+                    />
+                  ) : null}
+                  <button
+                    aria-label={t("photo.detailedScores")}
+                    className="photo-counter-action photo-tile-details"
+                    onClick={() => openPhotoPreview(photo)}
+                    title={t("photo.detailedScores")}
+                    type="button"
+                  >
+                    <Star aria-hidden="true" size={17} />
+                    {averageScore !== null ? (
+                      <span>
+                        {averageScore.toLocaleString(locale, {
+                          maximumFractionDigits: 1,
+                          minimumFractionDigits: 1,
+                        })}
+                      </span>
+                    ) : null}
+                  </button>
+                </div>
+              </div>
+            </article>
           );
         })}
       </div>
@@ -9537,9 +9628,7 @@ export function HomeClient({
             </div>
 
             {authorPhotos.length > 0 ? (
-              <div className="photo-gallery">
-                {authorPhotos.map((photo) => renderPhotoCard(photo))}
-              </div>
+              renderPhotoMasonry(authorPhotos)
             ) : (
               <p className="empty-state">{t("profile.emptyAuthorPortfolio")}</p>
             )}
@@ -9799,9 +9888,7 @@ export function HomeClient({
                 </div>
 
                 {profilePhotos.length > 0 ? (
-                  <div className="photo-gallery">
-                    {profilePhotos.map((photo) => renderPhotoCard(photo))}
-                  </div>
+                  renderPhotoMasonry(profilePhotos)
                 ) : (
                   <p className="empty-state">{t("profile.emptyPortfolio")}</p>
                 )}
@@ -9815,7 +9902,7 @@ export function HomeClient({
               </div>
             </div>
             {moodboardPhotoIds.length > 0 ? (
-              renderMoodboardGrid(
+              renderPhotoMasonry(
                 publicPhotos.filter((photo) =>
                   moodboardPhotoIds.includes(photo.id),
                 ),
@@ -9833,11 +9920,11 @@ export function HomeClient({
                 <LockKeyhole aria-hidden="true" size={18} />
               </div>
               {savedPhotoIds.length > 0 ? (
-                <div className="photo-gallery moodboard-gallery">
-                  {publicPhotos
-                    .filter((photo) => savedPhotoIds.includes(photo.id))
-                    .map((photo) => renderPhotoCard(photo))}
-                </div>
+                renderPhotoMasonry(
+                  publicPhotos.filter((photo) =>
+                    savedPhotoIds.includes(photo.id),
+                  ),
+                )
               ) : (
                 <p className="empty-state">{t("profile.emptyBookmarks")}</p>
               )}
@@ -11505,22 +11592,16 @@ export function HomeClient({
       currentTier === "professional" || currentTier === "star";
 
     return (
-      <div
-        className="image-lightbox"
-        onMouseDown={() => {
+      <ImageLightbox
+        title={imagePreview.alt}
+        fullScreen={Boolean(previewWork)}
+        close={() => {
           setImagePreview(null);
           setPhotoReviewOpen(false);
         }}
-        role="presentation"
       >
         <figure
-          aria-label={imagePreview.alt}
-          aria-modal="true"
-          className={`image-lightbox-dialog${hasComments ? " has-comments" : ""}`}
-          onMouseDown={(event) => {
-            event.stopPropagation();
-          }}
-          role="dialog"
+          className={`image-lightbox-dialog${previewWork ? " has-work" : ""}`}
         >
           <button
             aria-label={t("auth.close")}
@@ -11534,20 +11615,30 @@ export function HomeClient({
           >
             <X aria-hidden="true" size={22} />
           </button>
-          {imagePreview.videoSrc ? (
-            <video
-              aria-label={imagePreview.alt}
-              controls
-              playsInline
-              poster={imagePreview.src}
-              preload="metadata"
-              src={imagePreview.videoSrc}
-            />
-          ) : (
-            <img alt={imagePreview.alt} src={imagePreview.src} />
-          )}
-          <figcaption className="image-lightbox-caption">
-            <strong>{imagePreview.alt}</strong>
+          <div className="image-lightbox-stage">
+            {imagePreview.videoSrc ? (
+              <video
+                aria-label={imagePreview.alt}
+                controls
+                playsInline
+                poster={imagePreview.src}
+                preload="metadata"
+                src={imagePreview.videoSrc}
+              />
+            ) : (
+              <img alt={imagePreview.alt} src={imagePreview.src} />
+            )}
+          </div>
+          <figcaption
+            className={
+              previewWork ? "work-lightbox-panel" : "image-lightbox-caption"
+            }
+          >
+            {previewWork ? (
+              renderPhotoCard(previewWork, true)
+            ) : (
+              <strong>{imagePreview.alt}</strong>
+            )}
             {imagePreview.photoId && canSubmitDetailedReview ? (
               <button
                 className="secondary-action compact"
@@ -11558,83 +11649,83 @@ export function HomeClient({
                 {t("photo.detailedReview")}
               </button>
             ) : null}
-          </figcaption>
-          {hasComments && imagePreview.photoId ? (
-            <Comments
-              key={imagePreview.photoId}
-              kind="PHOTO"
-              id={imagePreview.photoId}
-              count={previewWork?.commentCount ?? 0}
-              initiallyOpen
-            />
-          ) : null}
-          {isPhotoReviewOpen && imagePreview.photoId ? (
-            <form className="photo-review-form" onSubmit={submitPhotoReview}>
-              <div className="photo-review-heading">
-                <div>
-                  <strong>{t("photo.reviewTitle")}</strong>
-                  <span>{t("photo.reviewCopy")}</span>
-                </div>
-                <button
-                  aria-label={t("auth.close")}
-                  className="icon-button"
-                  onClick={() => {
-                    setPhotoReviewOpen(false);
-                  }}
-                  type="button"
-                >
-                  <X aria-hidden="true" size={16} />
-                </button>
-              </div>
-              <div className="photo-review-criteria">
-                {battleCriteria.map((criterion) => {
-                  const CriterionIcon = criterion.Icon;
-                  const value = photoReviewScores[criterion.id];
-
-                  return (
-                    <label key={criterion.id}>
-                      <span>
-                        <CriterionIcon aria-hidden="true" size={15} />
-                        {t(criterion.labelKey)}
-                      </span>
-                      <input
-                        max="10"
-                        min="1"
-                        onChange={(event) => {
-                          setPhotoReviewScores((current) => ({
-                            ...current,
-                            [criterion.id]: Number(event.target.value),
-                          }));
-                        }}
-                        step="1"
-                        type="range"
-                        value={value}
-                      />
-                      <output>{value}</output>
-                    </label>
-                  );
-                })}
-              </div>
-              {currentTier === "professional" || currentTier === "star" ? (
-                <label className="form-field">
-                  <span>{t("photo.publicComment")}</span>
-                  <textarea
-                    onChange={(event) => {
-                      setPhotoReviewComment(event.target.value);
+            {hasComments && imagePreview.photoId ? (
+              <Comments
+                key={imagePreview.photoId}
+                kind="PHOTO"
+                id={imagePreview.photoId}
+                count={previewWork?.commentCount ?? 0}
+                initiallyOpen
+              />
+            ) : null}
+            {isPhotoReviewOpen && imagePreview.photoId ? (
+              <form className="photo-review-form" onSubmit={submitPhotoReview}>
+                <div className="photo-review-heading">
+                  <div>
+                    <strong>{t("photo.reviewTitle")}</strong>
+                    <span>{t("photo.reviewCopy")}</span>
+                  </div>
+                  <button
+                    aria-label={t("auth.close")}
+                    className="icon-button"
+                    onClick={() => {
+                      setPhotoReviewOpen(false);
                     }}
-                    rows={3}
-                    value={photoReviewComment}
-                  />
-                </label>
-              ) : null}
-              <button className="primary-action" type="submit">
-                <Check aria-hidden="true" size={16} />
-                {t("photo.submitReview")}
-              </button>
-            </form>
-          ) : null}
+                    type="button"
+                  >
+                    <X aria-hidden="true" size={16} />
+                  </button>
+                </div>
+                <div className="photo-review-criteria">
+                  {battleCriteria.map((criterion) => {
+                    const CriterionIcon = criterion.Icon;
+                    const value = photoReviewScores[criterion.id];
+
+                    return (
+                      <label key={criterion.id}>
+                        <span>
+                          <CriterionIcon aria-hidden="true" size={15} />
+                          {t(criterion.labelKey)}
+                        </span>
+                        <input
+                          max="10"
+                          min="1"
+                          onChange={(event) => {
+                            setPhotoReviewScores((current) => ({
+                              ...current,
+                              [criterion.id]: Number(event.target.value),
+                            }));
+                          }}
+                          step="1"
+                          type="range"
+                          value={value}
+                        />
+                        <output>{value}</output>
+                      </label>
+                    );
+                  })}
+                </div>
+                {currentTier === "professional" || currentTier === "star" ? (
+                  <label className="form-field">
+                    <span>{t("photo.publicComment")}</span>
+                    <textarea
+                      onChange={(event) => {
+                        setPhotoReviewComment(event.target.value);
+                      }}
+                      rows={3}
+                      value={photoReviewComment}
+                    />
+                  </label>
+                ) : null}
+                <button className="primary-action" type="submit">
+                  <Check aria-hidden="true" size={16} />
+                  {t("photo.submitReview")}
+                </button>
+              </form>
+            ) : null}
+          </figcaption>
         </figure>
-      </div>
+      </ImageLightbox>
     );
   }
 

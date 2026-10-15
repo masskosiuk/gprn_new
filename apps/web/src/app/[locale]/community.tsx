@@ -860,14 +860,17 @@ export function CommentButton({
   kind = "PHOTO",
   id,
   count = 0,
+  compactCount = false,
   onClick,
 }: {
   kind?: "PHOTO" | "POST";
   id: string;
   count?: number;
+  compactCount?: boolean;
   onClick(): void;
 }) {
   const t = useWords();
+  const { locale } = useCommunity();
   const { counts } = useContext(CommentCountsContext);
   const total = counts[kind + ":" + id] ?? count;
   return (
@@ -879,7 +882,14 @@ export function CommentButton({
       onClick={onClick}
     >
       <MessageCircle size={22} aria-hidden="true" />
-      <span>{total}</span>
+      <span>
+        {compactCount
+          ? new Intl.NumberFormat(locale, {
+              notation: "compact",
+              maximumFractionDigits: 1,
+            }).format(total)
+          : total}
+      </span>
     </button>
   );
 }
