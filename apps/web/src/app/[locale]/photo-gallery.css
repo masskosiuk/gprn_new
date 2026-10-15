@@ -249,6 +249,13 @@ dialog.image-lightbox.work-lightbox::backdrop {
   font-size: 16px;
 }
 
+.work-lightbox-panel .criterion-tooltip {
+  background: #1b1b1b;
+  border: 1px solid var(--border);
+  bottom: auto;
+  top: calc(100% + 7px);
+}
+
 .work-lightbox-panel .criterion-score:nth-last-child(2) .criterion-tooltip {
   left: auto;
   right: 0;
@@ -298,7 +305,7 @@ dialog.image-lightbox.work-lightbox::backdrop {
 
   dialog.image-lightbox.work-lightbox {
     height: 88dvh;
-    width: calc(100vw - 24px);
+    width: calc(100% - 24px);
   }
 
   .work-lightbox .image-lightbox-dialog {
