@@ -17,6 +17,7 @@
     "db:seed:demo-challenges": "pnpm --filter @gprn/api demo:seed-challenges",
     "db:seed:demo-products": "pnpm --filter @gprn/api demo:seed-products",
     "db:seed:demo-community": "pnpm --filter @gprn/api demo:seed-community",
+    "db:seed:demo-photo-reviews": "pnpm --filter @gprn/api demo:seed-photo-reviews",
     "db:refresh:demo-challenge-video": "pnpm --filter @gprn/api demo:refresh-challenge-video",
     "db:repair:media-titles": "pnpm --filter @gprn/api media:repair-titles",
     "dev": "turbo dev",

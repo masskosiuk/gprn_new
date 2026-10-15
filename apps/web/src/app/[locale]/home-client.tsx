@@ -7879,7 +7879,7 @@ export function HomeClient({
                 )}
               </span>
             </button>
-            {photo.serverBacked && photo.published ? (
+            {!detailsOnly && photo.serverBacked && photo.published ? (
               <CommentButton
                 id={photo.id}
                 count={photo.commentCount ?? 0}
@@ -8031,6 +8031,13 @@ export function HomeClient({
             ? Object.values(scores).reduce((sum, score) => sum + score, 0) /
               battleCriteria.length
             : null;
+          const overallScore =
+            averageScore === null
+              ? "\u2014"
+              : averageScore.toLocaleString(locale, {
+                  maximumFractionDigits: 1,
+                  minimumFractionDigits: 1,
+                });
 
           return (
             <article
@@ -8089,21 +8096,14 @@ export function HomeClient({
                     />
                   ) : null}
                   <button
-                    aria-label={t("photo.detailedScores")}
+                    aria-label={`${t("battles.overallScore")}: ${overallScore}`}
                     className="photo-counter-action photo-tile-details"
                     onClick={() => openPhotoPreview(photo)}
-                    title={t("photo.detailedScores")}
+                    title={`${t("battles.overallScore")}: ${overallScore} / 10`}
                     type="button"
                   >
                     <Star aria-hidden="true" size={17} />
-                    {averageScore !== null ? (
-                      <span>
-                        {averageScore.toLocaleString(locale, {
-                          maximumFractionDigits: 1,
-                          minimumFractionDigits: 1,
-                        })}
-                      </span>
-                    ) : null}
+                    <span>{overallScore}</span>
                   </button>
                 </div>
               </div>

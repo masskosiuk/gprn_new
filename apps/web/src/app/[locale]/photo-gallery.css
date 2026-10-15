@@ -142,19 +142,40 @@ dialog.image-lightbox::backdrop {
   padding: 0;
 }
 
+dialog.image-lightbox.work-lightbox {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.5);
+  display: block;
+  height: 80dvh;
+  margin: auto;
+  overflow: hidden;
+  width: 80vw;
+}
+
+dialog.image-lightbox.work-lightbox::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(3px);
+}
+
 .work-lightbox .image-lightbox-close {
   background: #1b1b1b;
   border-color: #555555;
   color: #ffffff;
+  position: absolute;
+  right: 16px;
+  top: 16px;
 }
 
 .work-lightbox .image-lightbox-dialog {
   align-content: stretch;
   align-items: stretch;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  height: 100dvh;
+  grid-template-columns: minmax(0, 1fr) clamp(380px, 30vw, 480px);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
   max-height: none;
   max-width: none;
+  min-height: 0;
 }
 
 .work-lightbox .image-lightbox-stage {
@@ -167,6 +188,7 @@ dialog.image-lightbox::backdrop {
 .work-lightbox .image-lightbox-stage > video {
   height: 100%;
   max-height: 100%;
+  min-height: 0;
   width: 100%;
 }
 
@@ -180,7 +202,7 @@ dialog.image-lightbox::backdrop {
   min-width: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 70px 18px 24px;
+  padding: 70px 24px 24px;
   text-align: left;
   white-space: normal;
   width: 100%;
@@ -212,6 +234,39 @@ dialog.image-lightbox::backdrop {
   padding: 0 0 12px;
 }
 
+.work-lightbox-panel .photo-card-criteria .criterion-score {
+  gap: 7px;
+  min-height: 56px;
+  padding: 6px 2px;
+}
+
+.work-lightbox-panel .photo-card-criteria .criterion-score svg {
+  height: 22px;
+  width: 22px;
+}
+
+.work-lightbox-panel .photo-card-criteria .criterion-score strong {
+  font-size: 16px;
+}
+
+.work-lightbox-panel .criterion-score:nth-last-child(2) .criterion-tooltip {
+  left: auto;
+  right: 0;
+  transform: translate(0, 4px);
+}
+
+.work-lightbox-panel
+  .criterion-score:nth-last-child(2):hover
+  .criterion-tooltip,
+.work-lightbox-panel
+  .criterion-score:nth-last-child(2):focus-visible
+  .criterion-tooltip,
+.work-lightbox-panel
+  .criterion-score:nth-last-child(2).is-open
+  .criterion-tooltip {
+  transform: translate(0, 0);
+}
+
 .work-lightbox-panel .publication-actions .secondary-action {
   flex: 0 0 auto;
   width: auto;
@@ -241,9 +296,14 @@ dialog.image-lightbox::backdrop {
     columns: 2 160px;
   }
 
+  dialog.image-lightbox.work-lightbox {
+    height: 88dvh;
+    width: calc(100vw - 24px);
+  }
+
   .work-lightbox .image-lightbox-dialog {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(160px, 52dvh) minmax(0, 1fr);
+    grid-template-rows: minmax(140px, 44dvh) minmax(0, 1fr);
   }
 
   .work-lightbox .image-lightbox-stage {
