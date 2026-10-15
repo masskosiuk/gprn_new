@@ -138,13 +138,14 @@ dialog.image-lightbox::backdrop {
 }
 
 .work-lightbox {
-  background: transparent;
+  background: #080808;
   padding: 0;
 }
 
 dialog.image-lightbox.work-lightbox {
-  border: 0;
-  border-radius: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.5);
   display: block;
   height: 80dvh;
   margin: auto;
@@ -178,7 +179,7 @@ dialog.image-lightbox.work-lightbox::backdrop {
 }
 
 .work-lightbox .image-lightbox-stage {
-  background: transparent;
+  background: #080808;
   height: 100%;
   padding: 0;
 }
@@ -194,6 +195,7 @@ dialog.image-lightbox.work-lightbox::backdrop {
 .image-lightbox-dialog .work-lightbox-panel {
   align-self: stretch;
   background: var(--panel);
+  border-left: 1px solid var(--border);
   color: var(--foreground);
   margin: 0;
   max-width: none;
@@ -334,6 +336,8 @@ dialog.image-lightbox.work-lightbox::backdrop {
   }
 
   .image-lightbox-dialog .work-lightbox-panel {
+    border-left: 0;
+    border-top: 1px solid var(--border);
     padding: 16px 16px max(20px, env(safe-area-inset-bottom));
   }
 
