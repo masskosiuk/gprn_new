@@ -12,6 +12,7 @@ import {
 } from "@nestjs/common";
 
 import type { CurrentUser } from "./auth.service.js";
+import { battlePage, battlePageQuery } from "./battle-pagination.js";
 import type { CookieRequest } from "./http.types.js";
 import {
   dateToIso,
@@ -116,21 +117,24 @@ export class BattlesService {
   private readonly env = loadRuntimeEnv();
   private readonly ratingEngine = new EloRatingEngine();
 
-  async listOpen(viewerId?: string): Promise<{
+  async listOpen(
+    viewerId?: string,
+    cursor?: string,
+  ): Promise<{
     battles: ReturnType<BattlesService["toBattleResponse"]>[];
+    nextCursor: string | null;
   }> {
-    const battles = await prisma.battle.findMany({
+    const rows = await prisma.battle.findMany({
+      ...battlePageQuery(cursor),
       include: battleInclude,
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 20,
       where: {
         status: { in: ["DRAFT", "OPEN"] },
       },
     });
+    const { items: battles, nextCursor } = battlePage(rows);
 
     return {
+      nextCursor,
       battles: battles
         .filter(
           (battle) =>

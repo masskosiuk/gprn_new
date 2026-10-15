@@ -55,6 +55,7 @@ import {
   Search,
   Send,
   Share2,
+  SkipForward,
   ShieldCheck,
   RefreshCw,
   ShoppingBag,
@@ -126,6 +127,7 @@ import {
 } from "../../lib/profile-source";
 import { PhotoTitleEditor } from "./photo-title-editor";
 import { ImageLightbox } from "./image-lightbox";
+import { battleQueue } from "../../lib/battle-queue";
 import {
   DigitalProductSection,
   type DigitalProductOffer,
@@ -803,6 +805,8 @@ interface BattleRecord {
   readonly scope: BattleScope;
   readonly serverBacked?: boolean;
   readonly statusKey: MessageKey;
+  readonly status?: string;
+  readonly viewerParticipates?: boolean;
   readonly title?: string;
   readonly titleKey?: MessageKey;
 }
@@ -2657,6 +2661,17 @@ export function HomeClient({
     ...demoChallenges,
   ]);
   const [hasLoadedBattles, setHasLoadedBattles] = useState(false);
+  const [battleFeedStatus, setBattleFeedStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
+  const [battleNextCursor, setBattleNextCursor] = useState<string | null>(null);
+  const [skippedBattleIds, setSkippedBattleIds] = useState<string[]>([]);
+  const [selectedBattleId, setSelectedBattleId] = useState<string | null>(null);
+  const [votingBattleId, setVotingBattleId] = useState<string | null>(null);
+  const battleVoteInFlight = useRef(false);
+  const battlePageRequestId = useRef(0);
+  const battleQueueAccountId = useRef<string | null>(null);
+  const [battleHeaderHeight, setBattleHeaderHeight] = useState(110);
   const [hasLoadedChallenges, setHasLoadedChallenges] = useState(false);
   const [highlightedCompetitionId, setHighlightedCompetitionId] = useState<
     string | null
@@ -2780,8 +2795,10 @@ export function HomeClient({
     }
     const key = `${kind}-${requested}`;
     if (scrolledCompetitionKey.current === key) return;
-    if (kind === "battle" && battleFilter !== "all") {
+    if (kind === "battle") {
       setBattleFilter("all");
+      setSelectedBattleId(requested);
+      scrolledCompetitionKey.current = key;
       return;
     }
     const frame = requestAnimationFrame(() => {
@@ -2937,6 +2954,71 @@ export function HomeClient({
   const visibleBattles = battles.filter(
     (battle) => battleFilter === "all" || battle.scope === battleFilter,
   );
+  const pendingBattles = battleQueue(
+    battles,
+    battleFilter,
+    battleVotes,
+    skippedBattleIds,
+  );
+  const activeBattle =
+    visibleBattles.find(
+      (battle) =>
+        battle.id === selectedBattleId && !skippedBattleIds.includes(battle.id),
+    ) ??
+    pendingBattles[0] ??
+    null;
+
+  useEffect(() => {
+    if (battleQueueAccountId.current === (serverUser?.id ?? null)) return;
+    battleQueueAccountId.current = serverUser?.id ?? null;
+    setSkippedBattleIds([]);
+  }, [serverUser?.id]);
+
+  useEffect(() => {
+    if (initialSection !== "battles") return;
+    const header = document.querySelector(".topbar");
+    if (!header) return;
+    const updateHeight = () =>
+      setBattleHeaderHeight(Math.ceil(header.getBoundingClientRect().height));
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, [initialSection]);
+
+  useEffect(() => {
+    if (
+      initialSection !== "battles" ||
+      battleFeedStatus !== "ready" ||
+      !battleNextCursor
+    )
+      return;
+    const requested =
+      initialBattleId ??
+      new URLSearchParams(window.location.search).get("battle");
+    const sharedMissing =
+      requested && !battles.some((battle) => battle.id === requested);
+    if (!activeBattle || sharedMissing)
+      void refreshServerBattles(serverUser?.id, battleNextCursor);
+  }, [
+    initialSection,
+    battleFeedStatus,
+    battleNextCursor,
+    activeBattle?.id,
+    initialBattleId,
+    battles,
+    serverUser?.id,
+  ]);
+
+  useEffect(() => {
+    if (initialSection !== "battles" || !activeBattle) return;
+    const frame = requestAnimationFrame(() =>
+      document
+        .getElementById(`battle-${activeBattle.id}`)
+        ?.focus({ preventScroll: true }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [initialSection, activeBattle?.id]);
   const visibleVideos = curatedVideos.filter((video) => {
     const query = videoSearchTerm.trim().toLocaleLowerCase(locale);
     const title = t(video.titleKey).toLocaleLowerCase(locale);
@@ -4255,18 +4337,40 @@ export function HomeClient({
 
   async function refreshServerBattles(
     currentUserId = serverUser?.id,
+    cursor?: string,
   ): Promise<void> {
+    const requestId = ++battlePageRequestId.current;
+    setBattleFeedStatus("loading");
     try {
       const response = await apiRequest<{
         battles: readonly ServerBattlePayload[];
-      }>("/battles/open");
+        nextCursor?: string | null;
+      }>(
+        `/battles/open${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
+        { signal: AbortSignal.timeout(15_000) },
+      );
+      if (requestId !== battlePageRequestId.current) return;
       const mappedBattles = response.battles
         .map((battle) => mapServerBattle(battle, currentUserId))
         .filter((battle): battle is BattleRecord => Boolean(battle));
 
-      setBattles(mappedBattles);
-      setBattleVotes(
-        Object.fromEntries(
+      setBattles((current) =>
+        cursor
+          ? [
+              ...current.filter(
+                (battle) =>
+                  !mappedBattles.some((item) => item.id === battle.id),
+              ),
+              ...mappedBattles,
+            ]
+          : mappedBattles,
+      );
+      setBattleNextCursor(
+        response.nextCursor === cursor ? null : (response.nextCursor ?? null),
+      );
+      setBattleVotes((current) => ({
+        ...(cursor ? current : {}),
+        ...Object.fromEntries(
           response.battles.flatMap((battle) =>
             battle.viewerVote
               ? [
@@ -4281,11 +4385,13 @@ export function HomeClient({
               : [],
           ),
         ),
-      );
+      }));
+      setBattleFeedStatus("ready");
     } catch {
-      // Demo battles remain visible only while the public API is unavailable.
+      if (requestId === battlePageRequestId.current)
+        setBattleFeedStatus("error");
     } finally {
-      setHasLoadedBattles(true);
+      if (requestId === battlePageRequestId.current) setHasLoadedBattles(true);
     }
   }
 
@@ -5665,6 +5771,7 @@ export function HomeClient({
     battle: BattleRecord,
     entryId: string,
   ): Promise<void> {
+    if (battleVoteInFlight.current) return;
     if (!currentProfile) {
       openAuth("login");
       setGlobalFeedback({ kind: "error", text: t("battles.signIn") });
@@ -5687,12 +5794,15 @@ export function HomeClient({
     if (!winningEntry || !losingEntry) return;
 
     if (battle.serverBacked) {
+      battleVoteInFlight.current = true;
+      setVotingBattleId(battle.id);
       try {
         const response = await apiRequest<{ battle: ServerBattlePayload }>(
           `/battles/${encodeURIComponent(battle.id)}/vote`,
           {
             body: JSON.stringify({ selectedEntryId: entryId }),
             method: "POST",
+            signal: AbortSignal.timeout(15_000),
           },
         );
         const updatedBattle = mapServerBattle(response.battle, serverUser?.id);
@@ -5714,9 +5824,13 @@ export function HomeClient({
           },
         }));
         setGlobalFeedback({ kind: "success", text: t("battles.voted") });
-        await refreshServerSession();
+        setSelectedBattleId(null);
+        if (serverUser) void refreshCurrentServerData(serverUser);
       } catch {
         setGlobalFeedback({ kind: "error", text: t("battles.voteFailed") });
+      } finally {
+        battleVoteInFlight.current = false;
+        setVotingBattleId(null);
       }
       return;
     }
@@ -6829,7 +6943,7 @@ export function HomeClient({
 
     return (
       <>
-        {!isEntityProfile ? (
+        {!isEntityProfile && sectionId !== "battles" ? (
           <section className="page-intro">
             <div>
               <h1>{t(meta.titleKey)}</h1>
@@ -6977,9 +7091,7 @@ export function HomeClient({
             ) : feedStatus === "loading" ? (
               <p role="status">{t("admin.loading")}</p>
             ) : visiblePhotos.length > 0 ? (
-              <div className="photo-gallery">
-                {visiblePhotos.map((photo) => renderPhotoCard(photo))}
-              </div>
+              renderPhotoMasonry(visiblePhotos)
             ) : (
               <p className="empty-state">{t("discover.empty")}</p>
             )}
@@ -7999,89 +8111,184 @@ export function HomeClient({
 
   function renderBattlesPage(): ReactNode {
     return (
-      <section className="page-section battles-workspace">
-        <div className="notice-panel season-panel battle-season-panel">
-          <img
-            alt=""
-            aria-hidden="true"
-            className="season-cover"
-            src={seasonCoverUrl}
-          />
-          <div className="season-copy">
-            <Trophy aria-hidden="true" size={22} />
-            <div>
-              <span className="eyebrow">{t("battles.seasonEyebrow")}</span>
+      <section
+        className="page-section battle-deck-workspace"
+        style={{ height: `calc(100dvh - ${battleHeaderHeight}px)` }}
+      >
+        <div className="battle-deck-toolbar">
+          <h1>
+            <Swords aria-hidden="true" size={21} />
+            {t("section.battles.title")}
+          </h1>
+          <label className="battle-deck-filter">
+            <span className="visually-hidden">{t("discover.filters")}</span>
+            <select
+              value={battleFilter}
+              onChange={(event) => {
+                setBattleFilter(event.target.value as BattleFilter);
+                setSelectedBattleId(null);
+              }}
+            >
+              {battleFilters.map((filter) => (
+                <option key={filter.id} value={filter.id}>
+                  {t(filter.key)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <details className="battle-season-menu">
+            <summary aria-label={t("season.title")} title={t("season.title")}>
+              <Trophy aria-hidden="true" size={19} />
+            </summary>
+            <div className="battle-season-popover">
+              <img
+                alt=""
+                className="battle-season-cover"
+                src={seasonCoverUrl}
+              />
               <strong>{seasonName ?? t("battles.seasonTitle")}</strong>
               <p>{t("battles.seasonCopy")}</p>
               <span className="season-status">
                 <Medal aria-hidden="true" size={15} />
                 {t("battles.seasonFinale")}
               </span>
-            </div>
-          </div>
-          <button
-            className="primary-action compact"
-            disabled={seasonJoined}
-            onClick={joinSeason}
-            type="button"
-          >
-            <Check aria-hidden="true" size={16} />
-            {seasonJoined ? t("season.joined") : t("season.join")}
-          </button>
-        </div>
-
-        <div className="battle-controls">
-          <div className="battle-create-row">
-            <div className="panel-title">
-              <Swords aria-hidden="true" size={20} />
-              <div>
-                <h2>{t("battles.joinTitle")}</h2>
-                <p>{t("battles.joinCopy")}</p>
-              </div>
-            </div>
-
-            <div className="battle-create-actions">
               <button
-                className="primary-action"
-                onClick={() => openWorkPicker({ kind: "battle" })}
+                className="primary-action compact"
+                disabled={seasonJoined}
+                onClick={joinSeason}
                 type="button"
               >
-                <Upload aria-hidden="true" size={18} />
-                {t("common.submitFile")}
+                <Check aria-hidden="true" size={16} />
+                {seasonJoined ? t("season.joined") : t("season.join")}
               </button>
+              {battles.some(
+                (battle) =>
+                  battle.viewerParticipates ||
+                  battle.entries.some((entry) => entry.isMine),
+              ) ? (
+                <div className="battle-deck-participations">
+                  <strong>{t("battles.myBattles")}</strong>
+                  {battles
+                    .filter(
+                      (battle) =>
+                        battle.viewerParticipates ||
+                        battle.entries.some((entry) => entry.isMine),
+                    )
+                    .map((battle) => (
+                      <button
+                        className="community-text-action"
+                        key={battle.id}
+                        onClick={(event) => {
+                          setBattleFilter("all");
+                          setSelectedBattleId(battle.id);
+                          setSkippedBattleIds((current) =>
+                            current.filter((id) => id !== battle.id),
+                          );
+                          event.currentTarget
+                            .closest("details")
+                            ?.removeAttribute("open");
+                        }}
+                        type="button"
+                      >
+                        <Eye aria-hidden="true" size={16} />
+                        {battle.title ??
+                          (battle.titleKey
+                            ? t(battle.titleKey)
+                            : t("section.battles.title"))}
+                      </button>
+                    ))}
+                </div>
+              ) : null}
+              {renderPromotedPlacement("battles")}
             </div>
-          </div>
-
-          <div className="battle-filter-bar">
-            <div className="battle-filter-label">
-              <Filter aria-hidden="true" size={18} />
-              <strong>{t("discover.filters")}</strong>
-            </div>
-            <div className="segmented battle-filter-options">
-              {battleFilters.map((filter) => (
-                <button
-                  className={battleFilter === filter.id ? "is-active" : ""}
-                  key={filter.id}
-                  onClick={() => {
-                    setBattleFilter(filter.id);
-                  }}
-                  type="button"
-                >
-                  {t(filter.key)}
-                </button>
-              ))}
-            </div>
-          </div>
+          </details>
+          <button
+            aria-label={t("common.submitFile")}
+            className="primary-action compact battle-deck-submit"
+            onClick={() => openWorkPicker({ kind: "battle" })}
+            title={t("common.submitFile")}
+            type="button"
+          >
+            <Upload aria-hidden="true" size={17} />
+            <span>{t("common.submitFile")}</span>
+          </button>
         </div>
-
-        {renderPromotedPlacement("battles")}
-
-        <div className="battle-list">
-          {visibleBattles.length > 0 ? (
-            visibleBattles.map((battle) => renderBattleCard(battle))
+        <div
+          className="battle-deck-stage"
+          aria-busy={battleFeedStatus === "loading" || Boolean(votingBattleId)}
+        >
+          {battleFeedStatus === "ready" && hasLoadedBattles && activeBattle ? (
+            renderBattleCard(activeBattle)
           ) : (
-            <p className="empty-state">{t("battles.noResults")}</p>
+            <div className="battle-deck-empty" role="status">
+              <Swords aria-hidden="true" size={32} />
+              <h2>
+                {t(
+                  battleFeedStatus === "error"
+                    ? "battles.loadFailed"
+                    : battleFeedStatus === "loading"
+                      ? "common.loading"
+                      : "battles.queueFinished",
+                )}
+              </h2>
+              {battleFeedStatus !== "loading" ? (
+                <div className="battle-deck-empty-actions">
+                  {skippedBattleIds.length > 0 &&
+                  battleFeedStatus !== "error" ? (
+                    <button
+                      className="secondary-action compact"
+                      onClick={() => {
+                        setSkippedBattleIds([]);
+                        setSelectedBattleId(null);
+                      }}
+                      type="button"
+                    >
+                      <RefreshCw aria-hidden="true" size={17} />
+                      {t("battles.reviewSkipped")}
+                    </button>
+                  ) : null}
+                  <button
+                    className="secondary-action compact"
+                    onClick={() => void refreshServerBattles()}
+                    type="button"
+                  >
+                    <RefreshCw aria-hidden="true" size={17} />
+                    {t("battles.refresh")}
+                  </button>
+                </div>
+              ) : null}
+            </div>
           )}
+        </div>
+        <div className="battle-deck-footer">
+          <span role="status">
+            {t("battles.remaining").replace(
+              "{count}",
+              battleFeedStatus === "ready"
+                ? numberFormatter.format(pendingBattles.length) +
+                    (battleNextCursor ? "+" : "")
+                : battleFeedStatus === "loading"
+                  ? "..."
+                  : "0",
+            )}
+          </span>
+          <button
+            className="secondary-action compact"
+            disabled={
+              battleFeedStatus !== "ready" ||
+              !activeBattle ||
+              Boolean(votingBattleId)
+            }
+            onClick={() => {
+              if (!activeBattle || battleVoteInFlight.current) return;
+              setSkippedBattleIds((current) => [...current, activeBattle.id]);
+              setSelectedBattleId(null);
+            }}
+            type="button"
+          >
+            <SkipForward aria-hidden="true" size={17} />
+            {t("battles.skip")}
+          </button>
         </div>
       </section>
     );
@@ -8219,10 +8426,19 @@ export function HomeClient({
                     </div>
                   ) : (
                     <button
+                      aria-label={t("battles.vote")}
                       className="battle-vote-button"
+                      disabled={
+                        Boolean(votingBattleId) ||
+                        battle.viewerParticipates ||
+                        battle.entries.some((candidate) => candidate.isMine) ||
+                        (battle.status !== undefined &&
+                          battle.status !== "OPEN")
+                      }
                       onClick={() => {
-                        voteForBattleEntry(battle, entry.id);
+                        void voteForBattleEntry(battle, entry.id);
                       }}
+                      title={t("battles.vote")}
                       type="button"
                     >
                       <Heart aria-hidden="true" size={17} />
@@ -12738,6 +12954,8 @@ function mapServerBattle(
     isDemo: Boolean(demoBattle),
     scope: battle.season ? "season" : "global",
     serverBacked: true,
+    status: battle.status,
+    viewerParticipates: battle.viewerParticipates,
     statusKey: battle.status === "DRAFT" ? "battles.waiting" : "battles.open",
     title: demoBattle
       ? undefined

@@ -1,0 +1,345 @@
+.battle-deck-workspace.page-section {
+  display: grid;
+  gap: 12px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  margin-block: 0;
+  min-height: 0;
+  padding-block: 14px;
+}
+
+.battle-deck-toolbar {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  min-width: 0;
+}
+
+.battle-deck-toolbar h1 {
+  align-items: center;
+  display: flex;
+  font-size: 21px;
+  gap: 9px;
+  line-height: 1.2;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.battle-deck-toolbar h1 svg {
+  color: var(--accent-strong);
+  flex: 0 0 auto;
+}
+
+.battle-deck-filter select {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--foreground);
+  font-size: 13px;
+  height: 38px;
+  max-width: 180px;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.battle-season-menu {
+  position: relative;
+}
+
+.battle-season-menu > summary {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--gold);
+  cursor: pointer;
+  display: flex;
+  height: 38px;
+  justify-content: center;
+  list-style: none;
+  width: 38px;
+}
+
+.battle-season-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.battle-season-popover {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 12px;
+  max-height: 70dvh;
+  overflow: auto;
+  padding: 16px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(340px, calc(100vw - 36px));
+  z-index: 10;
+}
+
+.battle-season-cover {
+  aspect-ratio: 2 / 1;
+  object-fit: cover;
+  width: 100%;
+}
+
+.battle-season-popover p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.battle-deck-participations {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.battle-deck-stage {
+  min-height: 0;
+  min-width: 0;
+}
+
+.battle-deck-stage .battle-card {
+  gap: 12px;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  padding: 14px;
+}
+
+.battle-deck-stage .battle-card:focus {
+  outline: none;
+}
+
+.battle-deck-stage .battle-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+.battle-deck-stage .battle-head > div:first-child {
+  min-width: 0;
+}
+
+.battle-deck-stage .battle-head h2 {
+  display: -webkit-box;
+  font-size: 18px;
+  line-height: 1.3;
+  margin: 4px 0 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.battle-deck-stage .battle-status {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  font-size: 11px;
+  gap: 6px 10px;
+  justify-content: flex-end;
+  max-width: 42%;
+}
+
+.battle-deck-stage .battle-entries {
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 0;
+}
+
+.battle-deck-stage .battle-entry {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+.battle-deck-stage .battle-entry img {
+  aspect-ratio: auto;
+  background: #080808;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  width: 100%;
+}
+
+.battle-deck-stage .battle-entry-body {
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 0 0;
+}
+
+.battle-deck-stage .battle-entry-copy {
+  gap: 6px;
+}
+
+.battle-deck-stage .battle-entry-title strong,
+.battle-deck-stage .battle-entry-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.battle-deck-stage .battle-entry-title {
+  min-width: 0;
+}
+
+.battle-deck-stage .battle-entry-title strong {
+  font-size: 14px;
+}
+
+.battle-deck-stage .meta-row {
+  font-size: 11px;
+  gap: 4px 10px;
+}
+
+.battle-deck-stage .battle-entry-waiting {
+  align-items: center;
+  display: flex;
+}
+
+.battle-deck-footer,
+.battle-deck-empty-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.battle-deck-footer > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.battle-deck-footer .secondary-action {
+  width: auto;
+}
+
+.battle-deck-empty {
+  align-content: center;
+  display: grid;
+  gap: 18px;
+  height: 100%;
+  justify-items: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.battle-deck-empty > svg {
+  color: var(--accent);
+}
+
+.battle-deck-empty h2 {
+  font-size: 19px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+@media (max-width: 650px) {
+  .battle-deck-workspace.page-section {
+    gap: 8px;
+    padding-block: 10px;
+  }
+  .battle-deck-toolbar {
+    gap: 6px;
+  }
+  .battle-deck-toolbar h1 {
+    font-size: 18px;
+    gap: 6px;
+  }
+  .battle-deck-toolbar h1 svg {
+    display: none;
+  }
+  .battle-deck-filter select {
+    max-width: 130px;
+  }
+  .battle-deck-submit.primary-action {
+    padding: 0;
+    width: 38px;
+  }
+  .battle-deck-submit > span {
+    display: none;
+  }
+  .battle-season-popover {
+    right: -44px;
+  }
+  .battle-deck-stage .battle-card {
+    gap: 8px;
+    padding: 10px;
+  }
+  .battle-deck-stage .battle-entries {
+    gap: 8px;
+  }
+  .battle-deck-stage .battle-head h2 {
+    font-size: 15px;
+  }
+  .battle-deck-stage .battle-status > span,
+  .battle-deck-stage .battle-status > small {
+    display: none;
+  }
+  .battle-deck-stage .battle-entry-title strong {
+    font-size: 12px;
+  }
+  .battle-deck-stage .battle-entry-title span {
+    font-size: 11px;
+  }
+  .battle-deck-stage .battle-entry-body {
+    gap: 8px;
+    padding-top: 8px;
+  }
+  .battle-deck-stage .meta-row {
+    font-size: 10px;
+  }
+}
+
+@media (max-height: 600px) {
+  .battle-deck-stage .battle-head .eyebrow,
+  .battle-deck-stage .battle-status > span,
+  .battle-deck-stage .battle-status > small,
+  .battle-deck-stage .meta-row {
+    display: none;
+  }
+
+  .battle-deck-stage .battle-head h2 {
+    font-size: 15px;
+    margin: 0;
+    -webkit-line-clamp: 1;
+  }
+
+  .battle-deck-stage .battle-entry-body {
+    align-items: center;
+    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) 40px;
+    padding-top: 8px;
+  }
+
+  .battle-deck-stage .battle-entry-copy {
+    gap: 0;
+  }
+
+  .battle-deck-stage .battle-vote-button {
+    font-size: 0;
+    gap: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .battle-deck-toolbar h1 {
+    font-size: 16px;
+  }
+
+  .battle-deck-filter select {
+    max-width: 90px;
+  }
+}

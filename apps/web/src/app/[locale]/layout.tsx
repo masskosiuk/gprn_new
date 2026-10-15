@@ -10,6 +10,7 @@ import "leaflet/dist/leaflet.css";
 import "./globals.css";
 import "./community.css";
 import "./photo-gallery.css";
+import "./battle-deck.css";
 
 interface LocaleLayoutProps {
   readonly children: React.ReactNode;

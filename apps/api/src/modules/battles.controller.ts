@@ -5,6 +5,8 @@ import {
   Get,
   Param,
   Post,
+  Query,
+  ParseUUIDPipe,
   Req,
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
@@ -23,9 +25,12 @@ export class BattlesController {
   ) {}
 
   @Get("open")
-  async open(@Req() request: CookieRequest) {
+  async open(
+    @Req() request: CookieRequest,
+    @Query("cursor", new ParseUUIDPipe({ optional: true })) cursor?: string,
+  ) {
     const { user } = await this.authService.me(request);
-    return this.battlesService.listOpen(user?.id);
+    return this.battlesService.listOpen(user?.id, cursor);
   }
 
   @Post("join")
