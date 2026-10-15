@@ -127,6 +127,38 @@ test("catalog filters stock by real media type and only exposes approved public 
   }
 });
 
+test("marketplace media and digital columns have independent bounded 48-item pages", async () => {
+  const originalFind = prisma.marketplaceProduct.findMany;
+  const originalCount = prisma.marketplaceProduct.count;
+  let captured: any;
+  prisma.marketplaceProduct.findMany = (async (query: unknown) => {
+    captured = query;
+    return [];
+  }) as typeof originalFind;
+  prisma.marketplaceProduct.count = (async () => 0) as typeof originalCount;
+  try {
+    const service = new DigitalProductsService();
+    await service.catalog({ kind: "MEDIA", page: "3", pageSize: "48" });
+    assert.equal(captured.take, 48);
+    assert.equal(captured.skip, 96);
+    const media = JSON.stringify(captured.where.AND[0]);
+    assert.match(media, /APPROVED/);
+    assert.match(media, /"digitalKind":null/);
+    assert.equal(media.includes("presetSalesEnabled"), false);
+    await service.catalog({ kind: "DIGITAL", page: "2", pageSize: "48" });
+    assert.equal(captured.skip, 48);
+    const digital = JSON.stringify(captured.where.AND[0]);
+    assert.match(digital, /presetSalesEnabled/);
+    assert.match(digital, /lutSalesEnabled/);
+    assert.equal(digital.includes('"photo"'), false);
+    for (const pageSize of ["0", "73", "1.5", "not-a-number"])
+      await assert.rejects(service.catalog({ pageSize }));
+  } finally {
+    prisma.marketplaceProduct.findMany = originalFind;
+    prisma.marketplaceProduct.count = originalCount;
+  }
+});
+
 test("unverified wallet top-ups cannot mint funds", async () => {
   const original = prisma.$transaction;
   let writes = 0;

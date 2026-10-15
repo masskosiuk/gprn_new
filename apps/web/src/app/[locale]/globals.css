@@ -6717,6 +6717,7 @@ img {
 
 .product-dialog--preview {
   max-width: 1100px;
+  padding-bottom: 40px;
 }
 .product-detail-grid {
   display: grid;
@@ -6861,6 +6862,9 @@ img {
     max-height: calc(100dvh - 20px);
     padding: 16px;
     width: calc(100vw - 20px);
+  }
+  .product-dialog--preview {
+    padding-bottom: 28px;
   }
   .product-editor > footer {
     flex-wrap: wrap;

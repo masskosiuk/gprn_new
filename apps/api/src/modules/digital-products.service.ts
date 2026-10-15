@@ -82,11 +82,18 @@ export class DigitalProductsService {
   async catalog(query: Record<string, string | undefined>) {
     if (query.id) requireUuid(query.id);
     const kind = query.kind ?? "ALL";
-    if (!["ALL", "PHOTO", "VIDEO", "PRESET", "LUT"].includes(kind))
+    if (
+      !["ALL", "MEDIA", "DIGITAL", "PHOTO", "VIDEO", "PRESET", "LUT"].includes(
+        kind,
+      )
+    )
       invalidProduct("PRODUCT_KIND_INVALID");
     const page = Number(query.page ?? 1);
     if (!Number.isInteger(page) || page < 1 || page > 10000)
       invalidProduct("INVALID_PAGE");
+    const pageSize = Number(query.pageSize ?? 24);
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 72)
+      invalidProduct("INVALID_PAGE_SIZE");
     const stock: Prisma.MarketplaceProductWhereInput = {
       digitalKind: null,
       photo: {
@@ -112,9 +119,11 @@ export class DigitalProductsService {
         ? [preset]
         : kind === "LUT"
           ? [lut]
-          : kind === "ALL"
-            ? [stock, preset, lut]
-            : [stock];
+          : kind === "DIGITAL"
+            ? [preset, lut]
+            : kind === "ALL"
+              ? [stock, preset, lut]
+              : [stock];
     const where: Prisma.MarketplaceProductWhereInput = {
       ...(query.id ? { id: query.id } : {}),
       status: "PUBLISHED",
@@ -157,8 +166,8 @@ export class DigitalProductsService {
           category: true,
           photo: { include: { assets: true } },
         },
-        take: 24,
-        skip: (page - 1) * 24,
+        take: pageSize,
+        skip: (page - 1) * pageSize,
         orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       }),
       prisma.marketplaceProduct.count({ where }),
@@ -179,6 +188,7 @@ export class DigitalProductsService {
           imageUrl: media.thumbnailUrl ?? media.displayUrl,
           videoUrl: media.videoUrl,
           photoId: product.photoId,
+          isDemo: product.isDemo,
           seller: {
             username: product.seller.user.profile?.username,
             displayName:
@@ -189,6 +199,7 @@ export class DigitalProductsService {
       }),
       total,
       page,
+      pageSize,
     };
   }
 

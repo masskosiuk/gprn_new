@@ -7039,111 +7039,97 @@ export function HomeClient({
             />
           </div>
 
-          <div className="main-column">
-            <div className="toolbar discover-toolbar">
-              <label className="search-box">
-                <Search aria-hidden="true" size={18} />
-                <span className="visually-hidden">{t("common.search")}</span>
-                <input
-                  onChange={(event) => {
-                    setSearchTerm(event.target.value);
-                  }}
-                  placeholder={t("discover.searchPlaceholder")}
-                  type="search"
-                  value={searchTerm}
-                />
-              </label>
-            </div>
-
-            <div className="section-heading">
-              <div>
-                <span className="eyebrow">
-                  {t(
-                    feedKind === "ALL"
-                      ? "section.feed.intro"
-                      : feedKind === "VIDEO"
-                        ? "video.featured"
-                        : "discover.featured",
-                  )}
-                </span>
-                <h2>
-                  {t(
-                    feedKind === "ALL"
-                      ? "section.feed.title"
-                      : feedKind === "VIDEO"
-                        ? "section.video.title"
-                        : "section.discover.title",
-                  )}
-                </h2>
-              </div>
-              <span className="count-pill">
-                {numberFormatter.format(visiblePhotos.length)}
-              </span>
-            </div>
-
-            {feedStatus === "error" ? (
-              <div role="status">
-                <p>{t("product.failed")}</p>
-                <button
-                  className="secondary-action"
-                  type="button"
-                  onClick={() => void refreshDiscoverPhotos()}
-                >
-                  <RefreshCw size={16} />
-                  {t("admin.refresh")}
-                </button>
-              </div>
-            ) : feedStatus === "loading" ? (
-              <p role="status">{t("admin.loading")}</p>
-            ) : visiblePhotos.length > 0 ? (
-              renderPhotoMasonry(visiblePhotos)
-            ) : (
-              <p className="empty-state">{t("discover.empty")}</p>
-            )}
-          </div>
-
           <div className="side-column discover-filter-column">
-            <aside className="discover-filter-panel">
-              <div className="panel-title">
-                <Filter aria-hidden="true" size={20} />
-                <h2>{t("discover.filters")}</h2>
-              </div>
-              <div
-                className="feed-kind-filter"
-                role="group"
-                aria-label={t("nav.feed")}
-              >
-                {(["PHOTO", "VIDEO", "ALL"] as const).map((kind) => (
-                  <button
-                    type="button"
-                    key={kind}
-                    aria-pressed={feedKind === kind}
-                    onClick={() => {
-                      feedGenres.current[feedKind] = categoryFilter;
-                      setFeedKind(kind);
-                      setCategoryFilter(feedGenres.current[kind]);
-                      const url = new URL(window.location.href);
-                      url.searchParams.set("media", kind);
-                      url.searchParams.delete("category");
-                      window.history.replaceState(null, "", url);
-                    }}
+            <aside className="discover-filter-panel feed-filter-panel">
+              <div className="feed-filter-header">
+                <div className="feed-filter-heading">
+                  <div className="panel-title">
+                    <Filter aria-hidden="true" size={20} />
+                    <h2>{t("discover.filters")}</h2>
+                  </div>
+                  <div
+                    className="feed-kind-filter"
+                    role="group"
+                    aria-label={t("nav.feed")}
                   >
-                    {kind === "PHOTO" ? (
-                      <Camera size={16} />
-                    ) : kind === "VIDEO" ? (
-                      <Video size={16} />
-                    ) : (
-                      <Images size={16} />
+                    {(["PHOTO", "VIDEO", "ALL"] as const).map((kind) => (
+                      <button
+                        type="button"
+                        key={kind}
+                        aria-pressed={feedKind === kind}
+                        onClick={() => {
+                          feedGenres.current[feedKind] = categoryFilter;
+                          setFeedKind(kind);
+                          setCategoryFilter(feedGenres.current[kind]);
+                          const url = new URL(window.location.href);
+                          url.searchParams.set("media", kind);
+                          url.searchParams.delete("category");
+                          window.history.replaceState(null, "", url);
+                        }}
+                      >
+                        {kind === "PHOTO" ? (
+                          <Camera size={16} />
+                        ) : kind === "VIDEO" ? (
+                          <Video size={16} />
+                        ) : (
+                          <Images size={16} />
+                        )}
+                        {t(
+                          kind === "ALL"
+                            ? "feed.all"
+                            : kind === "PHOTO"
+                              ? "nav.discover"
+                              : "nav.video",
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <label className="search-box feed-filter-search">
+                  <Search aria-hidden="true" size={18} />
+                  <span className="visually-hidden">{t("common.search")}</span>
+                  <input
+                    onChange={(event) => {
+                      setSearchTerm(event.target.value);
+                    }}
+                    placeholder={t("discover.searchPlaceholder")}
+                    type="search"
+                    value={searchTerm}
+                  />
+                </label>
+                <div className="discover-filter-footer">
+                  <span>
+                    {t("discover.results").replace(
+                      "{count}",
+                      numberFormatter.format(visiblePhotos.length),
                     )}
-                    {t(
-                      kind === "ALL"
-                        ? "feed.all"
-                        : kind === "PHOTO"
-                          ? "nav.discover"
-                          : "nav.video",
-                    )}
+                  </span>
+                  <button
+                    className="secondary-action compact-action"
+                    onClick={() => {
+                      setSearchTerm("");
+                      setFeedKind("ALL");
+                      feedGenres.current = {
+                        ALL: "all",
+                        PHOTO: "all",
+                        VIDEO: "all",
+                      };
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete("media");
+                      url.searchParams.delete("category");
+                      url.searchParams.delete("location");
+                      window.history.replaceState(null, "", url);
+                      setCategoryFilter("all");
+                      setDiscoverLocationFilter("all");
+                      setDiscoverDateFrom("");
+                      setDiscoverDateTo("");
+                    }}
+                    type="button"
+                  >
+                    <X aria-hidden="true" size={15} />
+                    {t("discover.clearFilters")}
                   </button>
-                ))}
+                </div>
               </div>
               <div className="discover-filter-fields">
                 <div className="discover-filter-field">
@@ -7247,41 +7233,53 @@ export function HomeClient({
                   </div>
                 </fieldset>
               </div>
-
-              <div className="discover-filter-footer">
-                <span>
-                  {t("discover.results").replace(
-                    "{count}",
-                    numberFormatter.format(visiblePhotos.length),
+            </aside>
+          </div>
+          <div className="main-column">
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">
+                  {t(
+                    feedKind === "ALL"
+                      ? "section.feed.intro"
+                      : feedKind === "VIDEO"
+                        ? "video.featured"
+                        : "discover.featured",
                   )}
                 </span>
+                <h2>
+                  {t(
+                    feedKind === "ALL"
+                      ? "section.feed.title"
+                      : feedKind === "VIDEO"
+                        ? "section.video.title"
+                        : "section.discover.title",
+                  )}
+                </h2>
+              </div>
+              <span className="count-pill">
+                {numberFormatter.format(visiblePhotos.length)}
+              </span>
+            </div>
+            {feedStatus === "error" ? (
+              <div role="status">
+                <p>{t("product.failed")}</p>
                 <button
-                  className="secondary-action compact-action"
-                  onClick={() => {
-                    setSearchTerm("");
-                    setFeedKind("ALL");
-                    feedGenres.current = {
-                      ALL: "all",
-                      PHOTO: "all",
-                      VIDEO: "all",
-                    };
-                    const url = new URL(window.location.href);
-                    url.searchParams.delete("media");
-                    url.searchParams.delete("category");
-                    url.searchParams.delete("location");
-                    window.history.replaceState(null, "", url);
-                    setCategoryFilter("all");
-                    setDiscoverLocationFilter("all");
-                    setDiscoverDateFrom("");
-                    setDiscoverDateTo("");
-                  }}
+                  className="secondary-action"
                   type="button"
+                  onClick={() => void refreshDiscoverPhotos()}
                 >
-                  <X aria-hidden="true" size={15} />
-                  {t("discover.clearFilters")}
+                  <RefreshCw size={16} />
+                  {t("admin.refresh")}
                 </button>
               </div>
-            </aside>
+            ) : feedStatus === "loading" ? (
+              <p role="status">{t("admin.loading")}</p>
+            ) : visiblePhotos.length > 0 ? (
+              renderPhotoMasonry(visiblePhotos)
+            ) : (
+              <p className="empty-state">{t("discover.empty")}</p>
+            )}
           </div>
         </section>
       </>
@@ -8705,7 +8703,34 @@ export function HomeClient({
   }
 
   function renderMarketplacePage(): ReactNode {
-    return <ServerMarketplace initialProductId={initialProductId} />;
+    return (
+      <ServerMarketplace
+        initialProductId={initialProductId}
+        demoWorks={serverPhotos
+          .filter(
+            (photo) =>
+              photo.published &&
+              !photo.profileAsset &&
+              demoBattleAuthors.some((author) => author.id === photo.authorId),
+          )
+          .map((photo) => ({
+            id: photo.id,
+            kind: isVideoWork(photo) ? ("VIDEO" as const) : ("PHOTO" as const),
+            title: getPhotoTitle(photo, locale),
+            imageUrl: photo.src,
+            videoUrl: photo.videoSrc,
+            genre: photo.categoryId,
+            seller: {
+              username: photo.authorUsername ?? "",
+              displayName: getPhotoAuthor(photo, locale),
+            },
+          }))}
+        onDemoPreview={(id) => {
+          const photo = allPhotos.find((work) => work.id === id);
+          if (photo) openPhotoPreview(photo);
+        }}
+      />
+    );
   }
 
   function renderPromotedPlacement(
@@ -8913,21 +8938,21 @@ export function HomeClient({
                 {t(filter.key)}
               </button>
             ))}
+            <button
+              className="secondary-action compact directory-reset"
+              onClick={() => {
+                setModelSearch("");
+                setModelGenreFilter("all");
+                setModelCountryFilter("all");
+                setModelCityFilter("all");
+                setModelRatingFilter("all");
+              }}
+              type="button"
+            >
+              <X aria-hidden="true" size={15} />
+              {t("common.reset")}
+            </button>
           </div>
-          <button
-            className="secondary-action compact directory-reset"
-            onClick={() => {
-              setModelSearch("");
-              setModelGenreFilter("all");
-              setModelCountryFilter("all");
-              setModelCityFilter("all");
-              setModelRatingFilter("all");
-            }}
-            type="button"
-          >
-            <X aria-hidden="true" size={15} />
-            {t("common.reset")}
-          </button>
         </div>
 
         <div className="model-grid">
@@ -9314,24 +9339,24 @@ export function HomeClient({
                 </option>
               </select>
             </label>
+            <button
+              className="secondary-action compact directory-reset"
+              onClick={() => {
+                setStudioSearch("");
+                setStudioPriceMin("");
+                setStudioPriceMax("");
+                setStudioPriceOrder("default");
+                setStudioCountryFilter("all");
+                setStudioCityFilter("all");
+                setStudioRatingFilter("all");
+                setStudioEquipmentFilter("all");
+              }}
+              type="button"
+            >
+              <X aria-hidden="true" size={15} />
+              {t("common.reset")}
+            </button>
           </div>
-          <button
-            className="secondary-action compact directory-reset"
-            onClick={() => {
-              setStudioSearch("");
-              setStudioPriceMin("");
-              setStudioPriceMax("");
-              setStudioPriceOrder("default");
-              setStudioCountryFilter("all");
-              setStudioCityFilter("all");
-              setStudioRatingFilter("all");
-              setStudioEquipmentFilter("all");
-            }}
-            type="button"
-          >
-            <X aria-hidden="true" size={15} />
-            {t("common.reset")}
-          </button>
         </div>
 
         <div className="studio-grid">
