@@ -127,6 +127,7 @@ import {
 } from "../../lib/profile-source";
 import { PhotoTitleEditor } from "./photo-title-editor";
 import { ImageLightbox } from "./image-lightbox";
+import { AutoHideHeader } from "./auto-hide-header";
 import { battleQueue } from "../../lib/battle-queue";
 import {
   DigitalProductSection,
@@ -6278,7 +6279,11 @@ export function HomeClient({
       root={getApiRoot()}
     >
       <main className="shell">
-        <header className="topbar">
+        <AutoHideHeader
+          pinned={
+            isMobileMenuOpen || isLanguageMenuOpen || isNotificationMenuOpen
+          }
+        >
           <Link className="brand" href={getSectionHref(locale, "home")}>
             <span className="brand-mark">{t("app.shortName").slice(0, 1)}</span>
             <span>{t("app.name")}</span>
@@ -6544,7 +6549,7 @@ export function HomeClient({
               </>
             )}
           </div>
-        </header>
+        </AutoHideHeader>
 
         <input
           accept="image/*,video/mp4,video/webm"

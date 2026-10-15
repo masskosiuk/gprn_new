@@ -128,6 +128,21 @@ img {
   z-index: 1000;
 }
 
+.topbar--auto-hide {
+  transition: transform 180ms ease-out;
+}
+
+.topbar--auto-hide.is-scroll-hidden {
+  pointer-events: none;
+  transform: translateY(calc(-100% - 1px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topbar--auto-hide {
+    transition: none;
+  }
+}
+
 :root[data-theme="dark"] .topbar {
   background: rgba(7, 7, 7, 0.92);
 }
