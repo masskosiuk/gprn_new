@@ -2,6 +2,7 @@ import { loadRuntimeEnv } from "@gprn/config";
 import { prisma } from "@gprn/db";
 import { Injectable } from "@nestjs/common";
 import { mediaCatalogFilter } from "./media-catalog.js";
+import { photoSaleInclude, serializePhotoSale } from "./photo-sale.js";
 import {
   photoEngagementInclude,
   photoEngagementResponse,
@@ -23,6 +24,7 @@ export class DiscoverService {
       prisma.photo.findMany({
         include: {
           ...photoEngagementInclude,
+          ...photoSaleInclude,
           assets: true,
           category: true,
           location: { include: { city: true } },
@@ -101,6 +103,8 @@ export class DiscoverService {
           ...photoEngagementResponse(photo),
           ...mediaAssetResponse(this.env, photo.assets),
           id: photo.id,
+          sale: serializePhotoSale(photo),
+          ownerId: photo.ownerId,
           location: photo.location
             ? {
                 city: photo.location.city

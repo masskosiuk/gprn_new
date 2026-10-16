@@ -243,7 +243,7 @@ const baseMessages = {
     "Explore photographs by the location where they were shot, not by the photographer's profile location.",
   "section.marketplace.title": "Marketplace",
   "section.marketplace.intro":
-    "Buy and sell photographs, licenses, prints and creator products using your GPRN wallet.",
+    "Photographs and videos offered for sale by their authors.",
   "section.experts.title": "Expert reviews",
   "section.experts.intro":
     "Find photographers by genre, location and reputation and explore their portfolios.",
@@ -1384,7 +1384,7 @@ const ruMessages: Partial<MessageMap> = {
     "Ищите моделей по локации, жанру и рейтингу, смотрите портфолио и предлагайте съёмку.",
   "section.marketplace.title": "Маркетплейс",
   "section.marketplace.intro":
-    "Покупайте и продавайте фотографии, лицензии, принты и товары авторов через кошелёк GPRN.",
+    "Фотографии и видео, выставленные авторами на продажу.",
   "section.experts.title": "Экспертные оценки",
   "section.experts.intro":
     "Ищите фотографов по жанру, локации и рейтингу и смотрите их портфолио.",

@@ -28,6 +28,8 @@ import { NotificationsController } from "./notifications.controller.js";
 import { NotificationsService } from "./notifications.service.js";
 import { PhotosController } from "./photos.controller.js";
 import { PhotosService } from "./photos.service.js";
+import { PhotoCommerceController } from "./photo-commerce.controller.js";
+import { PhotoCommerceService } from "./photo-commerce.service.js";
 import { PrivacyController } from "./privacy.controller.js";
 import { PrivacyService } from "./privacy.service.js";
 import { PlatformController } from "./platform.controller.js";
@@ -44,6 +46,7 @@ import { SocialConnectionsService } from "./social-connections.service.js";
 
 @Module({
   controllers: [
+    PhotoCommerceController,
     InteractionsController,
     CommunityController,
     DigitalProductsController,
@@ -68,6 +71,7 @@ import { SocialConnectionsService } from "./social-connections.service.js";
     SocialConnectionsController,
   ],
   providers: [
+    PhotoCommerceService,
     InteractionsService,
     CommunityService,
     DigitalProductsService,

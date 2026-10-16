@@ -15,6 +15,7 @@ import sharp, { type Metadata } from "sharp";
 
 import type { CurrentUser } from "./auth.service.js";
 import { parsePhotoTitle, requirePhotoTitleAccess } from "./photo-title.js";
+import { photoSaleInclude, serializePhotoSale } from "./photo-sale.js";
 import {
   aggregatePhotoReviews,
   photoEngagementInclude,
@@ -85,6 +86,9 @@ interface PublishPhotoInput {
 }
 
 interface PhotoRecord {
+  readonly marketplaceProduct?: Parameters<
+    typeof serializePhotoSale
+  >[0]["marketplaceProduct"];
   readonly reviews?: readonly PhotoReviewScores[];
   readonly _count?: {
     readonly battleEntries: number;
@@ -172,6 +176,7 @@ interface ImageRenditions {
 }
 
 const photoInclude = {
+  ...photoSaleInclude,
   reviews: photoEngagementInclude.reviews,
   _count: {
     select: {
@@ -209,6 +214,25 @@ export class PhotosService {
   });
 
   constructor(private readonly locationsService: LocationsService) {}
+
+  async publicPhoto(photoId: string) {
+    const photo = await prisma.photo.findFirst({
+      include: photoInclude,
+      where: {
+        id: photoId,
+        deletedAt: null,
+        status: "PUBLISHED",
+        moderationStatus: "APPROVED",
+        visibility: "PUBLIC",
+        owner: {
+          status: "ACTIVE",
+          profile: { visibility: "PUBLIC", deletedAt: null },
+        },
+      },
+    });
+    if (!photo) throw new NotFoundException({ code: "PHOTO_NOT_FOUND" });
+    return { photo: this.toPhotoResponse(photo) };
+  }
 
   getImportSources(): {
     sources: readonly {
@@ -1059,6 +1083,7 @@ export class PhotosService {
       photo.assets.find((asset) => asset.type === "DISPLAY") ??
       photo.assets.find((asset) => asset.type === "THUMBNAIL");
     return {
+      sale: serializePhotoSale(photo),
       assets: mediaAssetResponse(this.env, photo.assets),
       ...mediaAssetResponse(this.env, photo.assets),
       category: photo.category

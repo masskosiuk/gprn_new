@@ -95,6 +95,11 @@ import { getSectionHref, type SectionId } from "./sections";
 import { ProfileStats } from "./profile-stats";
 import { ServerMarketplace } from "./server-marketplace";
 import {
+  PhotoCommerce,
+  PhotoPurchases,
+  type PhotoSale,
+} from "./photo-commerce";
+import {
   CommunityProvider,
   CommentButton,
   StudioBookingButton,
@@ -338,6 +343,8 @@ interface ServerSessionUser {
 }
 
 interface ServerPhotoPayload {
+  readonly sale?: PhotoSale | null;
+  readonly ownerId?: string;
   readonly mediaType?: "PHOTO" | "VIDEO";
   readonly videoUrl?: string | null;
   readonly assets?: {
@@ -723,6 +730,7 @@ interface ProfileForm {
 }
 
 interface PhotoRecord {
+  sale?: PhotoSale | null;
   readonly commentCount?: number;
   readonly mediaType?: "PHOTO" | "VIDEO";
   readonly videoSrc?: string;
@@ -1001,7 +1009,6 @@ const notificationsStorageKey = "gprn.notifications.v2";
 const studioReviewsStorageKey = "gprn.studioReviews.v1";
 const serviceOrdersStorageKey = "gprn.serviceOrders.v1";
 const promotionsStorageKey = "gprn.promotions.v1";
-const marketplaceListingsStorageKey = "gprn.marketplaceListings.v1";
 const deletionRequestStorageKey = "gprn.deletionRequested.v2";
 const themeStorageKey = "gprn.theme.v1";
 const localeCookieName = "gprn_locale";
@@ -2710,7 +2717,8 @@ export function HomeClient({
     Record<string, string>
   >({});
   const [promotions, setPromotions] = useState<LocalPromotion[]>([]);
-  const [listedPhotoIds, setListedPhotoIds] = useState<string[]>([]);
+  const [photoCommerceVersion, setPhotoCommerceVersion] = useState(0);
+  const [saleOnly, setSaleOnly] = useState(false);
   const [deletionRequested, setDeletionRequested] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
   const [modelGenreFilter, setModelGenreFilter] =
@@ -2928,29 +2936,31 @@ export function HomeClient({
     ) ??
     uploadedPhotos.find((photo) => !photo.profileAsset) ??
     null;
-  const visiblePhotos = serverPhotos.filter((photo) =>
-    matchesFeedFilters(
-      {
-        video: isVideoWork(photo),
-        category: photo.categoryId,
-        location: photo.locationId,
-        publishedAt: photo.uploadedAt,
-        searchText: [
-          getPhotoTitle(photo, locale),
-          getPhotoAuthor(photo, locale),
-          getLocationLabel(photo.locationId, locale, photo.locationLabel),
-        ].join(" "),
-      },
-      {
-        kind: feedKind,
-        category: categoryFilter,
-        location: discoverLocationFilter,
-        from: discoverDateFrom,
-        to: discoverDateTo,
-        search: searchTerm,
-      },
-      locale,
-    ),
+  const visiblePhotos = serverPhotos.filter(
+    (photo) =>
+      (!saleOnly || Boolean(photo.sale)) &&
+      matchesFeedFilters(
+        {
+          video: isVideoWork(photo),
+          category: photo.categoryId,
+          location: photo.locationId,
+          publishedAt: photo.uploadedAt,
+          searchText: [
+            getPhotoTitle(photo, locale),
+            getPhotoAuthor(photo, locale),
+            getLocationLabel(photo.locationId, locale, photo.locationLabel),
+          ].join(" "),
+        },
+        {
+          kind: feedKind,
+          category: categoryFilter,
+          location: discoverLocationFilter,
+          from: discoverDateFrom,
+          to: discoverDateTo,
+          search: searchTerm,
+        },
+        locale,
+      ),
   );
   const visibleBattles = battles.filter(
     (battle) => battleFilter === "all" || battle.scope === battleFilter,
@@ -3300,9 +3310,6 @@ export function HomeClient({
       readLocalStorage<LocalOrder[]>(serviceOrdersStorageKey, []),
     );
     setPromotions(readLocalStorage<LocalPromotion[]>(promotionsStorageKey, []));
-    setListedPhotoIds(
-      readLocalStorage<string[]>(marketplaceListingsStorageKey, []),
-    );
     setDeletionRequested(
       readLocalStorage<boolean>(deletionRequestStorageKey, false),
     );
@@ -3407,11 +3414,6 @@ export function HomeClient({
     if (!isHydrated) return;
     writeLocalStorage(promotionsStorageKey, promotions);
   }, [isHydrated, promotions]);
-
-  useEffect(() => {
-    if (!isHydrated) return;
-    writeLocalStorage(marketplaceListingsStorageKey, listedPhotoIds);
-  }, [isHydrated, listedPhotoIds]);
 
   useEffect(() => {
     if (!isHydrated) {
@@ -5282,7 +5284,6 @@ export function HomeClient({
       setSavedPhotoIds(withoutPhotoId);
       setLikedPhotoIds(withoutPhotoId);
       setMoodboardPhotoIds(withoutPhotoId);
-      setListedPhotoIds(withoutPhotoId);
       setChallengeEntries((current) =>
         Object.fromEntries(
           Object.entries(current).filter(
@@ -5427,41 +5428,13 @@ export function HomeClient({
     }
   }
 
-  function toggleMarketplaceListing(photoId: string): void {
-    setListedPhotoIds((current) =>
-      current.includes(photoId)
-        ? current.filter((listedPhotoId) => listedPhotoId !== photoId)
-        : [...current, photoId],
-    );
-    setGlobalFeedback({
-      kind: "success",
-      text: listedPhotoIds.includes(photoId)
-        ? t("marketplace.unlisted")
-        : t("marketplace.listed"),
-    });
-  }
-
-  function buyMarketplaceItem(title: string, priceMinor: number): void {
-    if (!currentProfile) {
-      openAuth("login");
-      return;
-    }
-    if (walletBalanceMinor < priceMinor) {
-      setGlobalFeedback({ kind: "error", text: t("wallet.insufficient") });
-      return;
-    }
-    const now = new Date().toISOString();
-    setWalletBalanceMinor((current) => current - priceMinor);
-    setWalletTransactions((current) => [
-      {
-        amountMinor: -priceMinor,
-        createdAt: now,
-        id: `wallet-${Date.now()}`,
-        label: `${t("marketplace.purchase")}: ${title}`,
-      },
-      ...current,
-    ]);
-    setGlobalFeedback({ kind: "success", text: t("marketplace.purchased") });
+  function updatePhotoSale(photoId: string, sale: PhotoSale | null): void {
+    const update = (photo: PhotoRecord) =>
+      photo.id === photoId ? { ...photo, sale } : photo;
+    setServerPhotos((photos) => photos.map(update));
+    setServerPublicPhotos((photos) => photos.map(update));
+    setUploadedPhotos((photos) => photos.map(update));
+    setPhotoCommerceVersion((version) => version + 1);
   }
 
   function openCommerceDialog(dialog: Exclude<CommerceDialog, null>): void {
@@ -6948,7 +6921,8 @@ export function HomeClient({
 
     return (
       <>
-        {!isEntityProfile && sectionId !== "battles" ? (
+        {!isEntityProfile &&
+        !["battles", "events", "discussions", "search"].includes(sectionId) ? (
           <section className="page-intro">
             <div>
               <h1>{t(meta.titleKey)}</h1>
@@ -6986,13 +6960,28 @@ export function HomeClient({
         {sectionId === "discover" ? renderDiscoverPage() : null}
         {sectionId === "feed" ? renderDiscoverPage() : null}
         {sectionId === "events" ? (
-          <CommunityBoard kind="EVENT" initialPostId={initialPostId} />
+          <CommunityBoard
+            kind="EVENT"
+            initialPostId={initialPostId}
+            title={t(meta.titleKey)}
+            description={t(meta.introKey)}
+          />
         ) : null}
         {sectionId === "discussions" ? (
-          <CommunityBoard kind="DISCUSSION" initialPostId={initialPostId} />
+          <CommunityBoard
+            kind="DISCUSSION"
+            initialPostId={initialPostId}
+            title={t(meta.titleKey)}
+            description={t(meta.introKey)}
+          />
         ) : null}
         {sectionId === "search" ? (
-          <CommunityBoard kind="CASTING" initialPostId={initialPostId} />
+          <CommunityBoard
+            kind="CASTING"
+            initialPostId={initialPostId}
+            title={t(meta.titleKey)}
+            description={t(meta.introKey)}
+          />
         ) : null}
         {sectionId === "suggestions" ? <SuggestionsPage /> : null}
         {sectionId === "interactions" ? (
@@ -7098,6 +7087,14 @@ export function HomeClient({
                   />
                 </label>
                 <div className="discover-filter-footer">
+                  <label className="feed-sale-filter">
+                    <input
+                      type="checkbox"
+                      checked={saleOnly}
+                      onChange={(event) => setSaleOnly(event.target.checked)}
+                    />
+                    {locale === "ru" ? "В продаже" : "For sale"}
+                  </label>
                   <span>
                     {t("discover.results").replace(
                       "{count}",
@@ -7108,6 +7105,7 @@ export function HomeClient({
                     className="secondary-action compact-action"
                     onClick={() => {
                       setSearchTerm("");
+                      setSaleOnly(false);
                       setFeedKind("ALL");
                       feedGenres.current = {
                         ALL: "all",
@@ -7235,28 +7233,26 @@ export function HomeClient({
               </div>
             </aside>
           </div>
-          <div className="main-column">
-            <div className="section-heading">
-              <div>
-                <span className="eyebrow">
-                  {t(
-                    feedKind === "ALL"
-                      ? "section.feed.intro"
-                      : feedKind === "VIDEO"
-                        ? "video.featured"
-                        : "discover.featured",
-                  )}
-                </span>
-                <h2>
-                  {t(
-                    feedKind === "ALL"
-                      ? "section.feed.title"
-                      : feedKind === "VIDEO"
-                        ? "section.video.title"
-                        : "section.discover.title",
-                  )}
-                </h2>
-              </div>
+          <div className="main-column feed-gallery-column">
+            <div className="section-heading feed-gallery-heading">
+              <h2>
+                {t(
+                  feedKind === "ALL"
+                    ? "section.feed.title"
+                    : feedKind === "VIDEO"
+                      ? "section.video.title"
+                      : "section.discover.title",
+                )}
+              </h2>
+              <span className="eyebrow">
+                {t(
+                  feedKind === "ALL"
+                    ? "section.feed.intro"
+                    : feedKind === "VIDEO"
+                      ? "video.featured"
+                      : "discover.featured",
+                )}
+              </span>
               <span className="count-pill">
                 {numberFormatter.format(visiblePhotos.length)}
               </span>
@@ -7988,20 +7984,6 @@ export function HomeClient({
                     <button
                       className="secondary-action compact"
                       onClick={() => {
-                        toggleMarketplaceListing(photo.id);
-                      }}
-                      type="button"
-                    >
-                      <ShoppingBag aria-hidden="true" size={15} />
-                      {t(
-                        listedPhotoIds.includes(photo.id)
-                          ? "marketplace.unlist"
-                          : "marketplace.list",
-                      )}
-                    </button>
-                    <button
-                      className="secondary-action compact"
-                      onClick={() => {
                         openCommerceDialog({ kind: "promotion", photo });
                       }}
                       type="button"
@@ -8027,6 +8009,18 @@ export function HomeClient({
               </>
             ) : null}
           </div>
+          {detailsOnly && photo.serverBacked ? (
+            <PhotoCommerce
+              key={photo.id}
+              photoId={photo.id}
+              sale={photo.sale}
+              onChange={(sale) => updatePhotoSale(photo.id, sale)}
+              closePreview={() => setImagePreview(null)}
+              purchased={async () => {
+                await refreshServerSession();
+              }}
+            />
+          ) : null}
         </div>
       </article>
     );
@@ -8121,6 +8115,20 @@ export function HomeClient({
                   ) : null}
                 </div>
               </div>
+              {photo.sale ? (
+                <button
+                  type="button"
+                  className="photo-tile-price"
+                  onClick={() => openPhotoPreview(photo)}
+                  aria-label={`${t("marketplace.buy")}: ${formatMoney(photo.sale.priceMinor, locale)}`}
+                >
+                  <ShoppingBag size={14} />
+                  {new Intl.NumberFormat(locale, {
+                    style: "currency",
+                    currency: photo.sale.currency,
+                  }).format(photo.sale.priceMinor / 100)}
+                </button>
+              ) : null}
             </article>
           );
         })}
@@ -8706,28 +8714,34 @@ export function HomeClient({
     return (
       <ServerMarketplace
         initialProductId={initialProductId}
-        demoWorks={serverPhotos
-          .filter(
-            (photo) =>
-              photo.published &&
-              !photo.profileAsset &&
-              demoBattleAuthors.some((author) => author.id === photo.authorId),
-          )
-          .map((photo) => ({
-            id: photo.id,
-            kind: isVideoWork(photo) ? ("VIDEO" as const) : ("PHOTO" as const),
-            title: getPhotoTitle(photo, locale),
-            imageUrl: photo.src,
-            videoUrl: photo.videoSrc,
-            genre: photo.categoryId,
-            seller: {
-              username: photo.authorUsername ?? "",
-              displayName: getPhotoAuthor(photo, locale),
-            },
-          }))}
-        onDemoPreview={(id) => {
-          const photo = allPhotos.find((work) => work.id === id);
-          if (photo) openPhotoPreview(photo);
+        version={photoCommerceVersion}
+        onPreview={async (id) => {
+          const existing = allPhotos.find((work) => work.id === id);
+          if (existing) {
+            openPhotoPreview(existing);
+            return;
+          }
+          try {
+            const response = await apiRequest<{ photo: ServerPhotoPayload }>(
+              `/photos/${encodeURIComponent(id)}/public`,
+            );
+            const photo = mapServerPhoto(response.photo, serverUser?.id);
+            if (photo) {
+              setServerPhotos((current) => [
+                ...current.filter((work) => work.id !== id),
+                photo,
+              ]);
+              openPhotoPreview(photo);
+            }
+          } catch {
+            setGlobalFeedback({
+              kind: "error",
+              text:
+                locale === "ru"
+                  ? "Не удалось открыть работу. Обновите каталог и повторите."
+                  : "Could not open this work. Reload the catalog and retry.",
+            });
+          }
         }}
       />
     );
@@ -9725,6 +9739,11 @@ export function HomeClient({
     return (
       <DigitalProductSection
         kind={kind}
+        initialProductId={
+          !purchased && initialSection === "profile"
+            ? initialProductId
+            : undefined
+        }
         offers={displayed}
         locale={locale}
         apiRoot={getApiRoot()}
@@ -9871,6 +9890,7 @@ export function HomeClient({
               />
             </div>
 
+            <div id="presets" />
             {renderDigitalProductSection(
               "preset",
               author.presets,
@@ -10096,6 +10116,7 @@ export function HomeClient({
               </div>
             ) : null}
 
+            <div id="presets" />
             {renderDigitalProductSection(
               "preset",
               currentPresetOffers,
@@ -10132,6 +10153,7 @@ export function HomeClient({
               true,
             )}
 
+            <PhotoPurchases />
             {currentTier !== "viewer" ? (
               <>
                 <div className="section-heading">
@@ -12912,7 +12934,8 @@ function mapServerPhoto(
   const locationLongitude = photo.location?.publicLongitude ?? undefined;
 
   return {
-    authorId: photo.owner?.id ?? ownerOverride?.id,
+    sale: photo.sale,
+    authorId: photo.owner?.id ?? ownerOverride?.id ?? photo.ownerId,
     authorName: ownerName,
     authorTier: ownerTier,
     authorUsername: ownerUsername,
@@ -12924,7 +12947,8 @@ function mapServerPhoto(
     criterionScores,
     id: photo.id,
     isMine: Boolean(
-      currentUserId && (photo.owner?.id ?? ownerOverride?.id) === currentUserId,
+      currentUserId &&
+      (photo.owner?.id ?? ownerOverride?.id ?? photo.ownerId) === currentUserId,
     ),
     locationHidden:
       photo.location?.visibility === "HIDDEN" ||

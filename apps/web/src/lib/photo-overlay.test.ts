@@ -70,6 +70,8 @@ function fixture(scores: Record<string, number> | null) {
       Heart: "heart-icon",
       Star: "star-icon",
       Video: "video-icon",
+      ShoppingBag: "shopping-bag",
+      formatMoney: (value: number) => String(value / 100),
       CommentButton: "comment-button",
       toggleLikePhoto: () => {},
       openPhotoPreview: (photo: unknown) => actions.push(photo),
@@ -151,4 +153,27 @@ test("unpublished work retains the compact overlay without an empty comments slo
     find(tree, "photo-tile-actions")!.children.filter(Boolean).length,
     1,
   );
+});
+
+test("only explicitly listed works show a price, without replacing rating or social tools", () => {
+  const { render, photo } = fixture(
+    Object.fromEntries(criteria.map((id) => [id, 8])),
+  );
+  assert.equal(find(render([photo]), "photo-tile-price"), undefined);
+  const tree = render([
+    { ...photo, sale: { id: "product", priceMinor: 2500, currency: "USD" } },
+  ]);
+  assert(find(tree, "photo-tile-price"));
+  assert(find(tree, "photo-tile-details"));
+  assert.equal(find(tree, "photo-tile-actions")!.children.length, 3);
+});
+
+test("clicking a price opens the same original work rather than a duplicate product", () => {
+  const { render, photo, actions } = fixture(null);
+  const listed = {
+    ...photo,
+    sale: { id: "product", priceMinor: 2500, currency: "USD" },
+  };
+  find(render([listed]), "photo-tile-price")!.props.onClick();
+  assert.equal(actions[0], listed);
 });

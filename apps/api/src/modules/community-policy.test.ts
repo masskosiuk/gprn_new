@@ -24,13 +24,21 @@ const status = (value: unknown, expected: number) =>
     (value.getStatus as () => number)() === expected,
   );
 
-test("events require a current subscription, not the photographer's rank", () => {
+test("events are free during launch regardless of subscription or previous publication", () => {
+  for (const kind of ["EVENT", "DISCUSSION", "CASTING"] as const) {
+    assert.doesNotThrow(() => checkPublicationAccess(kind, null, now, now));
+    assert.doesNotThrow(() =>
+      checkPublicationAccess(kind, new Date(now.getTime() - 1000), now, now),
+    );
+  }
+});
+test("paid-mode event access is separate from the active free launch policy", () => {
   assert.throws(
-    () => checkPublicationAccess("EVENT", null, undefined, now),
+    () => checkPublicationAccess("EVENT", null, undefined, now, false),
     (e) => status(e, 403),
   );
   assert.throws(
-    () => checkPublicationAccess("EVENT", now, undefined, now),
+    () => checkPublicationAccess("EVENT", now, undefined, now, false),
     (e) => status(e, 403),
   );
   assert.doesNotThrow(() =>
@@ -39,6 +47,7 @@ test("events require a current subscription, not the photographer's rank", () =>
       new Date(now.getTime() + 1000),
       undefined,
       now,
+      false,
     ),
   );
 });
@@ -51,6 +60,7 @@ test("72-hour publication limits have an exact boundary and Pro bypass", () => {
           null,
           new Date(now.getTime() - publicationIntervalMs + 1),
           now,
+          false,
         ),
       (e) => status(e, 429),
     );
@@ -60,10 +70,17 @@ test("72-hour publication limits have an exact boundary and Pro bypass", () => {
         null,
         new Date(now.getTime() - publicationIntervalMs),
         now,
+        false,
       ),
     );
     assert.doesNotThrow(() =>
-      checkPublicationAccess(kind, new Date(now.getTime() + 1000), now, now),
+      checkPublicationAccess(
+        kind,
+        new Date(now.getTime() + 1000),
+        now,
+        now,
+        false,
+      ),
     );
   }
 });

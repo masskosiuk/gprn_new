@@ -567,6 +567,8 @@ model Photo {
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
   deletedAt             DateTime?
+  appliedProductId      String?             @db.Uuid
+  appliedProduct        MarketplaceProduct? @relation("photo_applied_product", fields: [appliedProductId], references: [id], onDelete: SetNull)
   owner                 User                @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   category              Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   assets                PhotoAsset[]
@@ -592,6 +594,7 @@ model Photo {
   marketplaceProduct    MarketplaceProduct?
 
   @@index([ownerId, status])
+  @@index([appliedProductId])
   @@index([categoryId, status])
   @@index([visibility, status, publishedAt])
   @@map("photos")
@@ -1214,6 +1217,7 @@ model MarketplaceProduct {
   photo           Photo?                 @relation(fields: [photoId], references: [id], onDelete: SetNull)
   category        Category?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   orderItems      MarketplaceOrderItem[]
+  appliedToPhotos Photo[]                @relation("photo_applied_product")
 
   @@index([status, categoryId])
   @@index([sellerId])
@@ -1237,13 +1241,14 @@ model MarketplaceOrder {
 }
 
 model MarketplaceOrderItem {
-  id         String             @id @default(uuid()) @db.Uuid
-  orderId    String             @db.Uuid
-  productId  String             @db.Uuid
-  priceMinor BigInt
-  currency   String             @db.Char(3)
-  order      MarketplaceOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product    MarketplaceProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  id           String             @id @default(uuid()) @db.Uuid
+  orderId      String             @db.Uuid
+  productId    String             @db.Uuid
+  priceMinor   BigInt
+  currency     String             @db.Char(3)
+  licenseTerms String?
+  order        MarketplaceOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      MarketplaceProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([productId])
   @@map("marketplace_order_items")

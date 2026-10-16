@@ -801,9 +801,10 @@ test("a discussion copies the public original's image and canonical link", async
     prisma.photo.findFirst = old;
   }
 });
-test("cooldown checks include removed and rejected posts", async () => {
+test("free publishing retains spam limits including removed and rejected posts", async () => {
   const profile = prisma.profile.findUnique;
   const find = prisma.communityPost.findFirst;
+  const count = prisma.communityPost.count;
   const put = S3ObjectStorage.prototype.putObject;
   let uploads = 0;
   prisma.profile.findUnique = (async () => ({
@@ -816,6 +817,13 @@ test("cooldown checks include removed and rejected posts", async () => {
     assert.equal("moderationStatus" in args.where, false);
     return { createdAt: new Date() };
   }) as unknown as typeof find;
+  prisma.communityPost.count = (async (args: { where: Record<string, unknown> }) => {
+    assert.equal("deletedAt" in args.where, false);
+    assert.equal("moderationStatus" in args.where, false);
+    assert.equal(args.where.authorId, actor.id);
+    assert.ok(args.where.createdAt);
+    return 5;
+  }) as unknown as typeof count;
   S3ObjectStorage.prototype.putObject = async () => {
     uploads++;
   };
@@ -837,6 +845,7 @@ test("cooldown checks include removed and rejected posts", async () => {
   } finally {
     prisma.profile.findUnique = profile;
     prisma.communityPost.findFirst = find;
+    prisma.communityPost.count = count;
     S3ObjectStorage.prototype.putObject = put;
   }
 });

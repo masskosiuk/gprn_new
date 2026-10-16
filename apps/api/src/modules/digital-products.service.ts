@@ -14,6 +14,7 @@ import { asRecord, requiredString } from "./validation.js";
 import { publicAssetUrl } from "./serialization.js";
 import { mediaAssetResponse } from "./serialization.js";
 import { mediaCatalogFilter } from "./media-catalog.js";
+import { readLicenseTerms } from "./photo-sale.js";
 import { boundedText, requireUuid } from "./community-policy.js";
 import {
   createProductCover,
@@ -89,6 +90,14 @@ export class DigitalProductsService {
     )
       invalidProduct("PRODUCT_KIND_INVALID");
     const page = Number(query.page ?? 1);
+    if (query.sort && !["price-asc", "price-desc"].includes(query.sort))
+      invalidProduct("INVALID_SORT");
+    if (
+      query.minPrice &&
+      query.maxPrice &&
+      catalogPrice(query.minPrice) > catalogPrice(query.maxPrice)
+    )
+      invalidProduct("INVALID_PRICE_FILTER");
     if (!Number.isInteger(page) || page < 1 || page > 10000)
       invalidProduct("INVALID_PAGE");
     const pageSize = Number(query.pageSize ?? 24);
@@ -96,11 +105,22 @@ export class DigitalProductsService {
       invalidProduct("INVALID_PAGE_SIZE");
     const stock: Prisma.MarketplaceProductWhereInput = {
       digitalKind: null,
+      isDemo: false,
+      filesJson: { path: ["licenseTerms"], string_contains: "" },
       photo: {
         deletedAt: null,
         status: "PUBLISHED",
         moderationStatus: "APPROVED",
         visibility: "PUBLIC",
+        provenance: { originType: "DIRECT_UPLOAD" },
+        assets: {
+          some: {
+            type: "ORIGINAL",
+            deletedAt: null,
+            bucket: this.env.S3_BUCKET_PRIVATE,
+            storageVisibility: "PRIVATE",
+          },
+        },
         ...mediaCatalogFilter(
           kind === "PHOTO" || kind === "VIDEO" ? kind : undefined,
         ),
@@ -127,6 +147,14 @@ export class DigitalProductsService {
     const where: Prisma.MarketplaceProductWhereInput = {
       ...(query.id ? { id: query.id } : {}),
       status: "PUBLISHED",
+      ...(query.minPrice || query.maxPrice
+        ? {
+            priceMinor: {
+              ...(query.minPrice ? { gte: catalogPrice(query.minPrice) } : {}),
+              ...(query.maxPrice ? { lte: catalogPrice(query.maxPrice) } : {}),
+            },
+          }
+        : {}),
       seller: {
         status: "ACTIVE",
         user: {
@@ -149,10 +177,38 @@ export class DigitalProductsService {
         ...(query.search
           ? [
               {
-                title: {
-                  contains: boundedText(query.search, 180),
-                  mode: "insensitive" as const,
-                },
+                OR: [
+                  {
+                    title: {
+                      contains: boundedText(query.search, 180),
+                      mode: "insensitive" as const,
+                    },
+                  },
+                  {
+                    seller: {
+                      user: {
+                        profile: {
+                          displayName: {
+                            contains: boundedText(query.search, 180),
+                            mode: "insensitive" as const,
+                          },
+                        },
+                      },
+                    },
+                  },
+                  {
+                    seller: {
+                      user: {
+                        profile: {
+                          username: {
+                            contains: boundedText(query.search, 180),
+                            mode: "insensitive" as const,
+                          },
+                        },
+                      },
+                    },
+                  },
+                ],
               },
             ]
           : []),
@@ -168,7 +224,12 @@ export class DigitalProductsService {
         },
         take: pageSize,
         skip: (page - 1) * pageSize,
-        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        orderBy:
+          query.sort === "price-asc"
+            ? [{ priceMinor: "asc" }, { id: "asc" }]
+            : query.sort === "price-desc"
+              ? [{ priceMinor: "desc" }, { id: "asc" }]
+              : [{ createdAt: "desc" }, { id: "asc" }],
       }),
       prisma.marketplaceProduct.count({ where }),
     ]);
@@ -188,6 +249,7 @@ export class DigitalProductsService {
           imageUrl: media.thumbnailUrl ?? media.displayUrl,
           videoUrl: media.videoUrl,
           photoId: product.photoId,
+          licenseTerms: readLicenseTerms(product.filesJson),
           isDemo: product.isDemo,
           seller: {
             username: product.seller.user.profile?.username,
@@ -631,4 +693,11 @@ export class DigitalProductsService {
       ),
     };
   }
+}
+
+function catalogPrice(value: string): bigint {
+  const price = Number(value);
+  if (!Number.isSafeInteger(price) || price < 0 || price > 1_000_000)
+    invalidProduct("INVALID_PRICE_FILTER");
+  return BigInt(price);
 }

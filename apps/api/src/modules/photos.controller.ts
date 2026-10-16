@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
@@ -40,6 +41,12 @@ export class PhotosController {
     const user = await this.authService.requireUserFromRequest(request);
 
     return this.photosService.addFromDevice(user, body);
+  }
+
+  @Get(":photoId/public")
+  @Header("Cache-Control", "no-store")
+  publicPhoto(@Param("photoId") photoId: string) {
+    return this.photosService.publicPhoto(photoId);
   }
 
   @Post(":photoId/publish")

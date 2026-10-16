@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { demoStudioRates } from "@gprn/domain";
+import { communityFreeLaunch, demoStudioRates } from "@gprn/domain";
 
 type Request = <T>(path: string, init?: RequestInit) => Promise<T>;
 type Kind = "EVENT" | "DISCUSSION" | "CASTING";
@@ -1168,9 +1168,13 @@ export function Comments({
 export function CommunityBoard({
   kind,
   initialPostId,
+  title,
+  description,
 }: {
   kind: Kind;
   initialPostId?: string;
+  title: string;
+  description: string;
 }) {
   const { request, userId, login, locale } = useCommunity();
   const t = useWords();
@@ -1287,23 +1291,32 @@ export function CommunityBoard({
   }
   return (
     <section className="page-section community-board">
-      <div className="community-board-toolbar">
-        <span>
-          {kind === "EVENT"
-            ? t("Публикации по подписке Pro", "Publishing with Pro")
-            : isPro
-              ? "Pro"
-              : t(
-                  "Одна публикация раз в трое суток",
-                  "One post every 72 hours",
-                )}
-        </span>
+      <header className="page-intro community-board-heading">
+        <div>
+          <h1>{title}</h1>
+          <p>{description}</p>
+          <small className="community-publishing-note">
+            {communityFreeLaunch
+              ? t(
+                  "На этапе запуска публикации бесплатны",
+                  "Publishing is free during launch",
+                )
+              : kind === "EVENT"
+                ? t("Публикации по подписке Pro", "Publishing with Pro")
+                : isPro
+                  ? "Pro"
+                  : t(
+                      "Одна публикация раз в трое суток",
+                      "One post every 72 hours",
+                    )}
+          </small>
+        </div>
         <button
           className="primary-action compact"
           type="button"
           onClick={() => {
             if (!userId) login();
-            else if (kind === "EVENT" && !isPro)
+            else if (!communityFreeLaunch && kind === "EVENT" && !isPro)
               setFeedback(
                 t(
                   "Для публикации нужна действующая подписка Pro.",
@@ -1316,7 +1329,7 @@ export function CommunityBoard({
           <Plus size={17} />
           {t("Опубликовать", "Publish")}
         </button>
-      </div>
+      </header>
       {selected ? (
         <button
           className="secondary-action"

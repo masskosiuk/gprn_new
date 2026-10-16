@@ -157,10 +157,12 @@ export class PlatformController {
   async buyMarketplaceProduct(
     @Req() request: CookieRequest,
     @Param("productId") productId: string,
+    @Body() body: unknown,
   ) {
     return this.platformService.buyMarketplaceProduct(
       await this.authService.requireUserFromRequest(request),
       productId,
+      body,
     );
   }
 

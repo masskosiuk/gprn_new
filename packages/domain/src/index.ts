@@ -6,3 +6,4 @@ export * from "./demo-product-covers.js";
 export * from "./cover-palette.js";
 export * from "./media-titles.js";
 export * from "./directory-sources.js";
+export * from "./community-publishing.js";

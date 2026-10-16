@@ -2,119 +2,90 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Expand, ShoppingBag } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Expand,
+  ShoppingBag,
+  X,
+} from "lucide-react";
 import { getMessage, type MessageKey, type SupportedLocale } from "@gprn/i18n";
-import {
-  DigitalProductSection,
-  type DigitalProductOffer,
-} from "./digital-products";
-import { PublicationTools, useCommunity } from "./community";
-import {
-  marketplacePageSize,
-  selectMarketplaceDemos,
-  type MarketplaceDemoWork,
-} from "../../lib/marketplace-catalog";
+import { useCommunity } from "./community";
+import { marketplacePageSize } from "../../lib/marketplace-catalog";
 
-type Product = Omit<DigitalProductOffer, "kind"> & {
+type Product = {
+  id: string;
+  photoId: string;
   kind: "PHOTO" | "VIDEO" | "PRESET" | "LUT";
+  title: string;
+  imageUrl: string;
+  priceMinor: number;
   currency?: string;
-  videoUrl?: string;
-  photoId?: string;
-  demoPreview?: boolean;
+  seller: { username: string; displayName: string };
 };
 export function ServerMarketplace({
   initialProductId,
-  demoWorks = [],
-  onDemoPreview,
+  version,
+  onPreview,
 }: {
   initialProductId?: string;
-  demoWorks?: readonly MarketplaceDemoWork[];
-  onDemoPreview: (id: string) => void;
+  version: number;
+  onPreview: (id: string) => Promise<void>;
 }) {
-  const { request, root, userId, login, locale: language } = useCommunity();
+  const { request, locale: language } = useCommunity();
   const locale = language as SupportedLocale;
   const t = (key: MessageKey) => getMessage(locale, key);
   const text = (ru: string, en: string) =>
     locale === "ru" || locale === "uk" ? ru : en;
-  const [kind, setKind] = useState("ALL");
+  const [kind, setKind] = useState("MEDIA");
   const [genre, setGenre] = useState("");
   const [search, setSearch] = useState("");
+  const [min, setMin] = useState("");
+  const [max, setMax] = useState("");
+  const [sort, setSort] = useState("");
   const [page, setPage] = useState(1);
-  const [digitalPage, setDigitalPage] = useState(1);
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
-  const [digitalTotal, setDigitalTotal] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [version, setVersion] = useState(0);
-  const [selected, setSelected] = useState<string | null>(null);
-  useEffect(() => {
-    setSelected(initialProductId ?? null);
-  }, [initialProductId]);
+  const [opening, setOpening] = useState<string>();
+  const [retry, setRetry] = useState(0);
+  const [selected, setSelected] = useState(initialProductId);
+  useEffect(() => setSelected(initialProductId), [initialProductId]);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError("");
-    const signal = AbortSignal.any([
-      controller.signal,
-      AbortSignal.timeout(15000),
-    ]);
-    const load = (type: string | null, currentPage: number) => {
-      if (!type)
-        return Promise.resolve({ products: [] as Product[], total: 0 });
-      const query = new URLSearchParams({
-        kind: type,
-        genre,
-        search,
-        page: String(currentPage),
-        pageSize: String(marketplacePageSize),
-        ...(selected ? { id: selected } : {}),
-      });
-      return request<{ products: Product[]; total: number }>(
-        "/digital-products?" + query,
-        { signal },
-      );
-    };
-    Promise.all([
-      load(
-        selected
-          ? "ALL"
-          : kind === "ALL"
-            ? "MEDIA"
-            : ["PHOTO", "VIDEO"].includes(kind)
-              ? kind
-              : null,
-        selected ? 1 : page,
-      ),
-      load(
-        selected
-          ? null
-          : kind === "ALL"
-            ? "DIGITAL"
-            : ["PRESET", "LUT"].includes(kind)
-              ? kind
-              : null,
-        digitalPage,
-      ),
-    ])
-      .then(([media, digital]) => {
-        if (controller.signal.aborted) return;
-        setProducts([...media.products, ...digital.products]);
-        const selectedDigital =
-          selected &&
-          media.products.some(
-            (product) => product.kind === "PRESET" || product.kind === "LUT",
-          );
-        setTotal(selectedDigital ? 0 : media.total);
-        setDigitalTotal(selectedDigital ? media.total : digital.total);
+    const query = new URLSearchParams({
+      kind: selected ? "ALL" : kind,
+      genre,
+      search,
+      sort,
+      page: String(selected ? 1 : page),
+      pageSize: String(marketplacePageSize),
+      ...(selected ? { id: selected } : {}),
+      ...(min ? { minPrice: String(Math.round(Number(min) * 100)) } : {}),
+      ...(max ? { maxPrice: String(Math.round(Number(max) * 100)) } : {}),
+    });
+    request<{ products: Product[]; total: number }>(
+      "/digital-products?" + query,
+      { signal: controller.signal },
+    )
+      .then((result) => {
+        if (!controller.signal.aborted) {
+          setProducts(result.products);
+          setTotal(result.total);
+        }
       })
       .catch(() => {
         if (!controller.signal.aborted) {
           setProducts([]);
           setTotal(0);
-          setDigitalTotal(0);
           setError(
-            text("Не удалось загрузить каталог", "Could not load the catalog"),
+            text(
+              "Не удалось загрузить каталог. Проверьте фильтры и повторите.",
+              "Could not load the catalog. Check filters and retry.",
+            ),
           );
         }
       })
@@ -122,113 +93,42 @@ export function ServerMarketplace({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [kind, genre, search, page, digitalPage, version, selected]);
-  async function purchase(offer: DigitalProductOffer) {
-    if (!userId) {
-      login();
-      return false;
-    }
-    if (offer.isDemo) return true;
-    await request("/digital-products/" + offer.id + "/purchase", {
-      method: "POST",
-    });
-    return true;
+  }, [kind, genre, search, min, max, sort, page, selected, retry, version]);
+  function change(set: (value: string) => void, value: string) {
+    set(value);
+    setSelected(undefined);
+    setPage(1);
   }
-  const digital = (type: "PRESET" | "LUT") =>
-    products.filter(
-      (product) => product.kind === type,
-    ) as DigitalProductOffer[];
-  const mediaProducts = products.filter(
-    (product) => product.kind === "PHOTO" || product.kind === "VIDEO",
-  );
-  const demoProducts: Product[] = selectMarketplaceDemos(
-    demoWorks,
-    { kind, genre, search, page, selected },
-    mediaProducts.map((product) => product.photoId),
-    locale,
-  ).map((work) => ({
-    ...work,
-    id: `demo:${work.id}`,
-    photoId: work.id,
-    priceMinor: 0,
-    isDemo: true,
-    demoPreview: true,
-  }));
-  const showMedia =
-    !["PRESET", "LUT"].includes(kind) &&
-    (!selected || mediaProducts.length > 0);
-  const showDigital =
-    !["PHOTO", "VIDEO"].includes(kind) &&
-    (!selected ||
-      products.some(
-        (product) => product.kind === "PRESET" || product.kind === "LUT",
-      ));
-  function pagination(
-    current: number,
-    count: number,
-    change: (page: number) => void,
-    label: string,
-  ) {
-    if (count <= marketplacePageSize) return null;
-    return (
-      <nav className="community-pagination" aria-label={label}>
-        <button
-          className="icon-button"
-          type="button"
-          aria-label={text("Предыдущая страница", "Previous page")}
-          title={text("Предыдущая страница", "Previous page")}
-          disabled={current === 1 || loading}
-          onClick={() => change(current - 1)}
-        >
-          <ChevronLeft size={20} />
-        </button>
-        <span>
-          {current} / {Math.ceil(count / marketplacePageSize)}
-        </span>
-        <button
-          className="icon-button"
-          type="button"
-          aria-label={text("Следующая страница", "Next page")}
-          title={text("Следующая страница", "Next page")}
-          disabled={current * marketplacePageSize >= count || loading}
-          onClick={() => change(current + 1)}
-        >
-          <ChevronRight size={20} />
-        </button>
-      </nav>
-    );
+  async function open(product: Product) {
+    if (opening) return;
+    setOpening(product.id);
+    try {
+      await onPreview(product.photoId);
+    } finally {
+      setOpening(undefined);
+    }
   }
   return (
-    <section className="page-section server-marketplace">
+    <section className="page-section server-marketplace marketplace-photo-catalog">
       <div className="community-filters marketplace-filters">
         <label>
-          {text("Категория", "Category")}
+          {text("Тип работы", "Media type")}
           <select
             value={kind}
-            onChange={(e) => {
-              setKind(e.target.value);
-              setPage(1);
-              setDigitalPage(1);
-              setSelected(null);
-            }}
+            onChange={(e) => change(setKind, e.target.value)}
           >
-            <option value="ALL">{t("category.all")}</option>
-            <option value="PHOTO">{t("nav.discover")}</option>
-            <option value="VIDEO">{t("nav.video")}</option>
-            <option value="PRESET">{t("marketplace.preset")}</option>
-            <option value="LUT">LUT</option>
+            <option value="MEDIA">
+              {text("Фото и видео", "Photos and videos")}
+            </option>
+            <option value="PHOTO">{text("Фото", "Photos")}</option>
+            <option value="VIDEO">{text("Видео", "Videos")}</option>
           </select>
         </label>
         <label>
           {text("Жанр", "Genre")}
           <select
             value={genre}
-            onChange={(e) => {
-              setGenre(e.target.value);
-              setPage(1);
-              setDigitalPage(1);
-              setSelected(null);
-            }}
+            onChange={(e) => change(setGenre, e.target.value)}
           >
             <option value="">{t("category.all")}</option>
             {[
@@ -255,215 +155,189 @@ export function ServerMarketplace({
           {t("common.search")}
           <input
             type="search"
-            aria-label={t("common.search")}
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-              setDigitalPage(1);
-              setSelected(null);
-            }}
+            onChange={(e) => change(setSearch, e.target.value)}
           />
         </label>
-      </div>
-      {selected ? (
+        <label>
+          {text("Цена от, USD", "Min price, USD")}
+          <input
+            type="number"
+            min="0"
+            max="10000"
+            step="0.01"
+            value={min}
+            onChange={(e) => change(setMin, e.target.value)}
+          />
+        </label>
+        <label>
+          {text("Цена до, USD", "Max price, USD")}
+          <input
+            type="number"
+            min="0"
+            max="10000"
+            step="0.01"
+            value={max}
+            onChange={(e) => change(setMax, e.target.value)}
+          />
+        </label>
+        <label>
+          {text("Сортировка", "Sort")}
+          <select
+            value={sort}
+            onChange={(e) => change(setSort, e.target.value)}
+          >
+            <option value="">{text("Сначала новые", "Newest first")}</option>
+            <option value="price-asc">
+              {text("Сначала дешевле", "Lowest price first")}
+            </option>
+            <option value="price-desc">
+              {text("Сначала дороже", "Highest price first")}
+            </option>
+          </select>
+        </label>
         <button
+          className="secondary-action compact"
           type="button"
-          className="secondary-action"
           onClick={() => {
-            setSelected(null);
+            setKind("MEDIA");
+            setGenre("");
+            setSearch("");
+            setMin("");
+            setMax("");
+            setSort("");
             setPage(1);
-            setDigitalPage(1);
-            window.history.replaceState(
-              null,
-              "",
-              "/" + locale + "/marketplace",
-            );
+            setSelected(undefined);
+            window.history.replaceState(null, "", `/${locale}/marketplace`);
           }}
         >
-          {text("Все товары", "All products")}
+          <X size={16} />
+          {t("discover.clearFilters")}
         </button>
-      ) : null}
-      {error ? (
+      </div>
+      {loading && <p role="status">{text("Загрузка…", "Loading…")}</p>}
+      {error && (
         <p role="status">
-          {error}
-          <button type="button" onClick={() => setVersion((v) => v + 1)}>
+          {error}{" "}
+          <button
+            className="community-text-action"
+            type="button"
+            onClick={() => setRetry((v) => v + 1)}
+          >
             {text("Повторить", "Retry")}
           </button>
         </p>
-      ) : null}
-      {loading ? <p role="status">{text("Загрузка…", "Loading…")}</p> : null}
-      <div
-        className={`marketplace-layout${!showMedia ? " is-digital-only" : !showDigital ? " is-media-only" : ""}`}
-      >
-        {showMedia ? (
-          <div className="marketplace-media">
-            <h2 className="marketplace-section-title">
-              {text("Фото и видео", "Photos and videos")}
-            </h2>
-            {!loading &&
-            !error &&
-            !mediaProducts.length &&
-            !demoProducts.length ? (
-              <p className="empty-state">
-                {text("Товары не найдены", "No products found")}
-              </p>
-            ) : null}
-            <div className="product-grid">
-              {[...mediaProducts, ...demoProducts].map((product) => (
-                <article className="product-card" key={product.id}>
-                  {product.videoUrl ? (
-                    <video
-                      controls
-                      playsInline
-                      preload="metadata"
-                      poster={product.imageUrl}
-                      src={product.videoUrl}
-                    />
-                  ) : product.demoPreview ? (
-                    <button
-                      className="marketplace-media-preview"
-                      type="button"
-                      aria-label={`${t("photo.openPreview")}: ${product.title}`}
-                      onClick={() => onDemoPreview(product.photoId!)}
-                    >
-                      <img
-                        src={product.imageUrl}
-                        alt={product.title}
-                        loading="lazy"
-                      />
-                    </button>
-                  ) : (
-                    <img
-                      src={product.imageUrl}
-                      alt={product.title}
-                      loading="lazy"
-                    />
-                  )}
-                  <div className="product-body">
-                    <span className="pill">
-                      {t(
-                        product.kind === "VIDEO" ? "nav.video" : "nav.discover",
-                      )}
-                    </span>
-                    {product.demoPreview ? (
-                      <span className="product-kind-label">
-                        <small>{t("product.demo")}</small>
-                      </span>
-                    ) : null}
-                    <h2>{product.title}</h2>
-                    {product.seller ? (
-                      <Link
-                        href={
-                          "/" +
-                          locale +
-                          "/profile?author=" +
-                          encodeURIComponent(product.seller.username)
-                        }
-                      >
-                        {product.seller.displayName}
-                      </Link>
-                    ) : null}
-                    {product.description ? <p>{product.description}</p> : null}
-                    {!product.demoPreview ? (
-                      <strong>
-                        {new Intl.NumberFormat(locale, {
-                          style: "currency",
-                          currency: product.currency ?? "USD",
-                        }).format(product.priceMinor / 100)}
-                      </strong>
-                    ) : null}
-                    {product.demoPreview ? (
-                      <button
-                        className="secondary-action compact"
-                        type="button"
-                        onClick={() => onDemoPreview(product.photoId!)}
-                      >
-                        <Expand size={16} />
-                        {text("Просмотр", "Preview")}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="primary-action compact"
-                        onClick={() => {
-                          if (!userId) login();
-                          else
-                            setError(
-                              text(
-                                "Оплата стоковых материалов пока не подключена.",
-                                "Stock payment checkout is not connected yet.",
-                              ),
-                            );
-                        }}
-                      >
-                        <ShoppingBag size={16} />
-                        {t("marketplace.buy")}
-                      </button>
-                    )}
-                    <PublicationTools
-                      comments={false}
-                      source={{
-                        type: product.demoPreview ? "PHOTO" : "PRODUCT",
-                        id: product.demoPreview ? product.photoId! : product.id,
-                        title: product.title ?? "",
-                        image: product.imageUrl,
-                        path: product.demoPreview
-                          ? `/${locale}/profile?author=${encodeURIComponent(product.seller?.username ?? "")}&photo=${product.photoId}`
-                          : "/" + locale + "/marketplace?product=" + product.id,
-                      }}
-                    />
-                  </div>
-                </article>
-              ))}
-            </div>
-            {pagination(
-              page,
-              total,
-              setPage,
-              text("Фото и видео", "Photos and videos"),
-            )}
-          </div>
-        ) : null}
-        {showDigital ? (
-          <aside
-            className="marketplace-digital"
-            aria-label={text("Пресеты и LUT", "Presets and LUTs")}
-          >
-            {!loading && !error && !digitalTotal ? (
-              <p className="empty-state">
-                {text("Товары не найдены", "No products found")}
-              </p>
-            ) : null}
-            {digital("PRESET").length ? (
-              <DigitalProductSection
-                kind="preset"
-                catalog
-                locale={locale}
-                offers={digital("PRESET")}
-                apiRoot={root}
-                purchase={purchase}
-              />
-            ) : null}
-            {digital("LUT").length ? (
-              <DigitalProductSection
-                kind="lut"
-                catalog
-                locale={locale}
-                offers={digital("LUT")}
-                apiRoot={root}
-                purchase={purchase}
-              />
-            ) : null}
-            {pagination(
-              digitalPage,
-              digitalTotal,
-              setDigitalPage,
-              text("Пресеты и LUT", "Presets and LUTs"),
-            )}
-          </aside>
-        ) : null}
+      )}
+      {!loading && !error && !products.length && (
+        <p className="empty-state">
+          {text("Работы в продаже не найдены", "No works for sale found")}
+        </p>
+      )}
+      <div className="product-grid marketplace-sale-grid">
+        {products.map((product) =>
+          product.kind === "PRESET" || product.kind === "LUT" ? (
+            <article key={product.id} className="product-card">
+              <img src={product.imageUrl} alt={product.title} />
+              <div className="product-body">
+                <h2>{product.title}</h2>
+                <Link
+                  className="secondary-action compact"
+                  href={`/${locale}/profile?author=${encodeURIComponent(product.seller.username)}&product=${encodeURIComponent(product.id)}#presets`}
+                >
+                  {text("Открыть в профиле автора", "View in author's profile")}
+                </Link>
+              </div>
+            </article>
+          ) : (
+            <article
+              key={product.id}
+              className="product-card marketplace-sale-card"
+            >
+              <button
+                className="marketplace-media-preview"
+                type="button"
+                aria-label={`${t("photo.openPreview")}: ${product.title}`}
+                disabled={Boolean(opening)}
+                onClick={() => void open(product)}
+              >
+                <img
+                  src={product.imageUrl}
+                  alt={product.title}
+                  loading="lazy"
+                />
+                <Expand size={18} className="marketplace-preview-icon" />
+              </button>
+              <div className="product-body">
+                <span className="product-kind-label">
+                  {product.kind === "VIDEO"
+                    ? text("Видео", "Video")
+                    : text("Фото", "Photo")}
+                </span>
+                <h2>
+                  <button
+                    type="button"
+                    className="marketplace-work-title"
+                    onClick={() => void open(product)}
+                    disabled={Boolean(opening)}
+                  >
+                    {product.title}
+                  </button>
+                </h2>
+                <Link
+                  href={`/${locale}/profile?author=${encodeURIComponent(product.seller.username)}`}
+                >
+                  {product.seller.displayName}
+                </Link>
+                <div className="marketplace-sale-footer">
+                  <strong>
+                    {new Intl.NumberFormat(locale, {
+                      style: "currency",
+                      currency: product.currency ?? "USD",
+                    }).format(product.priceMinor / 100)}
+                  </strong>
+                  <button
+                    type="button"
+                    className="primary-action compact"
+                    disabled={Boolean(opening)}
+                    onClick={() => void open(product)}
+                  >
+                    <ShoppingBag size={17} />
+                    {t("marketplace.buy")}
+                  </button>
+                </div>
+              </div>
+            </article>
+          ),
+        )}
       </div>
+      {total > marketplacePageSize && (
+        <nav
+          className="community-pagination"
+          aria-label={text("Страницы каталога", "Catalog pages")}
+        >
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={text("Предыдущая страница", "Previous page")}
+            disabled={page === 1 || loading}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <span>
+            {page} / {Math.ceil(total / marketplacePageSize)}
+          </span>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={text("Следующая страница", "Next page")}
+            disabled={page * marketplacePageSize >= total || loading}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            <ChevronRight size={20} />
+          </button>
+        </nav>
+      )}
     </section>
   );
 }

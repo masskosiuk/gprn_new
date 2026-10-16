@@ -1,4 +1,5 @@
 import { loadRuntimeEnv } from "@gprn/config";
+import { PhotoCommerceService } from "./photo-commerce.service.js";
 import { prisma, type Prisma } from "@gprn/db";
 import {
   BadRequestException,
@@ -532,8 +533,21 @@ export class PlatformService {
       take: 60,
       where: {
         digitalKind: null,
-        photo: { deletedAt: null },
-        seller: { status: "ACTIVE", user: { status: "ACTIVE" } },
+        isDemo: false,
+        filesJson: { path: ["licenseTerms"], string_contains: "" },
+        photo: {
+          deletedAt: null,
+          status: "PUBLISHED",
+          moderationStatus: "APPROVED",
+          visibility: "PUBLIC",
+        },
+        seller: {
+          status: "ACTIVE",
+          user: {
+            status: "ACTIVE",
+            profile: { visibility: "PUBLIC", deletedAt: null },
+          },
+        },
         status: "PUBLISHED",
       },
     });
@@ -543,7 +557,12 @@ export class PlatformService {
           product.photo?.assets.find((item) => item.type === "DISPLAY") ??
           product.photo?.assets.find((item) => item.type === "THUMBNAIL");
         return {
-          ...serializeMoneyRecord(product),
+          id: product.id,
+          photoId: product.photoId,
+          title: product.title,
+          description: product.description,
+          priceMinor: Number(product.priceMinor),
+          currency: product.currency,
           category: product.category?.slug ?? null,
           previewUrl: asset
             ? publicAssetUrl(this.env, asset.storageKey)
@@ -615,69 +634,13 @@ export class PlatformService {
   }
 
   async createMarketplaceListing(user: CurrentUser, body: unknown) {
-    if (!user.profile || user.profile.tier === "VIEWER")
-      throw new ForbiddenException({
-        code: "PHOTOGRAPHER_ONLY",
-        message: "Only photographer accounts can list photographs.",
-      });
     const record = asRecord(body);
     const photoId = requiredString(record, "photoId");
-    const priceMinor = requiredPositiveMinor(record.priceMinor, "priceMinor");
-    const photo = await prisma.photo.findFirst({
-      include: { assets: true },
-      where: {
-        deletedAt: null,
-        id: photoId,
-        ownerId: user.id,
-        status: "PUBLISHED",
-      },
+    return new PhotoCommerceService().save(user, photoId, {
+      ...record,
+      enabled: true,
+      licenseTerms: record.licenseTerms ?? record.description,
     });
-    if (!photo)
-      throw new NotFoundException({
-        code: "PHOTO_NOT_FOUND",
-        message: "Choose one of your published photos.",
-      });
-    const preview =
-      photo.assets.find((asset) => asset.type === "DISPLAY") ??
-      photo.assets.find((asset) => asset.type === "THUMBNAIL");
-    const product = await prisma.$transaction(async (tx) => {
-      const seller = await tx.sellerProfile.upsert({
-        create: {
-          displayName: user.profile!.displayName,
-          status: "ACTIVE",
-          userId: user.id,
-        },
-        update: {
-          displayName: user.profile!.displayName,
-          status: "ACTIVE",
-        },
-        where: { userId: user.id },
-      });
-      return tx.marketplaceProduct.upsert({
-        create: {
-          categoryId: photo.categoryId,
-          currency: "USD",
-          description: optionalString(record, "description")?.slice(0, 2000),
-          filesJson: { license: "standard", photoId: photo.id },
-          photoId: photo.id,
-          previewAssetKey: preview?.storageKey,
-          priceMinor,
-          sellerId: seller.id,
-          slug: `${user.profile!.username}-${photo.id}`,
-          status: "PUBLISHED",
-          title: (optionalString(record, "title") ?? photo.title).slice(0, 140),
-        },
-        update: {
-          description: optionalString(record, "description")?.slice(0, 2000),
-          previewAssetKey: preview?.storageKey,
-          priceMinor,
-          status: "PUBLISHED",
-          title: (optionalString(record, "title") ?? photo.title).slice(0, 140),
-        },
-        where: { photoId: photo.id },
-      });
-    });
-    return { product: serializeMoneyRecord(product) };
   }
 
   async updateMarketplaceListing(
@@ -701,116 +664,20 @@ export class PlatformService {
         code: "PRODUCT_NOT_FOUND",
         message: "Marketplace product does not exist.",
       });
-    const saved = await prisma.marketplaceProduct.update({
-      data: { status: record.active ? "PUBLISHED" : "HIDDEN" },
-      where: { id: product.id },
+    if (!product.photoId)
+      throw new NotFoundException({ code: "PRODUCT_NOT_FOUND" });
+    return new PhotoCommerceService().save(user, product.photoId, {
+      ...record,
+      enabled: record.active,
     });
-    return { product: serializeMoneyRecord(saved) };
   }
 
-  async buyMarketplaceProduct(user: CurrentUser, productId: string) {
-    const product = await prisma.marketplaceProduct.findFirst({
-      include: { seller: true },
-      where: {
-        id: productId,
-        digitalKind: null,
-        photo: { deletedAt: null },
-        seller: { status: "ACTIVE" },
-        status: "PUBLISHED",
-      },
-    });
-    if (!product)
-      throw new NotFoundException({
-        code: "PRODUCT_NOT_FOUND",
-        message: "Marketplace product does not exist.",
-      });
-    if (product.seller.userId === user.id)
-      throw new ConflictException({
-        code: "SELF_PURCHASE",
-        message: "You cannot buy your own listing.",
-      });
-
-    const order = await prisma.$transaction(async (tx) => {
-      const buyer = await ensureWalletWithTx(tx, user.id);
-      if (buyer.balanceMinor < product.priceMinor)
-        throw new ConflictException({
-          code: "INSUFFICIENT_FUNDS",
-          message: "Wallet balance is too low.",
-        });
-      const seller = await ensureWalletWithTx(tx, product.seller.userId);
-      const saved = await tx.marketplaceOrder.create({
-        data: {
-          currency: product.currency,
-          customerId: user.id,
-          items: {
-            create: {
-              currency: product.currency,
-              priceMinor: product.priceMinor,
-              productId: product.id,
-            },
-          },
-          status: "COMPLETED",
-          subtotalMinor: product.priceMinor,
-        },
-      });
-      await Promise.all([
-        tx.wallet.update({
-          data: { balanceMinor: { decrement: product.priceMinor } },
-          where: { id: buyer.id },
-        }),
-        tx.wallet.update({
-          data: { balanceMinor: { increment: product.priceMinor } },
-          where: { id: seller.id },
-        }),
-        tx.walletTransaction.create({
-          data: {
-            amountMinor: -product.priceMinor,
-            currency: product.currency,
-            referenceId: saved.id,
-            referenceType: "marketplace_order",
-            type: "PURCHASE",
-            walletId: buyer.id,
-          },
-        }),
-        tx.walletTransaction.create({
-          data: {
-            amountMinor: product.priceMinor,
-            currency: product.currency,
-            referenceId: saved.id,
-            referenceType: "marketplace_order",
-            type: "SALE",
-            walletId: seller.id,
-          },
-        }),
-        tx.payment.create({
-          data: {
-            amountMinor: product.priceMinor,
-            currency: product.currency,
-            marketplaceOrderId: saved.id,
-            provider: "wallet",
-            providerPaymentId: saved.id,
-            status: "SUCCEEDED",
-          },
-        }),
-        tx.marketplaceProduct.update({
-          data: { salesCount: { increment: 1 } },
-          where: { id: product.id },
-        }),
-        tx.sellerProfile.update({
-          data: { salesCount: { increment: 1 } },
-          where: { id: product.sellerId },
-        }),
-        tx.notification.create({
-          data: {
-            payload: { orderId: saved.id, productId: product.id },
-            type: "marketplace_sale",
-            userId: product.seller.userId,
-          },
-        }),
-      ]);
-      return saved;
-    });
-    return { order: serializeMoneyRecord(order) };
+  async buyMarketplaceProduct(
+    user: CurrentUser,
+    productId: string,
+    quote?: unknown,
+  ) {
+    return new PhotoCommerceService().purchase(user, productId, quote);
   }
 
   async createPromotion(user: CurrentUser, body: unknown) {

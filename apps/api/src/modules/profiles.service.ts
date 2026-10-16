@@ -29,7 +29,10 @@ import {
 
 const visibilities = ["PUBLIC", "FOLLOWERS", "PRIVATE"] as const;
 
+import { photoSaleInclude, serializePhotoSale } from "./photo-sale.js";
+
 const profilePhotoInclude = {
+  ...photoSaleInclude,
   ...photoEngagementInclude,
   assets: true,
   category: true,
@@ -475,6 +478,7 @@ export class ProfilesService {
       },
       photos: profile.user.photos.map((photo) => {
         return {
+          sale: serializePhotoSale(photo),
           category: photo.category
             ? { nameKey: photo.category.nameKey, slug: photo.category.slug }
             : null,

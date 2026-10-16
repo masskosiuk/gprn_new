@@ -531,6 +531,7 @@ export function DigitalProductSection({
   purchase,
   apiRoot,
   catalog = false,
+  initialProductId,
 }: {
   kind: "preset" | "lut";
   offers?: readonly DigitalProductOffer[];
@@ -542,6 +543,7 @@ export function DigitalProductSection({
   purchase: (offer: DigitalProductOffer) => Promise<boolean>;
   apiRoot: string;
   catalog?: boolean;
+  initialProductId?: string;
 }) {
   const t = (key: MessageKey) => getMessage(locale, key);
   const [editor, setEditor] = useState<
@@ -552,6 +554,15 @@ export function DigitalProductSection({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [removing, setRemoving] = useState<DigitalProductOffer>();
+  const openedProduct = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!initialProductId || openedProduct.current === initialProductId) return;
+    const offer = offers.find((product) => product.id === initialProductId);
+    if (!offer) return;
+    openedProduct.current = initialProductId;
+    setSelected(offer);
+    setDownloads(Boolean(canManage || purchased || offer.owned));
+  }, [initialProductId, offers, canManage, purchased]);
   const isLut = kind === "lut";
   const Icon = isLut ? Video : Palette;
   const money = (value: number) =>

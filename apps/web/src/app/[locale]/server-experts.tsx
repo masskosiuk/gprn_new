@@ -57,8 +57,13 @@ function useLabels() {
   const { locale: language } = useCommunity();
   const locale = language as SupportedLocale;
   const t = (key: MessageKey) => getMessage(locale, key);
-  const label = (value: string) =>
-    getMessage(locale, value as MessageKey) || value;
+  const label = (value: string, fallback = value) => {
+    const key = value
+      .replace(/^category\.(.+)\.name$/, "category.$1")
+      .replace(/^city\.(.+)\.name$/, "map.location.$1");
+    const translated = getMessage(locale, key as MessageKey);
+    return translated && translated !== key ? translated : fallback;
+  };
   const text = (ru: string, en: string) =>
     locale === "ru" || locale === "uk" ? ru : en;
   const profile = (username: string) =>
@@ -369,7 +374,7 @@ export function ServerExperts() {
                       <div className="expert-genres">
                         {author.categories.slice(0, 2).map((category) => (
                           <span className="pill" key={category.slug}>
-                            {label(category.nameKey)}
+                            {label(category.nameKey, category.slug)}
                           </span>
                         ))}
                       </div>
@@ -390,11 +395,11 @@ export function ServerExperts() {
                       )}
                     </h2>
                     {author.headline && <p>{author.headline}</p>}
-                    <div className="meta-row">
+                    <div className="meta-row creator-card-meta">
                       {author.city && (
                         <span>
                           <MapPin size={14} />
-                          {label(author.city.nameKey)}
+                          {label(author.city.nameKey, author.city.label)}
                         </span>
                       )}
                       {author.rating !== null && (
@@ -416,24 +421,27 @@ export function ServerExperts() {
                           {author.reputation.toLocaleString(locale)}
                         </span>
                       )}
+                      <span className="creator-card-discussion">
+                        <DiscussionButton
+                          compact
+                          source={{
+                            type: "PROFILE",
+                            id: author.username,
+                            title: author.displayName,
+                            image:
+                              author.coverUrl ?? author.avatarUrl ?? undefined,
+                            path: profile(author.username),
+                          }}
+                        />
+                      </span>
                     </div>
-                    <div className="language-list">
-                      {author.languages.map((language) => (
-                        <span key={language}>{language.toUpperCase()}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="entity-card-actions">
-                    <DiscussionButton
-                      compact
-                      source={{
-                        type: "PROFILE",
-                        id: author.username,
-                        title: author.displayName,
-                        image: author.coverUrl ?? author.avatarUrl ?? undefined,
-                        path: profile(author.username),
-                      }}
-                    />
+                    {author.languages.length > 0 && (
+                      <div className="language-list">
+                        {author.languages.map((language) => (
+                          <span key={language}>{language.toUpperCase()}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </article>
               ))}

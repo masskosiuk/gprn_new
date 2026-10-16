@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
@@ -34,6 +35,7 @@ export class DigitalProductsController {
   }
 
   @Get()
+  @Header("Cache-Control", "no-store")
   catalog(@Query() query: Record<string, string | undefined>) {
     return this.products.catalog(query);
   }

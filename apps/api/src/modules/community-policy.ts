@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   HttpException,
 } from "@nestjs/common";
+import { communityFreeLaunch } from "@gprn/domain";
 import {
   asRecord,
   requiredString,
@@ -89,7 +90,9 @@ export function checkPublicationAccess(
   proUntil: Date | null | undefined,
   lastCreatedAt?: Date,
   now = new Date(),
+  freeLaunch = communityFreeLaunch,
 ) {
+  if (freeLaunch) return;
   const isPro = Boolean(proUntil && proUntil > now);
   if (kind === "EVENT" && !isPro)
     throw new ForbiddenException({ code: "PRO_REQUIRED" });
