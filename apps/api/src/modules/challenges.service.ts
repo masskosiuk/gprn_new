@@ -24,6 +24,10 @@ const challengeInclude = {
               status: "PUBLISHED" as const,
               visibility: "PUBLIC" as const,
               moderationStatus: "APPROVED" as const,
+              owner: {
+                status: "ACTIVE" as const,
+                profile: { deletedAt: null, visibility: "PUBLIC" as const },
+              },
             },
           },
         },
@@ -52,6 +56,10 @@ const challengeInclude = {
           status: "PUBLISHED" as const,
           moderationStatus: "APPROVED" as const,
           visibility: "PUBLIC" as const,
+          owner: {
+            status: "ACTIVE" as const,
+            profile: { deletedAt: null, visibility: "PUBLIC" as const },
+          },
         },
       },
     },

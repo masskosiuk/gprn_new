@@ -93,6 +93,10 @@ test("video serialization returns a still preview, public playback and never the
   });
   assert.equal(mediaAssetResponse(env, image).videoUrl, null);
   assert.equal(mediaAssetResponse(env, []).displayUrl, null);
+  const dimensions = mediaAssetResponse(env, [{ type: "DISPLAY", storageKey: "display.webp", contentType: "image/webp", width: 900, height: 1350 }]);
+  assert.equal(dimensions.width, 900);
+  assert.equal(dimensions.height, 1350);
+  assert.ok(!JSON.stringify(dimensions).includes("original"));
 });
 
 test("probe rejects missing streams, non-finite/long durations and excessive dimensions", () => {

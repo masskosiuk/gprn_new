@@ -68,6 +68,7 @@ function fixture(scores: Record<string, number> | null) {
       }),
       t: (key: string) => key,
       Heart: "heart-icon",
+      ContentImage: "img",
       Star: "star-icon",
       Video: "video-icon",
       ShoppingBag: "shopping-bag",
@@ -95,6 +96,7 @@ function find(node: Element, className: string): Element | undefined {
       if (result) return result;
     }
   }
+  return undefined;
 }
 
 test("tiles show only likes, comments and the overall star without detailed criteria", () => {

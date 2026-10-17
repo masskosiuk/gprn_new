@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { SeoController } from "./seo.controller.js";
 import { CommunityController } from "./community.controller.js";
 import { CommunityService } from "./community.service.js";
 import { InteractionsService } from "./interactions.service.js";
@@ -46,6 +47,7 @@ import { SocialConnectionsService } from "./social-connections.service.js";
 
 @Module({
   controllers: [
+    SeoController,
     PhotoCommerceController,
     InteractionsController,
     CommunityController,

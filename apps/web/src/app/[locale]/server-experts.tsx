@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   BadgeCheck,
@@ -33,7 +33,7 @@ type Creator = {
   city: { id: string; nameKey: string; label: string } | null;
   country: Named | null;
 };
-type Directory = {
+export type Directory = {
   entries: Creator[];
   total: number;
   page: number;
@@ -42,7 +42,7 @@ type Directory = {
   categories: Named[];
   cities: { id: string; nameKey: string; country: { slug: string } }[];
 };
-type Leader = {
+export type Leader = {
   username: string;
   displayName: string;
   rating: number;
@@ -86,14 +86,21 @@ export function ServerLeaderboard({
 }: {
   embedded?: boolean;
 }) {
-  const { request } = useCommunity();
+  const { request, initialPublicData } = useCommunity();
   const { locale, t, label, text, profile } = useLabels();
-  const [rows, setRows] = useState<Leader[]>([]);
-  const [state, setState] = useState("loading");
+  const [rows, setRows] = useState<Leader[]>(
+    initialPublicData?.leaders?.entries.slice(0, 10) ?? [],
+  );
+  const [state, setState] = useState(
+    initialPublicData?.leaders ? "ready" : "loading",
+  );
+  const firstRefresh = useRef(true);
   const [version, setVersion] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    setState("loading");
+    if (!firstRefresh.current || !initialPublicData?.leaders)
+      setState("loading");
+    firstRefresh.current = false;
     request<{ entries: Leader[] }>("/leaderboards/global", {
       signal: controller.signal,
     })
@@ -195,7 +202,7 @@ export function ServerLeaderboard({
 }
 
 export function ServerExperts() {
-  const { request } = useCommunity();
+  const { request, initialPublicData } = useCommunity();
   const { locale, t, label, text, profile } = useLabels();
   const [filters, setFilters] = useState({
     search: "",
@@ -205,8 +212,13 @@ export function ServerExperts() {
     minRating: "",
   });
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<Directory | null>(null);
-  const [state, setState] = useState("loading");
+  const [data, setData] = useState<Directory | null>(
+    initialPublicData?.directory ?? null,
+  );
+  const [state, setState] = useState(
+    initialPublicData?.directory ? "ready" : "loading",
+  );
+  const firstRefresh = useRef(true);
   const [version, setVersion] = useState(0);
   const change = (key: keyof typeof filters, value: string) => {
     setFilters((current) => ({
@@ -218,7 +230,9 @@ export function ServerExperts() {
   };
   useEffect(() => {
     const controller = new AbortController();
-    setState("loading");
+    if (!firstRefresh.current || !initialPublicData?.directory)
+      setState("loading");
+    firstRefresh.current = false;
     const timer = window.setTimeout(() => {
       const query = new URLSearchParams({ ...filters, page: String(page) });
       request<Directory>("/profiles?" + query, { signal: controller.signal })

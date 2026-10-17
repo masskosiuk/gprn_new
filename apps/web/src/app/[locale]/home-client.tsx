@@ -125,6 +125,7 @@ import {
   type LocationOption,
 } from "./profile-location-picker";
 import { isVideoWork, mergeMediaWorks } from "../../lib/media-kind";
+import type { PublicPageData } from "../../lib/public-page-data";
 import { matchesFeedFilters } from "../../lib/feed-filter";
 import {
   canonicalProfileUsername,
@@ -132,6 +133,7 @@ import {
 } from "../../lib/profile-source";
 import { PhotoTitleEditor } from "./photo-title-editor";
 import { ImageLightbox } from "./image-lightbox";
+import { ContentImage } from "./content-image";
 import { AutoHideHeader } from "./auto-hide-header";
 import { battleQueue } from "../../lib/battle-queue";
 import {
@@ -229,6 +231,7 @@ type SocialPlatformId =
   "instagram" | "facebook" | "artstation" | "adobe" | "behance";
 
 interface HomeClientProps {
+  readonly initialPublicData?: PublicPageData;
   readonly initialAuthorId?: string;
   readonly initialBattleId?: string;
   readonly initialChallengeId?: string;
@@ -342,12 +345,16 @@ interface ServerSessionUser {
   readonly status: AdminAccountStatus;
 }
 
-interface ServerPhotoPayload {
+export interface ServerPhotoPayload {
+  readonly width?: number | null;
+  readonly height?: number | null;
   readonly sale?: PhotoSale | null;
   readonly ownerId?: string;
   readonly mediaType?: "PHOTO" | "VIDEO";
   readonly videoUrl?: string | null;
   readonly assets?: {
+    readonly width?: number | null;
+    readonly height?: number | null;
     readonly mediaType?: "PHOTO" | "VIDEO";
     readonly displayUrl: string | null;
     readonly thumbnailUrl?: string | null;
@@ -397,7 +404,8 @@ interface ServerPhotoPayload {
   readonly visibility?: string;
 }
 
-interface ServerProfilePayload {
+export interface ServerProfilePayload {
+  readonly isDemo?: boolean;
   readonly publicPhotoCount?: number;
   readonly digitalProducts?: readonly DigitalProductOffer[];
   readonly digitalPurchases?: readonly DigitalProductOffer[];
@@ -452,11 +460,11 @@ interface ServerProfilePayload {
   readonly websiteUrl: string | null;
 }
 
-interface DiscoverResponse {
+export interface DiscoverResponse {
   readonly photos: readonly ServerPhotoPayload[];
 }
 
-interface ServerBattlePayload {
+export interface ServerBattlePayload {
   readonly category: {
     readonly nameKey: string;
     readonly slug: string;
@@ -498,7 +506,7 @@ interface ServerBattlePayload {
   readonly viewerParticipates: boolean;
 }
 
-interface ServerChallengePayload {
+export interface ServerChallengePayload {
   readonly acceptingEntries?: boolean;
   readonly mediaType?: "PHOTO" | "VIDEO";
   readonly category: {
@@ -730,6 +738,8 @@ interface ProfileForm {
 }
 
 interface PhotoRecord {
+  readonly width?: number;
+  readonly height?: number;
   sale?: PhotoSale | null;
   readonly commentCount?: number;
   readonly mediaType?: "PHOTO" | "VIDEO";
@@ -2509,6 +2519,7 @@ const models: readonly ModelRecord[] = [
 ];
 
 export function HomeClient({
+  initialPublicData = {},
   initialAuthorId,
   initialBattleId,
   initialChallengeId,
@@ -2618,14 +2629,40 @@ export function HomeClient({
   >(defaultSocialProviders);
   const [socialSessionReady, setSocialSessionReady] = useState(false);
   const [uploadedPhotos, setUploadedPhotos] = useState<PhotoRecord[]>([]);
-  const [serverPhotos, setServerPhotos] = useState<PhotoRecord[]>([]);
-  const [hasServerFeed, setHasServerFeed] = useState(false);
+  const [serverPhotos, setServerPhotos] = useState<PhotoRecord[]>(() =>
+    (initialPublicData.discover?.photos ?? [])
+      .map((photo) => mapServerPhoto(photo))
+      .filter((photo): photo is PhotoRecord => Boolean(photo)),
+  );
+  const [hasServerFeed, setHasServerFeed] = useState(
+    Boolean(initialPublicData.discover),
+  );
+  const firstFeedRefresh = useRef(true);
+  const firstBattleRefresh = useRef(true);
   const [serverPublicProfile, setServerPublicProfile] =
-    useState<PublicAuthorProfile | null>(null);
-  const [serverPublicProfileLoaded, setServerPublicProfileLoaded] =
-    useState(false);
+    useState<PublicAuthorProfile | null>(() =>
+      initialPublicData.profile
+        ? mapServerPublicProfile(initialPublicData.profile, locale)
+        : null,
+    );
+  const [serverPublicProfileLoaded, setServerPublicProfileLoaded] = useState(
+    Boolean(initialPublicData.profile),
+  );
   const [serverPublicPhotos, setServerPublicPhotos] = useState<PhotoRecord[]>(
-    [],
+    () =>
+      initialPublicData.profile
+        ? initialPublicData.profile.photos
+            .map((photo) =>
+              mapServerPhoto(photo, undefined, {
+                displayName: initialPublicData.profile!.displayName,
+                username: initialPublicData.profile!.username,
+                tier: initialPublicData.profile!.tier,
+              }),
+            )
+            .filter((photo): photo is PhotoRecord =>
+              Boolean(photo && !photo.profileAsset),
+            )
+        : [],
   );
   const [serverPublicProfileError, setServerPublicProfileError] =
     useState(false);
@@ -2637,7 +2674,7 @@ export function HomeClient({
   const [photoDeleteBusy, setPhotoDeleteBusy] = useState(false);
   const [feedKind, setFeedKind] = useState<"ALL" | "PHOTO" | "VIDEO">("ALL");
   const [feedStatus, setFeedStatus] = useState<"loading" | "ready" | "error">(
-    "loading",
+    initialPublicData.discover ? "ready" : "loading",
   );
   const feedGenres = useRef({
     ALL: "all" as CategoryFilter,
@@ -2662,17 +2699,27 @@ export function HomeClient({
   const [videoDateFrom, setVideoDateFrom] = useState("");
   const [videoDateTo, setVideoDateTo] = useState("");
   const [battleFilter, setBattleFilter] = useState<BattleFilter>("all");
-  const [battles, setBattles] = useState<BattleRecord[]>(() => [
-    ...initialBattles,
-  ]);
-  const [challenges, setChallenges] = useState<ChallengeRecord[]>(() => [
-    ...demoChallenges,
-  ]);
-  const [hasLoadedBattles, setHasLoadedBattles] = useState(false);
+  const [battles, setBattles] = useState<BattleRecord[]>(() =>
+    initialPublicData.battles
+      ? initialPublicData.battles.battles
+          .map((battle) => mapServerBattle(battle))
+          .filter((battle): battle is BattleRecord => Boolean(battle))
+      : [...initialBattles],
+  );
+  const [challenges, setChallenges] = useState<ChallengeRecord[]>(() =>
+    initialPublicData.challenges
+      ? initialPublicData.challenges.challenges.map(mapServerChallenge)
+      : [...demoChallenges],
+  );
+  const [hasLoadedBattles, setHasLoadedBattles] = useState(
+    Boolean(initialPublicData.battles),
+  );
   const [battleFeedStatus, setBattleFeedStatus] = useState<
     "loading" | "ready" | "error"
-  >("loading");
-  const [battleNextCursor, setBattleNextCursor] = useState<string | null>(null);
+  >(initialPublicData.battles ? "ready" : "loading");
+  const [battleNextCursor, setBattleNextCursor] = useState<string | null>(
+    initialPublicData.battles?.nextCursor ?? null,
+  );
   const [skippedBattleIds, setSkippedBattleIds] = useState<string[]>([]);
   const [selectedBattleId, setSelectedBattleId] = useState<string | null>(null);
   const [votingBattleId, setVotingBattleId] = useState<string | null>(null);
@@ -2680,7 +2727,9 @@ export function HomeClient({
   const battlePageRequestId = useRef(0);
   const battleQueueAccountId = useRef<string | null>(null);
   const [battleHeaderHeight, setBattleHeaderHeight] = useState(110);
-  const [hasLoadedChallenges, setHasLoadedChallenges] = useState(false);
+  const [hasLoadedChallenges, setHasLoadedChallenges] = useState(
+    Boolean(initialPublicData.challenges),
+  );
   const [highlightedCompetitionId, setHighlightedCompetitionId] = useState<
     string | null
   >(null);
@@ -2693,9 +2742,11 @@ export function HomeClient({
   >({});
   const [seasonJoined, setSeasonJoined] = useState(false);
   const [seasonCoverUrl, setSeasonCoverUrl] = useState(
-    "/images/challenges/city-night.png",
+    initialPublicData.season?.coverUrl ?? "/images/challenges/city-night.png",
   );
-  const [seasonName, setSeasonName] = useState<string | null>(null);
+  const [seasonName, setSeasonName] = useState<string | null>(
+    initialPublicData.season?.name ?? null,
+  );
   const [savedPhotoIds, setSavedPhotoIds] = useState<string[]>([]);
   const [likedPhotoIds, setLikedPhotoIds] = useState<string[]>([]);
   const [likedVideoIds, setLikedVideoIds] = useState<string[]>([]);
@@ -3502,9 +3553,12 @@ export function HomeClient({
   }, [isHydrated]);
 
   useEffect(() => {
-    setServerPublicProfile(null);
-    setServerPublicPhotos([]);
-    setServerPublicProfileLoaded(false);
+    if (!isHydrated) return;
+    if (serverPublicProfile?.username !== publicProfileUsername) {
+      setServerPublicProfile(null);
+      setServerPublicPhotos([]);
+      setServerPublicProfileLoaded(false);
+    }
     setServerPublicProfileError(false);
     if (!isHydrated || initialSection !== "profile" || !publicProfileUsername) {
       return;
@@ -3768,6 +3822,7 @@ export function HomeClient({
     src: string,
     alt: string,
     photoId?: string,
+    priority = false,
   ): ReactNode {
     const openPreview = (): void => {
       setPhotoReviewOpen(false);
@@ -3788,8 +3843,10 @@ export function HomeClient({
     };
 
     return (
-      <img
+      <ContentImage
         alt={alt}
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : undefined}
         className="previewable-image"
         onClick={(event) => {
           event.preventDefault();
@@ -3840,7 +3897,7 @@ export function HomeClient({
         href={href}
         title={t("profile.openAuthorProfile")}
       >
-        <img alt={alt} src={src} />
+        <ContentImage alt={alt} src={src} />
       </Link>
     );
   }
@@ -4323,7 +4380,9 @@ export function HomeClient({
   }
 
   async function refreshDiscoverPhotos(): Promise<void> {
-    setFeedStatus("loading");
+    if (!firstFeedRefresh.current || !initialPublicData.discover)
+      setFeedStatus("loading");
+    firstFeedRefresh.current = false;
     try {
       const response = await apiRequest<DiscoverResponse>("/discover");
       setHasServerFeed(true);
@@ -4343,7 +4402,9 @@ export function HomeClient({
     cursor?: string,
   ): Promise<void> {
     const requestId = ++battlePageRequestId.current;
-    setBattleFeedStatus("loading");
+    if (!firstBattleRefresh.current || !initialPublicData.battles)
+      setBattleFeedStatus("loading");
+    firstBattleRefresh.current = false;
     try {
       const response = await apiRequest<{
         battles: readonly ServerBattlePayload[];
@@ -6250,6 +6311,7 @@ export function HomeClient({
       login={() => openAuth("login")}
       request={apiRequest}
       root={getApiRoot()}
+      initialPublicData={initialPublicData}
     >
       <main className="shell">
         <AutoHideHeader
@@ -6328,7 +6390,7 @@ export function HomeClient({
                 }}
                 type="button"
               >
-                <img
+                <ContentImage
                   alt=""
                   aria-hidden="true"
                   className="language-flag"
@@ -6361,7 +6423,7 @@ export function HomeClient({
                       role="menuitemradio"
                       type="button"
                     >
-                      <img
+                      <ContentImage
                         alt=""
                         aria-hidden="true"
                         className="language-flag"
@@ -6479,7 +6541,7 @@ export function HomeClient({
                   href={getSectionHref(locale, "profile")}
                 >
                   {currentProfile.avatarUrl ? (
-                    <img
+                    <ContentImage
                       alt={t("profile.avatarAlt")}
                       src={currentProfile.avatarUrl}
                     />
@@ -6526,6 +6588,7 @@ export function HomeClient({
 
         <input
           accept="image/*,video/mp4,video/webm"
+          aria-label={t("photo.add")}
           className="visually-hidden"
           onChange={(event) => {
             void handlePhotoChange(event);
@@ -6627,6 +6690,8 @@ export function HomeClient({
                   selectedUploadedPhoto ?? curatedPhotos[0],
                   locale,
                 ),
+                undefined,
+                true,
               )}
               <div className="hero-photo-labels">
                 <div className="hero-photo-label">
@@ -6761,9 +6826,8 @@ export function HomeClient({
                 className="challenge-card home-competition-card"
                 key={challenge.id}
               >
-                <img
-                  alt=""
-                  aria-hidden="true"
+                <ContentImage
+                  alt={challenge.title ?? t(challenge.titleKey)}
                   className="challenge-cover"
                   src={challenge.coverUrl}
                 />
@@ -6812,9 +6876,8 @@ export function HomeClient({
                             title={`${submission.title} - ${submission.authorName}`}
                             type="button"
                           >
-                            <img
-                              alt=""
-                              aria-hidden="true"
+                            <ContentImage
+                              alt={`${submission.title} — ${submission.authorName}`}
                               src={submission.imageUrl}
                             />
                           </button>
@@ -6849,7 +6912,7 @@ export function HomeClient({
                 >
                   <div className="home-battle-images">
                     {battle.entries.map((entry) => (
-                      <img
+                      <ContentImage
                         alt={
                           entry.title ??
                           (entry.titleKey
@@ -8058,8 +8121,10 @@ export function HomeClient({
                 onClick={() => openPhotoPreview(photo)}
                 type="button"
               >
-                <img
+                <ContentImage
                   alt={title}
+                  width={photo.width}
+                  height={photo.height}
                   decoding="async"
                   loading="lazy"
                   src={photo.src}
@@ -8168,7 +8233,7 @@ export function HomeClient({
               <Trophy aria-hidden="true" size={19} />
             </summary>
             <div className="battle-season-popover">
-              <img
+              <ContentImage
                 alt=""
                 className="battle-season-cover"
                 src={seasonCoverUrl}
@@ -8559,7 +8624,11 @@ export function HomeClient({
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <img alt={title} loading="lazy" src={entry.imageUrl} />
+                  <ContentImage
+                    alt={title}
+                    loading="lazy"
+                    src={entry.imageUrl}
+                  />
                 </Link>
               )}
               <strong>{title}</strong>
@@ -8587,7 +8656,7 @@ export function HomeClient({
     return (
       <section className="page-section">
         <div className="notice-panel season-panel">
-          <img
+          <ContentImage
             alt=""
             aria-hidden="true"
             className="season-cover"
@@ -8629,7 +8698,7 @@ export function HomeClient({
                 key={challenge.id}
                 tabIndex={-1}
               >
-                <img
+                <ContentImage
                   alt=""
                   aria-hidden="true"
                   className="challenge-cover"
@@ -8976,7 +9045,7 @@ export function HomeClient({
                 className="model-avatar-link"
                 href={`${getSectionHref(locale, "models")}?model=${model.id}`}
               >
-                <img alt={t(model.nameKey)} src={model.avatarUrl} />
+                <ContentImage alt={t(model.nameKey)} src={model.avatarUrl} />
               </Link>
               <div className="model-card-body">
                 <div className="model-card-heading">
@@ -9063,12 +9132,12 @@ export function HomeClient({
     return (
       <section className="entity-profile-page">
         <div className="entity-profile-cover">
-          <img alt="" aria-hidden="true" src={model.coverUrl} />
+          <ContentImage alt="" aria-hidden="true" src={model.coverUrl} />
         </div>
         <div className="entity-profile-layout">
           <section className="entity-profile-main">
             <div className="entity-profile-head">
-              <img
+              <ContentImage
                 alt={t(model.nameKey)}
                 className="entity-profile-avatar"
                 src={model.avatarUrl}
@@ -9390,7 +9459,10 @@ export function HomeClient({
                         className="studio-avatar-link"
                         href={`${getSectionHref(locale, "studios")}?studio=${studio.id}`}
                       >
-                        <img alt={t(studio.nameKey)} src={studio.avatarUrl} />
+                        <ContentImage
+                          alt={t(studio.nameKey)}
+                          src={studio.avatarUrl}
+                        />
                       </Link>
                       <div>
                         <h2>
@@ -9539,12 +9611,12 @@ export function HomeClient({
     return (
       <section className="entity-profile-page">
         <div className="entity-profile-cover">
-          <img alt="" aria-hidden="true" src={studio.imageUrl} />
+          <ContentImage alt="" aria-hidden="true" src={studio.imageUrl} />
         </div>
         <div className="entity-profile-layout">
           <section className="entity-profile-main">
             <div className="entity-profile-head">
-              <img
+              <ContentImage
                 alt={t(studio.nameKey)}
                 className="entity-profile-avatar is-studio"
                 src={studio.avatarUrl}
@@ -9635,7 +9707,7 @@ export function HomeClient({
                   href={`${getSectionHref(locale, "profile")}?author=${author.id}`}
                   key={author.id}
                 >
-                  <img alt="" src={author.avatarUrl} />
+                  <ContentImage alt="" src={author.avatarUrl} />
                   <span>
                     <strong>{getPublicAuthorName(author, locale)}</strong>
                     <small>{t("profile.role")}</small>
@@ -9647,7 +9719,7 @@ export function HomeClient({
                   href={`${getSectionHref(locale, "models")}?model=${model.id}`}
                   key={model.id}
                 >
-                  <img alt="" src={model.avatarUrl} />
+                  <ContentImage alt="" src={model.avatarUrl} />
                   <span>
                     <strong>{t(model.nameKey)}</strong>
                     <small>{t("models.profile")}</small>
@@ -9800,7 +9872,7 @@ export function HomeClient({
                 <div className={`profile-avatar-frame is-tier-${author.tier}`}>
                   <div className="profile-avatar">
                     {author.avatarUrl ? (
-                      <img
+                      <ContentImage
                         alt={getPublicAuthorName(author, locale)}
                         src={author.avatarUrl}
                       />
@@ -10034,7 +10106,7 @@ export function HomeClient({
                 <div className={`profile-avatar-frame is-tier-${currentTier}`}>
                   <div className="profile-avatar">
                     {currentProfile.avatarUrl ? (
-                      <img
+                      <ContentImage
                         alt={t("profile.avatarAlt")}
                         src={currentProfile.avatarUrl}
                       />
@@ -10683,7 +10755,7 @@ export function HomeClient({
                           className={`social-connection-avatar is-${platform.id}`}
                         >
                           {socialLink?.avatarUrl ? (
-                            <img alt="" src={socialLink.avatarUrl} />
+                            <ContentImage alt="" src={socialLink.avatarUrl} />
                           ) : (
                             platform.mark
                           )}
@@ -10854,7 +10926,10 @@ export function HomeClient({
                   type="button"
                 >
                   {submission.displayUrl ? (
-                    <img alt={submission.title} src={submission.displayUrl} />
+                    <ContentImage
+                      alt={submission.title}
+                      src={submission.displayUrl}
+                    />
                   ) : (
                     <Images aria-hidden="true" size={30} />
                   )}
@@ -11122,7 +11197,10 @@ export function HomeClient({
                       type="button"
                     >
                       {photo.displayUrl ? (
-                        <img alt={photo.title} src={photo.displayUrl} />
+                        <ContentImage
+                          alt={photo.title}
+                          src={photo.displayUrl}
+                        />
                       ) : (
                         <Images aria-hidden="true" size={30} />
                       )}
@@ -11275,7 +11353,11 @@ export function HomeClient({
                   <article className="admin-cover-card" key={cover.id}>
                     <div className="admin-cover-preview">
                       {draft.coverUrl ? (
-                        <img alt="" aria-hidden="true" src={draft.coverUrl} />
+                        <ContentImage
+                          alt=""
+                          aria-hidden="true"
+                          src={draft.coverUrl}
+                        />
                       ) : (
                         <Images aria-hidden="true" size={28} />
                       )}
@@ -11426,7 +11508,10 @@ export function HomeClient({
                       {battle.entries.map((entry) => (
                         <div key={entry.id}>
                           {entry.displayUrl ? (
-                            <img alt={entry.title} src={entry.displayUrl} />
+                            <ContentImage
+                              alt={entry.title}
+                              src={entry.displayUrl}
+                            />
                           ) : (
                             <Images aria-hidden="true" size={22} />
                           )}
@@ -11921,7 +12006,7 @@ export function HomeClient({
                 src={imagePreview.videoSrc}
               />
             ) : (
-              <img alt={imagePreview.alt} src={imagePreview.src} />
+              <ContentImage alt={imagePreview.alt} src={imagePreview.src} />
             )}
           </div>
           <figcaption
@@ -12327,7 +12412,7 @@ export function HomeClient({
           </div>
 
           <div className="commerce-photo-summary delete-photo-summary">
-            <img
+            <ContentImage
               alt={getPhotoTitle(photoPendingDeletion, locale)}
               src={photoPendingDeletion.src}
             />
@@ -12414,7 +12499,10 @@ export function HomeClient({
             <div className="work-picker-grid">
               {works.map((photo) => (
                 <article className="work-picker-item" key={photo.id}>
-                  <img alt={getPhotoTitle(photo, locale)} src={photo.src} />
+                  <ContentImage
+                    alt={getPhotoTitle(photo, locale)}
+                    src={photo.src}
+                  />
                   <div>
                     <strong>{getPhotoTitle(photo, locale)}</strong>
                     <span>
@@ -12935,6 +13023,8 @@ function mapServerPhoto(
 
   return {
     sale: photo.sale,
+    width: photo.width ?? photo.assets?.width ?? undefined,
+    height: photo.height ?? photo.assets?.height ?? undefined,
     authorId: photo.owner?.id ?? ownerOverride?.id ?? photo.ownerId,
     authorName: ownerName,
     authorTier: ownerTier,

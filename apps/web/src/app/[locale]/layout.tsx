@@ -5,6 +5,7 @@ import {
   type SupportedLocale,
 } from "@gprn/i18n";
 import type { Metadata } from "next";
+import { siteUrl } from "../../lib/seo";
 
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
@@ -19,6 +20,9 @@ interface LocaleLayoutProps {
   }>;
 }
 
+// A per-request CSP nonce cannot be baked into shared static HTML.
+export const dynamic = "force-dynamic";
+
 export function generateStaticParams(): Array<{ locale: SupportedLocale }> {
   return supportedLocales.map((locale) => ({ locale }));
 }
@@ -30,21 +34,10 @@ export async function generateMetadata({
   const locale = isSupportedLocale(requestedLocale) ? requestedLocale : "en";
   const title = getMessage(locale, "app.name");
   const description = getMessage(locale, "app.tagline");
-  const languages = Object.fromEntries(
-    supportedLocales.map((supportedLocale) => [
-      supportedLocale,
-      `/${supportedLocale}`,
-    ]),
-  );
-
   return {
-    alternates: {
-      canonical: `/${locale}`,
-      languages,
-    },
     description,
     icons: {
-      apple: "/icon.svg",
+      apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
       icon: [
         {
           type: "image/svg+xml",
@@ -53,9 +46,7 @@ export async function generateMetadata({
       ],
       shortcut: "/icon.svg",
     },
-    metadataBase: new URL(
-      process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-    ),
+    metadataBase: new URL(siteUrl()),
     openGraph: {
       description,
       locale,

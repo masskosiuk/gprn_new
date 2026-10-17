@@ -1,13 +1,21 @@
 import type { MetadataRoute } from "next";
+import { supportedLocales } from "@gprn/i18n";
+import { siteUrl } from "../lib/seo";
 
 export default function robots(): MetadataRoute.Robots {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const origin = siteUrl();
 
   return {
     rules: {
       allow: "/",
-      userAgent: "*"
+      disallow: "/api/",
+      userAgent: "*",
     },
-    sitemap: `${siteUrl}/sitemap.xml`
+    sitemap: [
+      `${origin}/sitemap.xml`,
+      ...supportedLocales.map(
+        (locale) => `${origin}/entity-sitemaps/sitemap/${locale}.xml`,
+      ),
+    ],
   };
 }

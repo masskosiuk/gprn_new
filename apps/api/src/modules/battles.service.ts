@@ -129,6 +129,28 @@ export class BattlesService {
       include: battleInclude,
       where: {
         status: { in: ["DRAFT", "OPEN"] },
+        ...(!viewerId
+          ? {
+              entries: {
+                every: {
+                  moderationStatus: "APPROVED" as const,
+                  photo: {
+                    deletedAt: null,
+                    status: "PUBLISHED" as const,
+                    moderationStatus: "APPROVED" as const,
+                    visibility: "PUBLIC" as const,
+                    owner: {
+                      status: "ACTIVE" as const,
+                      profile: {
+                        deletedAt: null,
+                        visibility: "PUBLIC" as const,
+                      },
+                    },
+                  },
+                },
+              },
+            }
+          : {}),
       },
     });
     const { items: battles, nextCursor } = battlePage(rows);

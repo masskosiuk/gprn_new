@@ -5,6 +5,7 @@ import {
   type SupportedLocale,
 } from "@gprn/i18n";
 import { NextResponse, type NextRequest } from "next/server";
+import { contentSecurityPolicy } from "../security-headers.mjs";
 
 const localeCookieName = "gprn_locale";
 
@@ -12,7 +13,17 @@ export function middleware(request: NextRequest): NextResponse {
   const [, locale] = request.nextUrl.pathname.split("/");
 
   if (locale && isSupportedLocale(locale)) {
-    return NextResponse.next();
+    const nonce = btoa(crypto.randomUUID());
+    const csp = contentSecurityPolicy({
+      nonce,
+      development: process.env.NODE_ENV === "development",
+    });
+    const headers = new Headers(request.headers);
+    headers.set("x-nonce", nonce);
+    headers.set("Content-Security-Policy", csp);
+    const response = NextResponse.next({ request: { headers } });
+    response.headers.set("Content-Security-Policy", csp);
+    return response;
   }
 
   const url = request.nextUrl.clone();
@@ -57,6 +68,6 @@ function detectLocale(request: NextRequest): SupportedLocale {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|images|favicon.ico|icon.svg|robots.txt|sitemap.xml).*)",
+    "/((?!api|_next/static|_next/image|images|favicon.ico|icon.svg|apple-icon.png|opengraph-image|entity-sitemaps|robots.txt|sitemap.xml).*)",
   ],
 };

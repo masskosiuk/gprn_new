@@ -7,7 +7,13 @@ export interface AssetLike {
 
 export function mediaAssetResponse(
   env: RuntimeEnv,
-  assets: readonly { storageKey: string; type: string; contentType?: string }[],
+  assets: readonly {
+    storageKey: string;
+    type: string;
+    contentType?: string;
+    width?: number | null;
+    height?: number | null;
+  }[],
 ) {
   const display =
     assets.find((asset) => asset.type === "DISPLAY") ??
@@ -24,6 +30,12 @@ export function mediaAssetResponse(
     ? (thumbnail ?? (playback ? undefined : display))
     : display;
   return {
+    ...(preview?.width &&
+    preview?.height &&
+    preview.width > 0 &&
+    preview.height > 0
+      ? { width: preview.width, height: preview.height }
+      : {}),
     mediaType,
     displayUrl: preview ? publicAssetUrl(env, preview.storageKey) : null,
     thumbnailUrl: thumbnail

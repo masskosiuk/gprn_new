@@ -9,6 +9,7 @@ import {
 
 import type { CurrentUser } from "./auth.service.js";
 import { listPublicCreators } from "./profile-directory.js";
+import { demoSeoUserIds } from "./seo-index.js";
 import {
   formatStoredCityLabel,
   LocationsService,
@@ -547,6 +548,7 @@ export class ProfilesService {
         ? { socialLinks: profile.socialLinks ?? {} }
         : {}),
       username: profile.username,
+      isDemo: demoSeoUserIds.includes(profile.userId),
       visibility: profile.visibility,
       websiteUrl: profile.websiteUrl,
     };

@@ -1,6 +1,13 @@
-import { getMessage, isSupportedLocale, supportedLocales, type MessageKey, type SupportedLocale } from "@gprn/i18n";
+import {
+  getMessage,
+  isSupportedLocale,
+  supportedLocales,
+  type MessageKey,
+  type SupportedLocale,
+} from "@gprn/i18n";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { pageMetadata } from "../../../../lib/seo";
 
 const policyKeys = {
   community: "legal.community",
@@ -8,7 +15,7 @@ const policyKeys = {
   copyright: "legal.copyright",
   dispute: "legal.dispute",
   privacy: "legal.privacy",
-  terms: "legal.terms"
+  terms: "legal.terms",
 } as const;
 
 interface LegalPageProps {
@@ -18,26 +25,35 @@ interface LegalPageProps {
   }>;
 }
 
-export function generateStaticParams(): Array<{ locale: SupportedLocale; policy: keyof typeof policyKeys }> {
+export function generateStaticParams(): Array<{
+  locale: SupportedLocale;
+  policy: keyof typeof policyKeys;
+}> {
   return supportedLocales.flatMap((locale) =>
     Object.keys(policyKeys).map((policy) => ({
       locale,
-      policy: policy as keyof typeof policyKeys
-    }))
+      policy: policy as keyof typeof policyKeys,
+    })),
   );
 }
 
-export async function generateMetadata({ params }: LegalPageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: LegalPageProps): Promise<Metadata> {
   const { locale: requestedLocale, policy } = await params;
   const locale = isSupportedLocale(requestedLocale) ? requestedLocale : "en";
   const key = policyKeys[policy as keyof typeof policyKeys];
 
-  return {
-    title: key ? getMessage(locale, `${key}.title` as MessageKey) : getMessage(locale, "app.name")
-  };
+  if (!key) return { robots: { index: false, follow: false } };
+  return pageMetadata(locale, `legal/${policy}`, {
+    title: getMessage(locale, `${key}.title` as MessageKey),
+    description: getMessage(locale, `${key}.body` as MessageKey),
+  });
 }
 
-export default async function LegalPage({ params }: LegalPageProps): Promise<React.ReactNode> {
+export default async function LegalPage({
+  params,
+}: LegalPageProps): Promise<React.ReactNode> {
   const { locale: requestedLocale, policy } = await params;
   const locale = isSupportedLocale(requestedLocale) ? requestedLocale : "en";
   const key = policyKeys[policy as keyof typeof policyKeys];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ChevronLeft,
@@ -13,7 +13,7 @@ import { getMessage, type MessageKey, type SupportedLocale } from "@gprn/i18n";
 import { useCommunity } from "./community";
 import { marketplacePageSize } from "../../lib/marketplace-catalog";
 
-type Product = {
+export type Product = {
   id: string;
   photoId: string;
   kind: "PHOTO" | "VIDEO" | "PRESET" | "LUT";
@@ -32,7 +32,7 @@ export function ServerMarketplace({
   version: number;
   onPreview: (id: string) => Promise<void>;
 }) {
-  const { request, locale: language } = useCommunity();
+  const { request, locale: language, initialPublicData } = useCommunity();
   const locale = language as SupportedLocale;
   const t = (key: MessageKey) => getMessage(locale, key);
   const text = (ru: string, en: string) =>
@@ -44,17 +44,24 @@ export function ServerMarketplace({
   const [max, setMax] = useState("");
   const [sort, setSort] = useState("");
   const [page, setPage] = useState(1);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [total, setTotal] = useState(0);
+  const [products, setProducts] = useState<Product[]>(
+    initialPublicData?.marketplace?.products ?? [],
+  );
+  const [total, setTotal] = useState(
+    initialPublicData?.marketplace?.total ?? 0,
+  );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [opening, setOpening] = useState<string>();
   const [retry, setRetry] = useState(0);
   const [selected, setSelected] = useState(initialProductId);
+  const firstRefresh = useRef(true);
   useEffect(() => setSelected(initialProductId), [initialProductId]);
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
+    if (!firstRefresh.current || !initialPublicData?.marketplace)
+      setLoading(true);
+    firstRefresh.current = false;
     setError("");
     const query = new URLSearchParams({
       kind: selected ? "ALL" : kind,

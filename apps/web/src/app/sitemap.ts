@@ -1,21 +1,8 @@
 import { supportedLocales } from "@gprn/i18n";
 import type { MetadataRoute } from "next";
+import { pageAlternates, pagePath, publicSections, siteUrl } from "../lib/seo";
 
-const sectionSlugs = [
-  "",
-  "feed",
-  "events",
-  "discussions",
-  "search",
-  "suggestions",
-  "models",
-  "studios",
-  "battles",
-  "challenges",
-  "marketplace",
-  "experts",
-  "profile",
-] as const;
+export const dynamic = "force-dynamic";
 const legalSlugs = [
   "privacy",
   "terms",
@@ -25,24 +12,23 @@ const legalSlugs = [
   "community",
 ] as const;
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const now = new Date();
-
-  return supportedLocales.flatMap((locale) => {
-    const sectionUrls = sectionSlugs.map((section) => ({
-      changeFrequency: "weekly" as const,
-      lastModified: now,
-      priority: section ? 0.8 : 1,
-      url: `${siteUrl}/${locale}${section ? `/${section}` : ""}`,
-    }));
-    const legalUrls = legalSlugs.map((policy) => ({
-      changeFrequency: "monthly" as const,
-      lastModified: now,
-      priority: 0.3,
-      url: `${siteUrl}/${locale}/legal/${policy}`,
-    }));
-
-    return [...sectionUrls, ...legalUrls];
-  });
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const origin = siteUrl();
+  const sections = [
+    ...publicSections,
+    ...legalSlugs.map((policy) => `legal/${policy}`),
+  ];
+  const staticEntries = supportedLocales.flatMap((locale) =>
+    sections.map((section) => ({
+      url: origin + pagePath(locale, section),
+      alternates: {
+        languages: Object.fromEntries(
+          Object.entries(pageAlternates(locale, section).languages).map(
+            ([language, path]) => [language, origin + path],
+          ),
+        ),
+      },
+    })),
+  );
+  return staticEntries;
 }

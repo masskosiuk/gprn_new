@@ -35,9 +35,10 @@ import {
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { communityFreeLaunch, demoStudioRates } from "@gprn/domain";
+import type { PublicPageData } from "../../lib/public-page-data";
 
 type Request = <T>(path: string, init?: RequestInit) => Promise<T>;
-type Kind = "EVENT" | "DISCUSSION" | "CASTING";
+export type Kind = "EVENT" | "DISCUSSION" | "CASTING";
 type Source = {
   type:
     | "PHOTO"
@@ -60,7 +61,7 @@ type Author = {
   tier: string;
   avatarUrl?: string | null;
 };
-type Post = {
+export type Post = {
   id: string;
   kind: Kind;
   title: string;
@@ -95,6 +96,7 @@ type Inquiry = {
   };
 };
 type Context = {
+  initialPublicData?: PublicPageData;
   locale: string;
   userId?: string;
   isAdmin: boolean;
@@ -1176,16 +1178,22 @@ export function CommunityBoard({
   title: string;
   description: string;
 }) {
-  const { request, userId, login, locale } = useCommunity();
+  const { request, userId, login, locale, initialPublicData } = useCommunity();
   const t = useWords();
-  const [posts, setPosts] = useState<Post[]>([]);
+  const initialBoard = initialPublicData?.board;
+  const firstRefresh = useRef(true);
+  const [posts, setPosts] = useState<Post[]>(
+    initialBoard?.post ? [initialBoard.post] : (initialBoard?.posts ?? []),
+  );
   const [mine, setMine] = useState<Post[]>([]);
   const [isPro, setPro] = useState(false);
   const [open, setOpen] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialBoard);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState(
+    initialBoard?.total ?? (initialBoard?.post ? 1 : 0),
+  );
   const [version, setVersion] = useState(0);
   const [filters, setFilters] = useState({
     from: "",
@@ -1195,17 +1203,20 @@ export function CommunityBoard({
     search: "",
   });
   const [facets, setFacets] = useState({
-    locations: [] as string[],
-    languages: [] as string[],
+    locations: initialBoard?.locations ?? ([] as string[]),
+    languages: initialBoard?.languages ?? ([] as string[]),
   });
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(
+    initialPostId ?? null,
+  );
   const isCompactList = !selected;
   useEffect(() => {
     setSelected(initialPostId ?? null);
   }, [kind, initialPostId]);
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
+    if (!firstRefresh.current || !initialBoard) setLoading(true);
+    firstRefresh.current = false;
     setFeedback("");
     const query = new URLSearchParams({ kind, page: String(page), ...filters });
     if (filters.to) query.set("to", filters.to + "T23:59:59.999Z");
@@ -1646,19 +1657,24 @@ export function CommunityBoard({
 }
 
 export function CommunityHighlights() {
-  const { request, locale } = useCommunity();
+  const { request, locale, initialPublicData } = useCommunity();
   const t = useWords();
-  const [groups, setGroups] = useState<Record<Kind, Post[]>>({
-    EVENT: [],
-    DISCUSSION: [],
-    CASTING: [],
-  });
-  const [loading, setLoading] = useState(true);
+  const [groups, setGroups] = useState<Record<Kind, Post[]>>(
+    initialPublicData?.highlights?.groups ?? {
+      EVENT: [],
+      DISCUSSION: [],
+      CASTING: [],
+    },
+  );
+  const [loading, setLoading] = useState(!initialPublicData?.highlights);
   const [failed, setFailed] = useState(false);
   const [version, setVersion] = useState(0);
+  const firstRefresh = useRef(true);
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
+    if (!firstRefresh.current || !initialPublicData?.highlights)
+      setLoading(true);
+    firstRefresh.current = false;
     setFailed(false);
     request<{ groups: Record<Kind, Post[]> }>("/community/highlights", {
       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),

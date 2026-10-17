@@ -1,6 +1,13 @@
 # Merge this block into the existing host Caddyfile.
 # Replace an existing block for this domain; never add a duplicate.
 photoapp.metarp.top {
+    header {
+        Strict-Transport-Security "max-age=2592000"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
     encode zstd gzip
 
     request_body {
@@ -12,6 +19,7 @@ photoapp.metarp.top {
     }
 
     handle_path /media/* {
+        header Cache-Control "public, max-age=3600, must-revalidate"
         rewrite * /gprn-public{uri}
         reverse_proxy 127.0.0.1:19000
     }

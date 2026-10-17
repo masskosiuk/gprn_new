@@ -226,6 +226,8 @@ services:
         condition: service_started
     env_file:
       - .env.production
+    environment:
+      INTERNAL_API_URL: http://api:4000/api/v1
     ports:
       - "127.0.0.1:${WEB_BIND_PORT:-13000}:3000"
     networks:
