@@ -101,6 +101,7 @@ export async function seedDemoPhotoSales(
             photoId: photo.id,
             sellerId: seller.id,
             categoryId: photo.categoryId,
+            genre: source.category,
             title: photo.title,
             description: demoPhotoSaleTerms,
             priceMinor: BigInt(offer.priceMinor),

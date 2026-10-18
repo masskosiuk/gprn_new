@@ -97,6 +97,12 @@ test("seven labelled examples reuse existing works without creating uploads or o
   for (const listing of db.listings) {
     assert.equal(listing.isDemo, true);
     assert.equal(listing.currency, "USD");
+    assert.equal(
+      listing.genre,
+      [...demoBattlePhotos, ...demoChallengeWorks].find(
+        (work) => work.id === listing.photoId,
+      )!.category,
+    );
     assert.equal(listing.filesJson.licenseTerms, demoPhotoSaleTerms);
     assert.equal(
       listing.priceMinor,
