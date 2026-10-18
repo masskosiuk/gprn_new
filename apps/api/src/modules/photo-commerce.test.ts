@@ -150,7 +150,7 @@ const code = (expected: string) => (error: any) =>
   error.getResponse().code === expected;
 const quote = { accepted: true, priceMinor: 2500, licenseTerms: terms };
 
-test("prices appear only on explicit public approved real listings with usage terms", () => {
+test("prices appear only on explicit public approved listings with usage terms", () => {
   assert.deepEqual(serializePhotoSale(fixture()), {
     id: "product",
     priceMinor: 2500,
@@ -158,7 +158,6 @@ test("prices appear only on explicit public approved real listings with usage te
   });
   for (const patch of [
     { status: "HIDDEN" },
-    { isDemo: true },
     { filesJson: {} },
     { digitalKind: "PRESET" },
   ]) {
@@ -177,6 +176,29 @@ test("prices appear only on explicit public approved real listings with usage te
     assert.equal(serializePhotoSale(photo), null);
   }
 });
+
+test("demo prices are explicitly labelled and demo checkout cannot touch wallets or orders", async () =>
+  mocked(async (photo, tx, writes) => {
+    photo.marketplaceProduct.isDemo = true;
+    assert.deepEqual(serializePhotoSale(photo), {
+      id: "product",
+      priceMinor: 2500,
+      currency: "USD",
+      isDemo: true,
+    });
+    assert.equal(
+      (await new PhotoCommerceService().get("photo", null)).sale?.isDemo,
+      true,
+    );
+    tx.wallet.upsert = () => assert.fail("Demos must not touch wallets");
+    tx.marketplaceOrder.findFirst = () =>
+      assert.fail("Demos must not resolve or create orders");
+    await assert.rejects(
+      new PhotoCommerceService().purchase(buyer, "product", quote),
+      code("DEMO_NOT_FOR_SALE"),
+    );
+    assert.equal(writes.length, 0);
+  }));
 test("listing persists author price and terms and disabling sales does not touch orders", async () =>
   mocked(async (photo, tx, writes) => {
     const service = new PhotoCommerceService();
@@ -378,17 +400,29 @@ test("catalog validates price bounds and sorts using server price, not local dem
     assert.equal(query.where.priceMinor.lte, 5000n);
     assert.equal(query.orderBy[0].priceMinor, "asc");
     assert.match(JSON.stringify(query.where.AND[0]), /DIRECT_UPLOAD/);
+    const choices = query.where.AND[0].OR;
+    assert.equal(choices[0].isDemo, false);
+    assert.equal(choices[0].photo.assets.some.type, "ORIGINAL");
+    assert.equal(choices[1].isDemo, true);
+    assert.equal(choices[1].photoId.in.length, 7);
+    assert.deepEqual(choices[1].photo.provenance.sourceProvider.in, [
+      "demo",
+      "stock-demo",
+    ]);
+    assert.equal(choices[1].photo.visibility, "PUBLIC");
+    assert.equal(choices[1].photo.moderationStatus, "APPROVED");
     return [];
   }) as any;
   prisma.marketplaceProduct.count = (async () => 0) as any;
   try {
     const service = new DigitalProductsService();
-    await service.catalog({
-      kind: "MEDIA",
-      minPrice: "1000",
-      maxPrice: "5000",
-      sort: "price-asc",
-    });
+    for (const kind of ["MEDIA", "PHOTO", "VIDEO"])
+      await service.catalog({
+        kind,
+        minPrice: "1000",
+        maxPrice: "5000",
+        sort: "price-asc",
+      });
     for (const query of [
       { minPrice: "-1" },
       { maxPrice: "1.2" },

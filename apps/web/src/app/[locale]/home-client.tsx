@@ -8188,6 +8188,11 @@ export function HomeClient({
                   aria-label={`${t("marketplace.buy")}: ${formatMoney(photo.sale.priceMinor, locale)}`}
                 >
                   <ShoppingBag size={14} />
+                  {photo.sale.isDemo ? (
+                    <span>
+                      {locale === "ru" || locale === "uk" ? "Демо" : "Demo"}
+                    </span>
+                  ) : null}
                   {new Intl.NumberFormat(locale, {
                     style: "currency",
                     currency: photo.sale.currency,

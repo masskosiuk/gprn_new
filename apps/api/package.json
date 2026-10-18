@@ -11,6 +11,7 @@
     "demo:seed-products": "tsx src/scripts/seed-demo-digital-products.ts",
     "demo:seed-community": "tsx src/scripts/seed-demo-community.ts",
     "demo:seed-photo-reviews": "tsx src/scripts/seed-demo-photo-reviews.ts",
+    "demo:seed-photo-sales": "tsx src/scripts/seed-demo-photo-sales.ts",
     "demo:refresh-challenge-video": "tsx src/scripts/seed-demo-challenges.ts --refresh-lucas-video",
     "media:repair-titles": "tsx src/scripts/repair-media-titles.ts",
     "lint": "tsc -p tsconfig.build.json --noEmit",

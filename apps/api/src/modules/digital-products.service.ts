@@ -16,6 +16,7 @@ import { mediaAssetResponse } from "./serialization.js";
 import { mediaCatalogFilter } from "./media-catalog.js";
 import { readLicenseTerms } from "./photo-sale.js";
 import { boundedText, requireUuid } from "./community-policy.js";
+import { demoPhotoSales } from "./demo-photo-sales.js";
 import {
   createProductCover,
   decodeProductUpload,
@@ -121,9 +122,11 @@ export class DigitalProductsService {
             storageVisibility: "PRIVATE",
           },
         },
-        ...mediaCatalogFilter(
-          kind === "PHOTO" || kind === "VIDEO" ? kind : undefined,
-        ),
+        AND: [
+          mediaCatalogFilter(
+            kind === "PHOTO" || kind === "VIDEO" ? kind : undefined,
+          ),
+        ],
       },
     };
     const preset: Prisma.MarketplaceProductWhereInput = {
@@ -134,6 +137,30 @@ export class DigitalProductsService {
       digitalKind: "LUT",
       seller: { user: { profile: { lutSalesEnabled: true } } },
     };
+    const demoStock: Prisma.MarketplaceProductWhereInput = {
+      digitalKind: null,
+      isDemo: true,
+      photoId: { in: demoPhotoSales.map((offer) => offer.photoId) },
+      photo: {
+        deletedAt: null,
+        status: "PUBLISHED",
+        moderationStatus: "APPROVED",
+        visibility: "PUBLIC",
+        provenance: { sourceProvider: { in: ["demo", "stock-demo"] } },
+        assets: {
+          some: {
+            type: "DISPLAY",
+            deletedAt: null,
+            storageVisibility: "PUBLIC",
+          },
+        },
+        AND: [
+          mediaCatalogFilter(
+            kind === "PHOTO" || kind === "VIDEO" ? kind : undefined,
+          ),
+        ],
+      },
+    };
     const choices =
       kind === "PRESET"
         ? [preset]
@@ -142,8 +169,8 @@ export class DigitalProductsService {
           : kind === "DIGITAL"
             ? [preset, lut]
             : kind === "ALL"
-              ? [stock, preset, lut]
-              : [stock];
+              ? [stock, demoStock, preset, lut]
+              : [stock, demoStock];
     const where: Prisma.MarketplaceProductWhereInput = {
       ...(query.id ? { id: query.id } : {}),
       status: "PUBLISHED",

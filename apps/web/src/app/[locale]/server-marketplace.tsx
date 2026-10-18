@@ -21,6 +21,7 @@ export type Product = {
   imageUrl: string;
   priceMinor: number;
   currency?: string;
+  isDemo?: boolean;
   seller: { username: string; displayName: string };
 };
 export function ServerMarketplace({
@@ -279,6 +280,11 @@ export function ServerMarketplace({
                   {product.kind === "VIDEO"
                     ? text("Видео", "Video")
                     : text("Фото", "Photo")}
+                  {product.isDemo && (
+                    <span className="product-demo-label">
+                      {text("Демо", "Demo")}
+                    </span>
+                  )}
                 </span>
                 <h2>
                   <button

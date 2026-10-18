@@ -18,6 +18,7 @@ export interface PhotoSale {
   id: string;
   priceMinor: number;
   currency: string;
+  isDemo?: boolean;
 }
 interface Commerce {
   sale: PhotoSale | null;
@@ -189,7 +190,15 @@ export function PhotoCommerce({
           <button
             type="button"
             className="primary-action compact"
-            disabled={loading || busy || !data}
+            disabled={loading || busy || !data || currentSale.isDemo}
+            title={
+              currentSale.isDemo
+                ? text(
+                    "Демо-работа: покупка недоступна",
+                    "Demo work: purchase unavailable",
+                  )
+                : undefined
+            }
             onClick={() => {
               if (!userId) {
                 login();
@@ -205,7 +214,15 @@ export function PhotoCommerce({
           </button>
         </div>
       ) : null}
-      {confirm && data?.sale && (
+      {currentSale?.isDemo && (
+        <p className="photo-demo-notice">
+          {text(
+            "Демо-работа. Цена приведена для примера, покупка и списание средств недоступны.",
+            "Demo work. The price is illustrative; purchases and charges are unavailable.",
+          )}
+        </p>
+      )}
+      {confirm && data?.sale && !data.sale.isDemo && (
         <form
           className="photo-checkout"
           onSubmit={async (event) => {

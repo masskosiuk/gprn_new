@@ -257,6 +257,8 @@ export class PhotoCommerceService {
       const product = photo?.marketplaceProduct;
       if (!photo || !product || product.id !== productId)
         throw new NotFoundException({ code: "PRODUCT_NOT_FOUND" });
+      if (product.isDemo)
+        throw new ConflictException({ code: "DEMO_NOT_FOR_SALE" });
       if (photo.ownerId === user.id)
         throw new ConflictException({ code: "SELF_PURCHASE" });
       const prior = await tx.marketplaceOrder.findFirst({

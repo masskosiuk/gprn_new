@@ -39,7 +39,6 @@ export function serializePhotoSale(photo: {
   if (
     !product ||
     product.digitalKind ||
-    product.isDemo ||
     product.status !== "PUBLISHED" ||
     photo.status !== "PUBLISHED" ||
     photo.visibility !== "PUBLIC" ||
@@ -56,5 +55,6 @@ export function serializePhotoSale(photo: {
     id: product.id,
     priceMinor: Number(product.priceMinor),
     currency: product.currency,
+    ...(product.isDemo ? { isDemo: true } : {}),
   };
 }

@@ -378,6 +378,22 @@ dialog.image-lightbox.work-lightbox::backdrop {
 .photo-commerce:empty {
   display: none;
 }
+.photo-demo-notice {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.marketplace-sale-card .product-kind-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.product-demo-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
 .photo-author-presets,
 .photo-settings-action {
   display: inline-flex;

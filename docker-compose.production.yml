@@ -176,6 +176,27 @@ services:
     networks:
       - internal
 
+  seed-photo-sales:
+    image: gprn-app:local
+    profiles: ["maintenance"]
+    restart: "no"
+    init: true
+    cpus: 1.0
+    mem_limit: 256m
+    command:
+      [
+        "timeout",
+        "-s",
+        "KILL",
+        "60",
+        "node",
+        "apps/api/dist/scripts/seed-demo-photo-sales.js",
+      ]
+    env_file:
+      - .env.production
+    networks:
+      - internal
+
   seed-photo-reviews:
     image: gprn-app:local
     profiles: ["maintenance"]

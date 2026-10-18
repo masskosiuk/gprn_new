@@ -4918,7 +4918,7 @@ img {
 .model-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .model-card {
@@ -4935,6 +4935,7 @@ img {
 
 .model-avatar-link img {
   aspect-ratio: 4 / 3;
+  height: auto;
   object-fit: cover;
   transition: transform 180ms ease;
   width: 100%;
@@ -5205,6 +5206,10 @@ img {
 }
 
 @media (max-width: 1180px) {
+  .model-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .directory-filter-fields.is-experts,
   .directory-filter-fields.is-studios,
   .directory-filter-fields.is-models {
@@ -5217,8 +5222,7 @@ img {
 }
 
 @media (max-width: 900px) {
-  .studio-grid,
-  .model-grid {
+  .studio-grid {
     grid-template-columns: 1fr;
   }
 
@@ -5242,6 +5246,10 @@ img {
 }
 
 @media (max-width: 680px) {
+  .model-grid {
+    grid-template-columns: 1fr;
+  }
+
   .directory-filter-panel {
     padding: 14px;
   }
