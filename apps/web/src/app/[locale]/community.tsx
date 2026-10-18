@@ -1777,21 +1777,64 @@ export function CommunityHighlights() {
 export function AdminFold({
   title,
   children,
+  count,
+  onToggle,
 }: {
   title: ReactNode;
   children: ReactNode;
+  count?: number;
+  onToggle?: (open: boolean) => void;
 }) {
   return (
-    <details className="community-admin-fold">
+    <details
+      className="community-admin-fold"
+      onToggle={(event) => onToggle?.(event.currentTarget.open)}
+    >
       <summary>
-        {title}
+        <span className="community-admin-fold-title">{title}</span>
+        <AdminQueueCount count={count} />
         <ChevronDown size={18} />
       </summary>
       <div>{children}</div>
     </details>
   );
 }
-function AdminPostQueue({ kind }: { kind: Kind }) {
+function AdminQueueCount({ count }: { count?: number }) {
+  const t = useWords();
+  return typeof count === "number" && count > 0 ? (
+    <span
+      className="community-admin-count"
+      aria-label={t("Ожидают обработки", "Awaiting review") + ": " + count}
+      aria-live="polite"
+    >
+      {count}
+    </span>
+  ) : null;
+}
+
+export type AdminPendingCounts = Readonly<
+  Record<
+    | "photos"
+    | "battles"
+    | "challenges"
+    | "events"
+    | "discussions"
+    | "castings"
+    | "reports"
+    | "suggestions",
+    number
+  >
+>;
+
+function AdminPostQueue({
+  kind,
+  count,
+  onChanged,
+}: {
+  kind: Kind;
+  count?: number;
+  onChanged: () => void;
+}) {
   const { request } = useCommunity();
   const t = useWords();
   const title = useTitle(kind);
@@ -1803,7 +1846,7 @@ function AdminPostQueue({ kind }: { kind: Kind }) {
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
-    request<{ posts: Post[] }>("/community/moderation", {
+    request<{ posts: Post[] }>("/community/moderation?kind=" + kind, {
       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
     })
       .then((data) => setItems(data.posts.filter((p) => p.kind === kind)))
@@ -1811,20 +1854,36 @@ function AdminPostQueue({ kind }: { kind: Kind }) {
         if (!controller.signal.aborted) setFeedback(errorText(e, t));
       });
     return () => controller.abort();
-  }, [open, kind, version]);
+  }, [open, kind, version, count]);
   async function submit(event: FormEvent<HTMLFormElement>, id: string) {
     event.preventDefault();
+    if (busy) return;
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const reason = String(data.get("reason") ?? "").trim();
+    const reasonField = form.elements.namedItem(
+      "reason",
+    ) as HTMLTextAreaElement;
+    reasonField.setCustomValidity("");
+    if (data.get("status") === "REJECTED" && !reason) {
+      reasonField.setCustomValidity(
+        t("Укажите причину отклонения", "Enter a rejection reason"),
+      );
+      reasonField.reportValidity();
+      return;
+    }
     setBusy(true);
-    const data = new FormData(event.currentTarget);
     try {
       await request("/community/moderation/" + id, {
         method: "PATCH",
+        signal: AbortSignal.timeout(20000),
         body: JSON.stringify({
           status: data.get("status"),
-          reason: data.get("reason"),
+          reason,
         }),
       });
       setVersion((v) => v + 1);
+      onChanged();
       setFeedback(t("Сохранено", "Saved"));
     } catch (e) {
       setFeedback(errorText(e, t));
@@ -1833,14 +1892,11 @@ function AdminPostQueue({ kind }: { kind: Kind }) {
     }
   }
   return (
-    <details
-      className="community-admin-fold"
-      onToggle={(e) => setOpen(e.currentTarget.open)}
+    <AdminFold
+      title={kind === "CASTING" ? t("Кастинги", "Castings") : title}
+      count={count}
+      onToggle={setOpen}
     >
-      <summary>
-        {title}
-        <ChevronDown size={18} />
-      </summary>
       {open ? (
         <div>
           <Feedback>{feedback}</Feedback>
@@ -1857,7 +1913,10 @@ function AdminPostQueue({ kind }: { kind: Kind }) {
                 <AuthorLink author={post.author} />
                 <EditPostButton
                   post={post}
-                  saved={() => setVersion((v) => v + 1)}
+                  saved={() => {
+                    setVersion((v) => v + 1);
+                    onChanged();
+                  }}
                 />
                 <p>{post.body}</p>
                 <small>
@@ -1879,7 +1938,16 @@ function AdminPostQueue({ kind }: { kind: Kind }) {
                 >
                   <label>
                     {t("Решение", "Decision")}
-                    <select name="status">
+                    <select
+                      name="status"
+                      onChange={(event) => {
+                        const reason =
+                          event.currentTarget.form?.elements.namedItem(
+                            "reason",
+                          ) as HTMLTextAreaElement | null;
+                        reason?.setCustomValidity("");
+                      }}
+                    >
                       <option value="APPROVED">
                         {t("Одобрить", "Approve")}
                       </option>
@@ -1896,7 +1964,14 @@ function AdminPostQueue({ kind }: { kind: Kind }) {
                       "Причина (обязательна при отклонении)",
                       "Reason (required for rejection)",
                     )}
-                    <textarea name="reason" maxLength={2000} rows={2} />
+                    <textarea
+                      name="reason"
+                      maxLength={2000}
+                      rows={2}
+                      onChange={(event) =>
+                        event.currentTarget.setCustomValidity("")
+                      }
+                    />
                   </label>
                   <button
                     className="primary-action"
@@ -1912,16 +1987,27 @@ function AdminPostQueue({ kind }: { kind: Kind }) {
           <button
             type="button"
             className="secondary-action"
-            onClick={() => setVersion((v) => v + 1)}
+            onClick={() => {
+              setVersion((v) => v + 1);
+              onChanged();
+            }}
           >
             {t("Обновить", "Refresh")}
           </button>
         </div>
       ) : null}
-    </details>
+    </AdminFold>
   );
 }
-function AdminInquiryQueue({ kind }: { kind: "REPORT" | "SUGGESTION" }) {
+function AdminInquiryQueue({
+  kind,
+  count,
+  onChanged,
+}: {
+  kind: "REPORT" | "SUGGESTION";
+  count?: number;
+  onChanged: () => void;
+}) {
   const { request, locale, root } = useCommunity();
   const t = useWords();
   const [open, setOpen] = useState(false);
@@ -1946,7 +2032,7 @@ function AdminInquiryQueue({ kind }: { kind: "REPORT" | "SUGGESTION" }) {
         if (!controller.signal.aborted) setFeedback(errorText(e, t));
       });
     return () => controller.abort();
-  }, [open, kind, version]);
+  }, [open, kind, version, count]);
   async function submit(event: FormEvent<HTMLFormElement>, id: string) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -1954,12 +2040,14 @@ function AdminInquiryQueue({ kind }: { kind: "REPORT" | "SUGGESTION" }) {
     try {
       await request("/community/admin/inquiries/" + id, {
         method: "PATCH",
+        signal: AbortSignal.timeout(20000),
         body: JSON.stringify({
           reply: form.get("reply"),
           status: form.get("status"),
         }),
       });
       setVersion((v) => v + 1);
+      onChanged();
       setFeedback(
         t(
           "Ответ сохранён и отправлен в аккаунт автора",
@@ -1973,16 +2061,15 @@ function AdminInquiryQueue({ kind }: { kind: "REPORT" | "SUGGESTION" }) {
     }
   }
   return (
-    <details
-      className="community-admin-fold"
-      onToggle={(e) => setOpen(e.currentTarget.open)}
-    >
-      <summary>
-        {kind === "REPORT"
+    <AdminFold
+      title={
+        kind === "REPORT"
           ? t("Жалобы", "Reports")
-          : t("Предложения", "Suggestions")}
-        <ChevronDown size={18} />
-      </summary>
+          : t("Предложения", "Suggestions")
+      }
+      count={count}
+      onToggle={setOpen}
+    >
       {open ? (
         <div>
           <Feedback>{feedback}</Feedback>
@@ -2070,23 +2157,52 @@ function AdminInquiryQueue({ kind }: { kind: "REPORT" | "SUGGESTION" }) {
           <button
             type="button"
             className="secondary-action"
-            onClick={() => setVersion((v) => v + 1)}
+            onClick={() => {
+              setVersion((v) => v + 1);
+              onChanged();
+            }}
           >
             {t("Обновить", "Refresh")}
           </button>
         </div>
       ) : null}
-    </details>
+    </AdminFold>
   );
 }
-export function AdminCommunitySections() {
+export function AdminCommunitySections({
+  counts,
+  onChanged,
+}: {
+  counts?: AdminPendingCounts;
+  onChanged: () => void;
+}) {
   return (
     <>
-      <AdminPostQueue kind="EVENT" />
-      <AdminPostQueue kind="DISCUSSION" />
-      <AdminPostQueue kind="CASTING" />
-      <AdminInquiryQueue kind="REPORT" />
-      <AdminInquiryQueue kind="SUGGESTION" />
+      <AdminPostQueue
+        kind="EVENT"
+        count={counts?.events}
+        onChanged={onChanged}
+      />
+      <AdminPostQueue
+        kind="DISCUSSION"
+        count={counts?.discussions}
+        onChanged={onChanged}
+      />
+      <AdminPostQueue
+        kind="CASTING"
+        count={counts?.castings}
+        onChanged={onChanged}
+      />
+      <AdminInquiryQueue
+        kind="REPORT"
+        count={counts?.reports}
+        onChanged={onChanged}
+      />
+      <AdminInquiryQueue
+        kind="SUGGESTION"
+        count={counts?.suggestions}
+        onChanged={onChanged}
+      />
     </>
   );
 }

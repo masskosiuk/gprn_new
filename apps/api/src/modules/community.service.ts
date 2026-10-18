@@ -569,12 +569,13 @@ export class CommunityService {
     return { removed: true };
   }
 
-  async moderation(user: CurrentUser) {
+  async moderation(user: CurrentUser, kind?: string) {
     requirePermission(user, "report:moderate");
     const posts = await prisma.communityPost.findMany({
       where: {
         deletedAt: null,
         moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] },
+        ...(kind ? { kind: communityKind(kind) } : {}),
       },
       include: postInclude,
       orderBy: { createdAt: "asc" },

@@ -49,6 +49,35 @@ const postEditInput = {
   endsAt: "2026-11-27T18:00:00Z",
 };
 const administrator = { ...actor, roles: ["ADMIN"] };
+test("admin community queues filter by kind before applying the page limit", async (t) => {
+  const record = prisma.communityPost as unknown as Record<string, unknown>;
+  const previous = record.findMany;
+  const queries: { where: Record<string, unknown>; take: number }[] = [];
+  record.findMany = async (args: (typeof queries)[number]) => {
+    queries.push(args);
+    return [];
+  };
+  t.after(() => {
+    record.findMany = previous;
+  });
+  for (const kind of ["EVENT", "DISCUSSION", "CASTING"]) {
+    await new CommunityService().moderation(administrator, kind);
+  }
+  assert.deepEqual(
+    queries.map((query) => query.where),
+    ["EVENT", "DISCUSSION", "CASTING"].map((kind) => ({
+      kind,
+      deletedAt: null,
+      moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] },
+    })),
+  );
+  assert(queries.every((query) => query.take === 200));
+  await assert.rejects(
+    new CommunityService().moderation(actor, "EVENT"),
+    forbidden,
+  );
+  assert.equal(queries.length, 3);
+});
 function postEditFixture(t: TestContext) {
   // Prisma delegates expose methods through a proxy rather than descriptors.
   const replace = (target: object, name: string, method: unknown) => {
@@ -817,7 +846,9 @@ test("free publishing retains spam limits including removed and rejected posts",
     assert.equal("moderationStatus" in args.where, false);
     return { createdAt: new Date() };
   }) as unknown as typeof find;
-  prisma.communityPost.count = (async (args: { where: Record<string, unknown> }) => {
+  prisma.communityPost.count = (async (args: {
+    where: Record<string, unknown>;
+  }) => {
     assert.equal("deletedAt" in args.where, false);
     assert.equal("moderationStatus" in args.where, false);
     assert.equal(args.where.authorId, actor.id);

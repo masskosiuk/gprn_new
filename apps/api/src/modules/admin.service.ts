@@ -89,6 +89,12 @@ export class AdminService {
       moderationPending,
       battleModerationPending,
       challengeModerationPending,
+      [
+        eventModerationPending,
+        discussionModerationPending,
+        castingModerationPending,
+      ],
+      [reportInquiriesPending, suggestionInquiriesPending],
       flags,
     ] = await Promise.all([
       prisma.user.count(),
@@ -107,6 +113,7 @@ export class AdminService {
       }),
       prisma.photo.count({
         where: {
+          deletedAt: null,
           battleEntries: {
             none: { moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] } },
           },
@@ -117,11 +124,35 @@ export class AdminService {
         },
       }),
       prisma.battleEntry.count({
-        where: { moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] } },
+        where: {
+          moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] },
+          photo: { deletedAt: null },
+        },
       }),
       prisma.challengeEntry.count({
-        where: { moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] } },
+        where: {
+          moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] },
+          photo: { deletedAt: null },
+        },
       }),
+      Promise.all(
+        (["EVENT", "DISCUSSION", "CASTING"] as const).map((kind) =>
+          prisma.communityPost.count({
+            where: {
+              kind,
+              deletedAt: null,
+              moderationStatus: { in: ["PENDING", "UNDER_REVIEW"] },
+            },
+          }),
+        ),
+      ),
+      Promise.all(
+        (["REPORT", "SUGGESTION"] as const).map((kind) =>
+          prisma.communityInquiry.count({
+            where: { kind, status: { in: ["OPEN", "UNDER_REVIEW"] } },
+          }),
+        ),
+      ),
       prisma.featureFlag.findMany({ orderBy: { key: "asc" } }),
     ]);
 
@@ -141,6 +172,16 @@ export class AdminService {
         users,
       },
       featureFlags: flags,
+      pendingCounts: {
+        photos: moderationPending,
+        battles: battleModerationPending,
+        challenges: challengeModerationPending,
+        events: eventModerationPending,
+        discussions: discussionModerationPending,
+        castings: castingModerationPending,
+        reports: reportInquiriesPending,
+        suggestions: suggestionInquiriesPending,
+      },
     };
   }
 

@@ -1073,6 +1073,35 @@
 .community-admin-fold > summary::-webkit-details-marker {
   display: none;
 }
+.community-admin-fold-title {
+  flex: 1;
+  min-width: 0;
+}
+.community-admin-fold > summary > svg {
+  flex-shrink: 0;
+}
+.community-admin-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 14px;
+  background: var(--accent, #53b9ac);
+  color: #081c19;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.admin-moderation-error {
+  margin: 8px 0 0;
+  color: var(--danger, #e35d6a);
+  font-size: 14px;
+}
+.admin-moderation-reason input[aria-invalid="true"] {
+  border-color: var(--danger, #e35d6a);
+}
 .community-admin-fold[open] > summary > svg {
   transform: rotate(180deg);
 }

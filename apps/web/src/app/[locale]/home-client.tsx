@@ -119,6 +119,7 @@ import {
   InteractionMenu,
   AdminFold,
   AdminCommunitySections,
+  type AdminPendingCounts,
   ProControl,
 } from "./community";
 import { MyInteractions } from "./interactions";
@@ -585,6 +586,7 @@ interface AdminUserDraft {
 }
 
 interface AdminOverviewRecord {
+  readonly pendingCounts: AdminPendingCounts;
   readonly counts: {
     readonly battles: number;
     readonly challenges: number;
@@ -2592,6 +2594,10 @@ export function HomeClient({
   const [adminModerationDrafts, setAdminModerationDrafts] = useState<
     Record<string, AdminModerationDraft>
   >({});
+  const [adminModerationErrors, setAdminModerationErrors] = useState<
+    Record<string, string>
+  >({});
+  const adminReasonInputs = useRef<Record<string, HTMLInputElement | null>>({});
   const [adminCompetitionSubmissions, setAdminCompetitionSubmissions] =
     useState<AdminCompetitionSubmission[]>([]);
   const [adminCompetitionCovers, setAdminCompetitionCovers] = useState<
@@ -3626,6 +3632,42 @@ export function HomeClient({
   }, [initialSection, isAdministrator]);
 
   useEffect(() => {
+    if (initialSection !== "admin" || !isAdministrator) return;
+    const controller = new AbortController();
+    let pending = false;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible" || pending) return;
+      pending = true;
+      try {
+        const overview = await apiRequest<AdminOverviewRecord>(
+          "/admin/overview",
+          {
+            signal: AbortSignal.any([
+              controller.signal,
+              AbortSignal.timeout(15000),
+            ]),
+          },
+        );
+        if (!controller.signal.aborted) setAdminOverview(overview);
+      } catch {
+        // Keep the last confirmed counts if the connection is temporarily unavailable.
+      } finally {
+        pending = false;
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), 30000);
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [initialSection, isAdministrator]);
+
+  useEffect(() => {
     const outcome = new URLSearchParams(window.location.search).get("social");
     if (!outcome) return;
 
@@ -4656,9 +4698,9 @@ export function HomeClient({
     }
   }
 
-  async function loadAdminData(): Promise<void> {
+  async function loadAdminData(clearFeedback = true): Promise<void> {
     setAdminLoading(true);
-    setAdminFeedback(null);
+    if (clearFeedback) setAdminFeedback(null);
 
     const query = new URLSearchParams();
     const normalizedSearch = adminSearch.trim();
@@ -4674,14 +4716,17 @@ export function HomeClient({
         coversResponse,
         battlesResponse,
       ] = await Promise.all([
-        apiRequest<AdminOverviewRecord>("/admin/overview"),
+        apiRequest<AdminOverviewRecord>("/admin/overview", {
+          signal: AbortSignal.timeout(15000),
+        }),
         apiRequest<{ users: AdminUserRecord[] }>(
           `/admin/users${query.size > 0 ? `?${query.toString()}` : ""}`,
+          { signal: AbortSignal.timeout(15000) },
         ),
         apiRequest<{
           photos: AdminModerationPhoto[];
           submissions: AdminCompetitionSubmission[];
-        }>("/admin/moderation"),
+        }>("/admin/moderation", { signal: AbortSignal.timeout(15000) }),
         apiRequest<{
           challenges: readonly {
             readonly coverUrl: string | null;
@@ -4699,14 +4744,16 @@ export function HomeClient({
             readonly slug: string;
             readonly status: string;
           }[];
-        }>("/admin/competition-covers"),
-        apiRequest<{ battles: AdminBattleRecord[] }>("/admin/battles"),
+        }>("/admin/competition-covers", { signal: AbortSignal.timeout(15000) }),
+        apiRequest<{ battles: AdminBattleRecord[] }>("/admin/battles", {
+          signal: AbortSignal.timeout(15000),
+        }),
       ]);
       setAdminOverview(overview);
       setAdminUsers(usersResponse.users);
       setAdminModerationPhotos(moderationResponse.photos);
       setAdminCompetitionSubmissions(moderationResponse.submissions);
-      setAdminModerationDrafts(
+      setAdminModerationDrafts((current) =>
         Object.fromEntries(
           [
             ...moderationResponse.photos.map((photo) => ({
@@ -4719,7 +4766,7 @@ export function HomeClient({
             })),
           ].map((item) => [
             item.id,
-            { categorySlug: item.categorySlug, reason: "" },
+            current[item.id] ?? { categorySlug: item.categorySlug, reason: "" },
           ]),
         ),
       );
@@ -4783,6 +4830,18 @@ export function HomeClient({
       setAdminFeedback({ kind: "error", text: t("admin.loadFailed") });
     } finally {
       setAdminLoading(false);
+    }
+  }
+
+  async function refreshAdminCounts(): Promise<void> {
+    try {
+      setAdminOverview(
+        await apiRequest<AdminOverviewRecord>("/admin/overview", {
+          signal: AbortSignal.timeout(15000),
+        }),
+      );
+    } catch {
+      setAdminFeedback({ kind: "error", text: t("admin.loadFailed") });
     }
   }
 
@@ -4910,6 +4969,9 @@ export function HomeClient({
     field: keyof AdminModerationDraft,
     value: string,
   ): void {
+    if (field === "reason") {
+      setAdminModerationErrors((current) => ({ ...current, [photoId]: "" }));
+    }
     setAdminModerationDrafts((current) => ({
       ...current,
       [photoId]: {
@@ -4927,18 +4989,24 @@ export function HomeClient({
     moderationStatus: "APPROVED" | "REJECTED" | "UNDER_REVIEW",
   ): Promise<void> {
     const draft = adminModerationDrafts[photo.id];
-    if (!draft) return;
+    if (!draft || adminBusyPhotoId) return;
     if (moderationStatus === "REJECTED" && draft.reason.trim().length < 3) {
-      setAdminFeedback({ kind: "error", text: t("admin.reasonRequired") });
+      setAdminModerationErrors((current) => ({
+        ...current,
+        [photo.id]: t("admin.reasonRequired"),
+      }));
+      adminReasonInputs.current[photo.id]?.focus();
       return;
     }
 
     setAdminBusyPhotoId(photo.id);
     setAdminFeedback(null);
+    setAdminModerationErrors((current) => ({ ...current, [photo.id]: "" }));
     try {
       await apiRequest(
         `/admin/photos/${encodeURIComponent(photo.id)}/moderation`,
         {
+          signal: AbortSignal.timeout(20000),
           body: JSON.stringify({
             categorySlug: draft.categorySlug,
             moderationStatus,
@@ -4956,8 +5024,17 @@ export function HomeClient({
               ? t("admin.moderationRejected")
               : t("admin.moderationSaved"),
       });
-      await loadAdminData();
-    } catch {
+      await loadAdminData(false);
+    } catch (error) {
+      const message =
+        error instanceof ApiRequestError &&
+        error.code === "MODERATION_REASON_REQUIRED"
+          ? t("admin.reasonRequired")
+          : t("admin.actionFailed");
+      setAdminModerationErrors((current) => ({
+        ...current,
+        [photo.id]: message,
+      }));
       setAdminFeedback({ kind: "error", text: t("admin.actionFailed") });
     } finally {
       setAdminBusyPhotoId(null);
@@ -5000,17 +5077,26 @@ export function HomeClient({
     moderationStatus: "APPROVED" | "REJECTED" | "UNDER_REVIEW",
   ): Promise<void> {
     const draft = adminModerationDrafts[submission.entryId];
-    if (!draft) return;
+    if (!draft || adminBusySubmissionId) return;
     if (moderationStatus === "REJECTED" && draft.reason.trim().length < 3) {
-      setAdminFeedback({ kind: "error", text: t("admin.reasonRequired") });
+      setAdminModerationErrors((current) => ({
+        ...current,
+        [submission.entryId]: t("admin.reasonRequired"),
+      }));
+      adminReasonInputs.current[submission.entryId]?.focus();
       return;
     }
     setAdminBusySubmissionId(submission.entryId);
     setAdminFeedback(null);
+    setAdminModerationErrors((current) => ({
+      ...current,
+      [submission.entryId]: "",
+    }));
     try {
       await apiRequest(
         `/admin/${submission.kind === "battle" ? "battle-entries" : "challenge-entries"}/${encodeURIComponent(submission.entryId)}/moderation`,
         {
+          signal: AbortSignal.timeout(20000),
           body: JSON.stringify({
             categorySlug: draft.categorySlug,
             moderationStatus,
@@ -5029,11 +5115,20 @@ export function HomeClient({
               : t("admin.moderationSaved"),
       });
       await Promise.all([
-        loadAdminData(),
+        loadAdminData(false),
         refreshServerBattles(),
         refreshServerChallenges(),
       ]);
-    } catch {
+    } catch (error) {
+      const message =
+        error instanceof ApiRequestError &&
+        error.code === "MODERATION_REASON_REQUIRED"
+          ? t("admin.reasonRequired")
+          : t("admin.actionFailed");
+      setAdminModerationErrors((current) => ({
+        ...current,
+        [submission.entryId]: message,
+      }));
       setAdminFeedback({ kind: "error", text: t("admin.actionFailed") });
     } finally {
       setAdminBusySubmissionId(null);
@@ -10987,7 +11082,7 @@ export function HomeClient({
           {submissions.map((submission) => {
             const draft = adminModerationDrafts[submission.entryId];
             if (!draft) return null;
-            const isBusy = adminBusySubmissionId === submission.entryId;
+            const isBusy = Boolean(adminBusySubmissionId);
             const competitionLabel = submission.competition.label.includes(".")
               ? t(submission.competition.label as MessageKey)
               : submission.competition.label;
@@ -11074,6 +11169,18 @@ export function HomeClient({
                     <label className="compact-field admin-moderation-reason">
                       <span>{t("admin.reason")}</span>
                       <input
+                        ref={(element) => {
+                          adminReasonInputs.current[submission.entryId] =
+                            element;
+                        }}
+                        aria-invalid={Boolean(
+                          adminModerationErrors[submission.entryId],
+                        )}
+                        aria-describedby={
+                          adminModerationErrors[submission.entryId]
+                            ? `admin-reason-error-${submission.entryId}`
+                            : undefined
+                        }
                         disabled={isBusy}
                         maxLength={1000}
                         onChange={(event) =>
@@ -11090,6 +11197,15 @@ export function HomeClient({
                     </label>
                   </div>
 
+                  {adminModerationErrors[submission.entryId] ? (
+                    <p
+                      className="admin-moderation-error"
+                      id={`admin-reason-error-${submission.entryId}`}
+                      role="alert"
+                    >
+                      {adminModerationErrors[submission.entryId]}
+                    </p>
+                  ) : null}
                   <div className="admin-moderation-actions">
                     <button
                       className="secondary-action compact"
@@ -11218,14 +11334,26 @@ export function HomeClient({
             ))}
           </div>
         </AdminFold>
-        <AdminCommunitySections />
-        <AdminFold title={t("nav.battles")}>
+        <AdminCommunitySections
+          counts={adminOverview?.pendingCounts}
+          onChanged={() => void refreshAdminCounts()}
+        />
+        <AdminFold
+          title={t("nav.battles")}
+          count={adminOverview?.pendingCounts?.battles}
+        >
           {renderCompetitionModeration("battle")}
         </AdminFold>
-        <AdminFold title={t("nav.challenges")}>
+        <AdminFold
+          title={t("nav.challenges")}
+          count={adminOverview?.pendingCounts?.challenges}
+        >
           {renderCompetitionModeration("challenge")}
         </AdminFold>
-        <AdminFold title={t("admin.portfolioModerationTitle")}>
+        <AdminFold
+          title={t("admin.portfolioModerationTitle")}
+          count={adminOverview?.pendingCounts?.photos}
+        >
           <section
             className="admin-panel admin-moderation-panel"
             id="admin-portfolio-moderation"
@@ -11264,7 +11392,7 @@ export function HomeClient({
               {adminModerationPhotos.map((photo) => {
                 const draft = adminModerationDrafts[photo.id];
                 if (!draft) return null;
-                const isBusy = adminBusyPhotoId === photo.id;
+                const isBusy = Boolean(adminBusyPhotoId);
 
                 return (
                   <article className="admin-moderation-card" key={photo.id}>
@@ -11353,6 +11481,17 @@ export function HomeClient({
                         <label className="compact-field admin-moderation-reason">
                           <span>{t("admin.reason")}</span>
                           <input
+                            ref={(element) => {
+                              adminReasonInputs.current[photo.id] = element;
+                            }}
+                            aria-invalid={Boolean(
+                              adminModerationErrors[photo.id],
+                            )}
+                            aria-describedby={
+                              adminModerationErrors[photo.id]
+                                ? `admin-reason-error-${photo.id}`
+                                : undefined
+                            }
                             disabled={isBusy}
                             maxLength={1000}
                             onChange={(event) =>
@@ -11369,6 +11508,15 @@ export function HomeClient({
                         </label>
                       </div>
 
+                      {adminModerationErrors[photo.id] ? (
+                        <p
+                          className="admin-moderation-error"
+                          id={`admin-reason-error-${photo.id}`}
+                          role="alert"
+                        >
+                          {adminModerationErrors[photo.id]}
+                        </p>
+                      ) : null}
                       <div className="admin-moderation-actions">
                         <button
                           className="secondary-action compact"

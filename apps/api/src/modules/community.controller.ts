@@ -78,9 +78,13 @@ export class CommunityController {
       id,
     );
   }
-  @Get("moderation") async moderation(@Req() request: CookieRequest) {
+  @Get("moderation") async moderation(
+    @Req() request: CookieRequest,
+    @Query("kind") kind?: string,
+  ) {
     return this.community.moderation(
       await this.auth.requireUserFromRequest(request),
+      kind,
     );
   }
   @Patch("moderation/:id") async moderate(
