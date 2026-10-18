@@ -9,6 +9,7 @@ import {
 
 import type { CurrentUser } from "./auth.service.js";
 import { listPublicCreators } from "./profile-directory.js";
+import { portfolioPhotoOrder } from "./gallery-order.js";
 import { demoSeoUserIds } from "./seo-index.js";
 import {
   formatStoredCityLabel,
@@ -97,7 +98,7 @@ export class ProfilesService {
             },
             photos: {
               include: profilePhotoInclude,
-              orderBy: { publishedAt: "desc" },
+              orderBy: portfolioPhotoOrder,
               where: {
                 deletedAt: null,
                 moderationStatus: "APPROVED",
@@ -150,7 +151,7 @@ export class ProfilesService {
             },
             photos: {
               include: profilePhotoInclude,
-              orderBy: { createdAt: "desc" },
+              orderBy: portfolioPhotoOrder,
               where: { deletedAt: null },
             },
             ratings: { orderBy: { rating: "desc" } },

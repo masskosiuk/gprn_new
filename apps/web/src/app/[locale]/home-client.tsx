@@ -93,6 +93,13 @@ import {
 } from "./interactive-photo-map";
 import { getSectionHref, type SectionId } from "./sections";
 import { ProfileStats } from "./profile-stats";
+import { SortablePhotoGallery } from "./sortable-photo-gallery";
+import {
+  applyGalleryOrder,
+  moveGalleryItem,
+  type GalleryMove,
+  type GalleryScope,
+} from "../../lib/gallery-order";
 import { ServerMarketplace } from "./server-marketplace";
 import {
   PhotoCommerce,
@@ -5498,6 +5505,53 @@ export function HomeClient({
     setPhotoCommerceVersion((version) => version + 1);
   }
 
+  async function saveGalleryMove(
+    scope: GalleryScope,
+    move: GalleryMove,
+  ): Promise<void> {
+    const previousFeed = serverPhotos.map((photo) => photo.id);
+    const previousMine = uploadedPhotos.map((photo) => photo.id);
+    const previousPublic = serverPublicPhotos.map((photo) => photo.id);
+    if (scope === "FEED")
+      setServerPhotos((photos) => moveGalleryItem(photos, move));
+    else {
+      setUploadedPhotos((photos) => moveGalleryItem(photos, move));
+      setServerPublicPhotos((photos) => moveGalleryItem(photos, move));
+    }
+    try {
+      const response = await apiRequest<{ photoIds: string[] }>(
+        "/photos/gallery-order",
+        {
+          method: "PATCH",
+          body: JSON.stringify({ scope, ...move }),
+          signal: AbortSignal.timeout(20000),
+        },
+      );
+      if (scope === "FEED")
+        setServerPhotos((photos) =>
+          applyGalleryOrder(photos, response.photoIds),
+        );
+      else {
+        setUploadedPhotos((photos) =>
+          applyGalleryOrder(photos, response.photoIds),
+        );
+        setServerPublicPhotos((photos) =>
+          applyGalleryOrder(photos, response.photoIds),
+        );
+      }
+    } catch (error) {
+      if (scope === "FEED")
+        setServerPhotos((photos) => applyGalleryOrder(photos, previousFeed));
+      else {
+        setUploadedPhotos((photos) => applyGalleryOrder(photos, previousMine));
+        setServerPublicPhotos((photos) =>
+          applyGalleryOrder(photos, previousPublic),
+        );
+      }
+      throw error;
+    }
+  }
+
   function openCommerceDialog(dialog: Exclude<CommerceDialog, null>): void {
     setImagePreview(null);
     if (!currentProfile) {
@@ -7335,7 +7389,10 @@ export function HomeClient({
             ) : feedStatus === "loading" ? (
               <p role="status">{t("admin.loading")}</p>
             ) : visiblePhotos.length > 0 ? (
-              renderPhotoMasonry(visiblePhotos)
+              renderPhotoMasonry(
+                visiblePhotos,
+                isAdministrator ? "FEED" : undefined,
+              )
             ) : (
               <p className="empty-state">{t("discover.empty")}</p>
             )}
@@ -8089,120 +8146,139 @@ export function HomeClient({
     );
   }
 
-  function renderPhotoMasonry(photos: readonly PhotoRecord[]): ReactNode {
-    return (
-      <div className="photo-masonry">
-        {photos.map((photo) => {
-          const title = getPhotoTitle(photo, locale);
-          const isLiked = likedPhotoIds.includes(photo.id);
-          const scores = getPhotoCriterionScores(photo);
-          const averageScore = scores
-            ? Object.values(scores).reduce((sum, score) => sum + score, 0) /
-              battleCriteria.length
-            : null;
-          const overallScore =
-            averageScore === null
-              ? null
-              : averageScore.toLocaleString(locale, {
-                  maximumFractionDigits: 1,
-                  minimumFractionDigits: 1,
-                });
+  function renderPhotoMasonry(
+    photos: readonly PhotoRecord[],
+    scope?: GalleryScope,
+  ): ReactNode {
+    const tiles = photos.map((photo) => {
+      const title = getPhotoTitle(photo, locale);
+      const isLiked = likedPhotoIds.includes(photo.id);
+      const scores = getPhotoCriterionScores(photo);
+      const averageScore = scores
+        ? Object.values(scores).reduce((sum, score) => sum + score, 0) /
+          battleCriteria.length
+        : null;
+      const overallScore =
+        averageScore === null
+          ? null
+          : averageScore.toLocaleString(locale, {
+              maximumFractionDigits: 1,
+              minimumFractionDigits: 1,
+            });
 
-          return (
-            <article
-              className="photo-tile"
-              data-photo-id={photo.id}
-              data-media-type={isVideoWork(photo) ? "VIDEO" : "PHOTO"}
-              key={photo.id}
-            >
+      return (
+        <article
+          className="photo-tile"
+          data-photo-id={photo.id}
+          data-media-type={isVideoWork(photo) ? "VIDEO" : "PHOTO"}
+          key={photo.id}
+        >
+          <button
+            aria-label={`${t("photo.openPreview")}: ${title}`}
+            className="photo-tile-open"
+            onClick={() => openPhotoPreview(photo)}
+            type="button"
+          >
+            <ContentImage
+              alt={title}
+              width={photo.width}
+              height={photo.height}
+              decoding="async"
+              loading="lazy"
+              src={photo.src}
+            />
+            {isVideoWork(photo) ? (
+              <Video
+                aria-hidden="true"
+                className="photo-tile-video"
+                size={20}
+              />
+            ) : null}
+          </button>
+          <div className="photo-tile-overlay">
+            <div className="photo-tile-actions publication-actions">
               <button
-                aria-label={`${t("photo.openPreview")}: ${title}`}
-                className="photo-tile-open"
-                onClick={() => openPhotoPreview(photo)}
+                aria-label={isLiked ? t("photo.unlike") : t("photo.like")}
+                aria-pressed={isLiked}
+                className={`photo-counter-action${isLiked ? " is-active" : ""}`}
+                onClick={() => toggleLikePhoto(photo.id)}
+                title={isLiked ? t("photo.unlike") : t("photo.like")}
                 type="button"
               >
-                <ContentImage
-                  alt={title}
-                  width={photo.width}
-                  height={photo.height}
-                  decoding="async"
-                  loading="lazy"
-                  src={photo.src}
+                <Heart
+                  aria-hidden="true"
+                  fill={isLiked ? "currentColor" : "none"}
+                  size={17}
                 />
-                {isVideoWork(photo) ? (
-                  <Video
-                    aria-hidden="true"
-                    className="photo-tile-video"
-                    size={20}
-                  />
-                ) : null}
+                <span>
+                  {compactNumberFormatter.format(
+                    photo.votes + (isLiked && !photo.serverBacked ? 1 : 0),
+                  )}
+                </span>
               </button>
-              <div className="photo-tile-overlay">
-                <div className="photo-tile-actions publication-actions">
-                  <button
-                    aria-label={isLiked ? t("photo.unlike") : t("photo.like")}
-                    aria-pressed={isLiked}
-                    className={`photo-counter-action${isLiked ? " is-active" : ""}`}
-                    onClick={() => toggleLikePhoto(photo.id)}
-                    title={isLiked ? t("photo.unlike") : t("photo.like")}
-                    type="button"
-                  >
-                    <Heart
-                      aria-hidden="true"
-                      fill={isLiked ? "currentColor" : "none"}
-                      size={17}
-                    />
-                    <span>
-                      {compactNumberFormatter.format(
-                        photo.votes + (isLiked && !photo.serverBacked ? 1 : 0),
-                      )}
-                    </span>
-                  </button>
-                  {photo.serverBacked && photo.published ? (
-                    <CommentButton
-                      compactCount
-                      id={photo.id}
-                      count={photo.commentCount ?? 0}
-                      onClick={() => openPhotoPreview(photo)}
-                    />
-                  ) : null}
-                  {overallScore !== null ? (
-                    <button
-                      aria-label={`${t("battles.overallScore")}: ${overallScore}`}
-                      className="photo-counter-action photo-tile-details"
-                      onClick={() => openPhotoPreview(photo)}
-                      title={`${t("battles.overallScore")}: ${overallScore} / 10`}
-                      type="button"
-                    >
-                      <Star aria-hidden="true" size={17} />
-                      <span>{overallScore}</span>
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-              {photo.sale ? (
-                <button
-                  type="button"
-                  className="photo-tile-price"
+              {photo.serverBacked && photo.published ? (
+                <CommentButton
+                  compactCount
+                  id={photo.id}
+                  count={photo.commentCount ?? 0}
                   onClick={() => openPhotoPreview(photo)}
-                  aria-label={`${t("marketplace.buy")}: ${formatMoney(photo.sale.priceMinor, locale)}`}
+                />
+              ) : null}
+              {overallScore !== null ? (
+                <button
+                  aria-label={`${t("battles.overallScore")}: ${overallScore}`}
+                  className="photo-counter-action photo-tile-details"
+                  onClick={() => openPhotoPreview(photo)}
+                  title={`${t("battles.overallScore")}: ${overallScore} / 10`}
+                  type="button"
                 >
-                  <ShoppingBag size={14} />
-                  {photo.sale.isDemo ? (
-                    <span>
-                      {locale === "ru" || locale === "uk" ? "Демо" : "Demo"}
-                    </span>
-                  ) : null}
-                  {new Intl.NumberFormat(locale, {
-                    style: "currency",
-                    currency: photo.sale.currency,
-                  }).format(photo.sale.priceMinor / 100)}
+                  <Star aria-hidden="true" size={17} />
+                  <span>{overallScore}</span>
                 </button>
               ) : null}
-            </article>
-          );
-        })}
-      </div>
+            </div>
+          </div>
+          {photo.sale ? (
+            <button
+              type="button"
+              className="photo-tile-price"
+              onClick={() => openPhotoPreview(photo)}
+              aria-label={`${t("marketplace.buy")}: ${formatMoney(photo.sale.priceMinor, locale)}`}
+            >
+              <ShoppingBag size={14} />
+              {photo.sale.isDemo ? (
+                <span>
+                  {locale === "ru" || locale === "uk" ? "Демо" : "Demo"}
+                </span>
+              ) : null}
+              {new Intl.NumberFormat(locale, {
+                style: "currency",
+                currency: photo.sale.currency,
+              }).format(photo.sale.priceMinor / 100)}
+            </button>
+          ) : null}
+        </article>
+      );
+    });
+    if (
+      !scope ||
+      !serverUser ||
+      photos.filter((photo) => photo.serverBacked).length < 2
+    )
+      return <div className="photo-masonry">{tiles}</div>;
+    return (
+      <SortablePhotoGallery
+        locale={locale}
+        items={photos.map((photo) => ({
+          id: photo.id,
+          title: getPhotoTitle(photo, locale),
+          src: photo.src,
+          disabled: !photo.serverBacked,
+        }))}
+        onMove={(move) => saveGalleryMove(scope, move)}
+      >
+        {tiles}
+      </SortablePhotoGallery>
     );
   }
 
@@ -9986,7 +10062,12 @@ export function HomeClient({
             </div>
 
             {authorPhotos.length > 0 ? (
-              renderPhotoMasonry(authorPhotos)
+              renderPhotoMasonry(
+                authorPhotos,
+                serverUser?.profile?.username === author.username
+                  ? "PORTFOLIO"
+                  : undefined,
+              )
             ) : (
               <p className="empty-state">{t("profile.emptyAuthorPortfolio")}</p>
             )}
@@ -10249,7 +10330,7 @@ export function HomeClient({
                 </div>
 
                 {profilePhotos.length > 0 ? (
-                  renderPhotoMasonry(profilePhotos)
+                  renderPhotoMasonry(profilePhotos, "PORTFOLIO")
                 ) : (
                   <p className="empty-state">{t("profile.emptyPortfolio")}</p>
                 )}
@@ -12029,7 +12110,7 @@ export function HomeClient({
             )}
             {hasComments && imagePreview.photoId ? (
               <Comments
-                key={imagePreview.photoId}
+                key={`comments:${imagePreview.photoId}`}
                 kind="PHOTO"
                 id={imagePreview.photoId}
                 count={previewWork?.commentCount ?? 0}

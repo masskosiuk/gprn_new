@@ -15,6 +15,7 @@ import sharp, { type Metadata } from "sharp";
 
 import type { CurrentUser } from "./auth.service.js";
 import { parsePhotoTitle, requirePhotoTitleAccess } from "./photo-title.js";
+import { feedPhotoOrder, portfolioPhotoOrder } from "./gallery-order.js";
 import { photoSaleInclude, serializePhotoSale } from "./photo-sale.js";
 import {
   aggregatePhotoReviews,
@@ -634,9 +635,7 @@ export class PhotosService {
   ): Promise<{ photos: ReturnType<PhotosService["toPhotoResponse"]>[] }> {
     const photos = await prisma.photo.findMany({
       include: photoInclude,
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: portfolioPhotoOrder,
       where: {
         deletedAt: null,
         ownerId: user.id,
@@ -653,9 +652,7 @@ export class PhotosService {
   }> {
     const photos = await prisma.photo.findMany({
       include: photoInclude,
-      orderBy: {
-        publishedAt: "desc",
-      },
+      orderBy: feedPhotoOrder,
       take: 48,
       where: {
         deletedAt: null,

@@ -1,6 +1,7 @@
 import { loadRuntimeEnv } from "@gprn/config";
 import { prisma } from "@gprn/db";
 import { Injectable } from "@nestjs/common";
+import { feedPhotoOrder } from "./gallery-order.js";
 import { mediaCatalogFilter } from "./media-catalog.js";
 import { photoSaleInclude, serializePhotoSale } from "./photo-sale.js";
 import {
@@ -35,9 +36,7 @@ export class DiscoverService {
           },
           provenance: true,
         },
-        orderBy: {
-          publishedAt: "desc",
-        },
+        orderBy: feedPhotoOrder,
         take: 48,
         where: {
           ...mediaFilter,

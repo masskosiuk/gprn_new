@@ -15,6 +15,7 @@ import { AuthService } from "./auth.service.js";
 import { requirePermission } from "./authorization.js";
 import type { CookieRequest } from "./http.types.js";
 import { PhotosService } from "./photos.service.js";
+import { moveGalleryPhoto } from "./gallery-order.js";
 
 @ApiTags("photos")
 @Controller("photos")
@@ -47,6 +48,14 @@ export class PhotosController {
   @Header("Cache-Control", "no-store")
   publicPhoto(@Param("photoId") photoId: string) {
     return this.photosService.publicPhoto(photoId);
+  }
+
+  @Patch("gallery-order")
+  async reorder(@Req() request: CookieRequest, @Body() body: unknown) {
+    return moveGalleryPhoto(
+      await this.authService.requireUserFromRequest(request),
+      body,
+    );
   }
 
   @Post(":photoId/publish")
