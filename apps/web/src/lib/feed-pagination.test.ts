@@ -6,6 +6,7 @@ import ts from "typescript";
 import { mergeFeedPage, feedQueryString } from "./feed-pagination.ts";
 import { galleryDropPoint } from "./gallery-drop.ts";
 import { groupPhotoMapMarkers } from "./photo-map-groups.ts";
+import { requestJson } from "./auth-client.ts";
 
 const source = ts.createSourceFile(
   "home-client.tsx",
@@ -266,7 +267,18 @@ test("mark all read changes UI only after the server confirms and preserves new 
     setNotifications(updater: (items: any[]) => any[]) {
       context.notifications = updater(context.notifications);
     },
-    apiRequest: async () => response,
+    apiRequest: async (path: string, init: RequestInit) => {
+      assert.equal(path, "/notifications/read-all");
+      assert.equal(init.method, "PATCH");
+      return requestJson(path, init, async (_url, request) => {
+        assert.equal(
+          new Headers(request?.headers).get("content-type"),
+          "application/json",
+        );
+        assert.deepEqual(JSON.parse(String(request?.body)), {});
+        return Response.json(await response);
+      });
+    },
   };
   const run = handler("markAllNotificationsRead", context);
   const result = run();

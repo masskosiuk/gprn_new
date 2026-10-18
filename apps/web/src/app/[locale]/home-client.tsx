@@ -6071,6 +6071,7 @@ export function HomeClient({
       const response = userId
         ? await apiRequest<{ readAt: string }>("/notifications/read-all", {
             method: "PATCH",
+            body: JSON.stringify({}),
             signal: AbortSignal.timeout(15000),
             keepalive: true,
           })
@@ -6830,7 +6831,7 @@ export function HomeClient({
                         </button>
                       </div>
                       {notificationsError ? (
-                        <p role="alert">{t("admin.actionFailed")}</p>
+                        <p role="alert">{t("notifications.markReadFailed")}</p>
                       ) : null}
                       {notifications.length > 0 ? (
                         notifications.slice(0, 6).map((notification) => (

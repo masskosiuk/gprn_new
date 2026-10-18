@@ -837,6 +837,8 @@ const baseMessages = {
   "notifications.title": "Notifications",
   "notifications.empty": "No notifications yet.",
   "notifications.markRead": "Mark all as read",
+  "notifications.markReadFailed":
+    "Could not mark notifications as read. Please try again.",
   "notifications.photoPublished": "Your photo was published.",
   "notifications.battleVote": "Your battle vote was counted.",
   "notifications.battleJoined": "Your photo entered a battle.",
@@ -1969,6 +1971,8 @@ const ruMessages: Partial<MessageMap> = {
   "notifications.title": "Уведомления",
   "notifications.empty": "Уведомлений пока нет.",
   "notifications.markRead": "Отметить всё прочитанным",
+  "notifications.markReadFailed":
+    "Не удалось отметить уведомления прочитанными. Попробуйте ещё раз.",
   "notifications.photoPublished": "Ваше фото опубликовано.",
   "notifications.battleVote": "Ваш голос в батле засчитан.",
   "notifications.battleJoined": "Ваше фото участвует в батле.",
