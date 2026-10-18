@@ -9904,7 +9904,7 @@ export function HomeClient({
                     <span>@{author.username}</span>
                   </div>
                   <div className="profile-head-actions-row">
-                    <div className="profile-commerce-actions">
+                    <div className="profile-commerce-actions profile-summary-actions">
                       <InteractionMenu
                         username={author.username}
                         name={getPublicAuthorName(author, locale)}
@@ -9933,6 +9933,13 @@ export function HomeClient({
                           encodeURIComponent(author.username)
                         }
                       />
+                      <ProfileStats
+                        locale={locale}
+                        rating={author.rating}
+                        photos={authorPhotos.length}
+                        wins={author.wins}
+                        followers={author.followers}
+                      />
                     </div>
                     {(author.completedOrders ?? 0) > 0 ? (
                       <div className="profile-service-metrics">
@@ -9957,14 +9964,6 @@ export function HomeClient({
                   </div>
                 </div>
               </div>
-
-              <ProfileStats
-                locale={locale}
-                rating={author.rating}
-                photos={authorPhotos.length}
-                wins={author.wins}
-                followers={author.followers}
-              />
             </div>
 
             <div id="presets" />
@@ -10149,7 +10148,7 @@ export function HomeClient({
                     </span>
                     <span>@{currentProfile.username}</span>
                   </div>
-                  <div className="entity-card-actions">
+                  <div className="entity-card-actions profile-summary-actions">
                     <DiscussionButton
                       compact
                       source={{
@@ -10164,17 +10163,18 @@ export function HomeClient({
                           encodeURIComponent(currentProfile.username),
                       }}
                     />
+                    <ProfileStats
+                      locale={locale}
+                      rating={currentProfile.rating}
+                      photos={
+                        currentProfile.publicPhotoCount ?? profilePhotos.length
+                      }
+                      wins={currentProfile.wins}
+                      followers={currentProfile.followers}
+                    />
                   </div>
                 </div>
               </div>
-
-              <ProfileStats
-                locale={locale}
-                rating={currentProfile.rating}
-                photos={currentProfile.publicPhotoCount ?? profilePhotos.length}
-                wins={currentProfile.wins}
-                followers={currentProfile.followers}
-              />
             </div>
 
             {legacyProfileImages ? (

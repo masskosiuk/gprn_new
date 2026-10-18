@@ -1,5 +1,4 @@
 import { getMessage, type SupportedLocale } from "@gprn/i18n";
-import type { CSSProperties } from "react";
 import {
   visibleProfileMetrics,
   type ProfileMetricValues,
@@ -13,11 +12,7 @@ export function ProfileStats({
   if (!metrics.length) return null;
   const formatter = new Intl.NumberFormat(locale);
   return (
-    <div
-      className="profile-stats"
-      data-count={metrics.length}
-      style={{ "--stat-count": metrics.length } as CSSProperties}
-    >
+    <div className="profile-stats" data-count={metrics.length}>
       {metrics.map(({ value, key }) => (
         <div key={key}>
           <strong>{formatter.format(value)}</strong>
