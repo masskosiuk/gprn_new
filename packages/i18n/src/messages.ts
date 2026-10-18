@@ -330,6 +330,8 @@ const baseMessages = {
 
   "discover.searchPlaceholder": "Search by title, author or location",
   "discover.filters": "Filters",
+  "discover.loadMore": "Load more",
+  "discover.loading": "Loading works...",
   "discover.category": "Category",
   "discover.location": "Location",
   "discover.date": "Publication date",
@@ -1469,6 +1471,8 @@ const ruMessages: Partial<MessageMap> = {
   "photo.starComments": "Комментарии профессионалов и суперстаров",
   "discover.searchPlaceholder": "Искать по названию, автору или месту",
   "discover.filters": "Фильтры",
+  "discover.loadMore": "Загрузить ещё",
+  "discover.loading": "Загрузка работ...",
   "discover.category": "Категория",
   "discover.location": "Место съёмки",
   "discover.date": "Дата публикации",

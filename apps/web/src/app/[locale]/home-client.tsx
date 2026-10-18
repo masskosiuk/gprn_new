@@ -123,6 +123,8 @@ import {
   ProControl,
 } from "./community";
 import { MyInteractions } from "./interactions";
+import { PhotoMasonry } from "./photo-masonry";
+import { feedQueryString, mergeFeedPage } from "../../lib/feed-pagination";
 import { ServerExperts, ServerLeaderboard } from "./server-experts";
 import {
   filterStudioPrices,
@@ -470,6 +472,8 @@ export interface ServerProfilePayload {
 
 export interface DiscoverResponse {
   readonly photos: readonly ServerPhotoPayload[];
+  readonly nextCursor?: string | null;
+  readonly total?: number;
 }
 
 export interface ServerBattlePayload {
@@ -2651,6 +2655,22 @@ export function HomeClient({
     Boolean(initialPublicData.discover),
   );
   const firstFeedRefresh = useRef(true);
+  const [feedNextCursor, setFeedNextCursor] = useState(
+    initialPublicData.discover?.nextCursor ?? null,
+  );
+  const [feedTotal, setFeedTotal] = useState(
+    initialPublicData.discover?.total ??
+      initialPublicData.discover?.photos.length ??
+      0,
+  );
+  const [feedLoadingMore, setFeedLoadingMore] = useState(false);
+  const [feedMoreError, setFeedMoreError] = useState(false);
+  const feedSentinelRef = useRef<HTMLDivElement | null>(null);
+  const feedRequest = useRef<{
+    version: number;
+    busy: boolean;
+    controller: AbortController | null;
+  }>({ version: 0, busy: false, controller: null });
   const firstBattleRefresh = useRef(true);
   const [serverPublicProfile, setServerPublicProfile] =
     useState<PublicAuthorProfile | null>(() =>
@@ -2767,6 +2787,12 @@ export function HomeClient({
   const [wishlistProductIds, setWishlistProductIds] = useState<string[]>([]);
   const [notifications, setNotifications] = useState<LocalNotification[]>([]);
   const [isNotificationMenuOpen, setNotificationMenuOpen] = useState(false);
+  const [notificationsBusy, setNotificationsBusy] = useState(false);
+  const [notificationsError, setNotificationsError] = useState(false);
+  const notificationsReadThrough = useRef<{
+    userId: string;
+    readAt: string;
+  } | null>(null);
   const [commerceDialog, setCommerceDialog] = useState<CommerceDialog>(null);
   const [workPickerTarget, setWorkPickerTarget] =
     useState<WorkPickerTarget>(null);
@@ -2783,6 +2809,27 @@ export function HomeClient({
   const [promotions, setPromotions] = useState<LocalPromotion[]>([]);
   const [photoCommerceVersion, setPhotoCommerceVersion] = useState(0);
   const [saleOnly, setSaleOnly] = useState(false);
+  const feedQuery = feedQueryString(
+    {
+      kind: feedKind,
+      category: categoryFilter,
+      location: discoverLocationFilter,
+      from: discoverDateFrom,
+      to: discoverDateTo,
+      search: searchTerm,
+    },
+    saleOnly,
+    locationFilters
+      .filter(
+        (location) =>
+          location.id !== "all" &&
+          searchTerm.trim() &&
+          t(location.key)
+            .toLocaleLowerCase(locale)
+            .includes(searchTerm.trim().toLocaleLowerCase(locale)),
+      )
+      .map((location) => location.id),
+  );
   const [deletionRequested, setDeletionRequested] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
   const [modelGenreFilter, setModelGenreFilter] =
@@ -3000,31 +3047,45 @@ export function HomeClient({
     ) ??
     uploadedPhotos.find((photo) => !photo.profileAsset) ??
     null;
-  const visiblePhotos = serverPhotos.filter(
-    (photo) =>
-      (!saleOnly || Boolean(photo.sale)) &&
-      matchesFeedFilters(
-        {
-          video: isVideoWork(photo),
-          category: photo.categoryId,
-          location: photo.locationId,
-          publishedAt: photo.uploadedAt,
-          searchText: [
-            getPhotoTitle(photo, locale),
-            getPhotoAuthor(photo, locale),
-            getLocationLabel(photo.locationId, locale, photo.locationLabel),
-          ].join(" "),
-        },
-        {
-          kind: feedKind,
-          category: categoryFilter,
-          location: discoverLocationFilter,
-          from: discoverDateFrom,
-          to: discoverDateTo,
-          search: searchTerm,
-        },
-        locale,
+  const visiblePhotos = useMemo(
+    () =>
+      serverPhotos.filter(
+        (photo) =>
+          (!saleOnly || Boolean(photo.sale)) &&
+          matchesFeedFilters(
+            {
+              video: isVideoWork(photo),
+              category: photo.categoryId,
+              location: photo.locationId,
+              publishedAt: photo.uploadedAt,
+              searchText: [
+                getPhotoTitle(photo, locale),
+                getPhotoAuthor(photo, locale),
+                getLocationLabel(photo.locationId, locale, photo.locationLabel),
+              ].join(" "),
+            },
+            {
+              kind: feedKind,
+              category: categoryFilter,
+              location: discoverLocationFilter,
+              from: discoverDateFrom,
+              to: discoverDateTo,
+              search: searchTerm,
+            },
+            locale,
+          ),
       ),
+    [
+      serverPhotos,
+      saleOnly,
+      feedKind,
+      categoryFilter,
+      discoverLocationFilter,
+      discoverDateFrom,
+      discoverDateTo,
+      searchTerm,
+      locale,
+    ],
   );
   const visibleBattles = battles.filter(
     (battle) => battleFilter === "all" || battle.scope === battleFilter,
@@ -3171,8 +3232,6 @@ export function HomeClient({
     ];
   }, [locale, publicPhotos]);
   const mapPhotoMarkers = useMemo<readonly PhotoMapMarker[]>(() => {
-    const locationPhotoCounts = new Map<string, number>();
-
     return visiblePhotos
       .filter((photo) => {
         if (photo.locationHidden) return false;
@@ -3192,46 +3251,28 @@ export function HomeClient({
         const locationId = photo.locationId || `photo-${photo.id}`;
         const latitude = photo.locationLatitude ?? knownLocation!.latitude;
         const longitude = photo.locationLongitude ?? knownLocation!.longitude;
-        const locationPhotoIndex = locationPhotoCounts.get(locationId) ?? 0;
-        locationPhotoCounts.set(locationId, locationPhotoIndex + 1);
-        const angle = (locationPhotoIndex * 137.5 * Math.PI) / 180;
-        const radius =
-          locationPhotoIndex === 0
-            ? 0
-            : 0.045 * Math.ceil(locationPhotoIndex / 5);
-
         return {
           id: locationId,
           imageUrl: photo.src,
           label: getLocationLabel(locationId, locale, photo.locationLabel),
-          latitude: latitude + Math.cos(angle) * radius,
-          longitude: longitude + Math.sin(angle) * radius,
+          latitude,
+          longitude,
           photoId: photo.id,
           title: getPhotoTitle(photo, locale),
         };
       });
   }, [locale, visiblePhotos]);
   const mapVideoMarkers = useMemo<readonly PhotoMapMarker[]>(() => {
-    const locationVideoCounts = new Map<LocationId, number>();
-
     return curatedVideos.map((video) => {
       const location =
         locationPins.find((candidate) => candidate.id === video.locationId) ??
         locationPins[0]!;
-      const locationVideoIndex = locationVideoCounts.get(location.id) ?? 0;
-      locationVideoCounts.set(location.id, locationVideoIndex + 1);
-      const angle = (locationVideoIndex * 137.5 * Math.PI) / 180;
-      const radius =
-        locationVideoIndex === 0
-          ? 0
-          : 0.045 * Math.ceil(locationVideoIndex / 5);
-
       return {
         id: location.id,
         imageUrl: video.posterUrl,
         label: getLocationLabel(location.id, locale),
-        latitude: location.latitude + Math.cos(angle) * radius,
-        longitude: location.longitude + Math.sin(angle) * radius,
+        latitude: location.latitude,
+        longitude: location.longitude,
         photoId: video.id,
         title: t(video.titleKey),
       };
@@ -3558,12 +3599,69 @@ export function HomeClient({
 
   useEffect(() => {
     if (!isHydrated) return;
-    void Promise.all([
-      refreshDiscoverPhotos(),
-      refreshServerBattles(),
-      refreshServerChallenges(),
-    ]);
+    void Promise.all([refreshServerBattles(), refreshServerChallenges()]);
   }, [isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    const request = feedRequest.current;
+    request.controller?.abort();
+    request.version++;
+    request.busy = false;
+    const initial =
+      firstFeedRefresh.current &&
+      !feedQuery &&
+      Boolean(initialPublicData.discover);
+    if (!initial) {
+      setServerPhotos([]);
+      setFeedNextCursor(null);
+      setFeedTotal(0);
+      setFeedStatus("loading");
+    }
+    setFeedLoadingMore(false);
+    setFeedMoreError(false);
+    const timer = window.setTimeout(
+      () => void refreshDiscoverPhotos(undefined, true),
+      feedQuery ? 250 : 0,
+    );
+    return () => {
+      window.clearTimeout(timer);
+      request.controller?.abort();
+      request.version++;
+      request.busy = false;
+    };
+  }, [isHydrated, feedQuery]);
+
+  useEffect(() => {
+    if (
+      !isHydrated ||
+      !["feed", "discover"].includes(initialSection) ||
+      !feedNextCursor ||
+      feedStatus !== "ready" ||
+      feedLoadingMore ||
+      feedMoreError ||
+      !feedSentinelRef.current
+    )
+      return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting))
+          void refreshDiscoverPhotos(feedNextCursor);
+      },
+      { rootMargin: "800px" },
+    );
+    observer.observe(feedSentinelRef.current);
+    return () => observer.disconnect();
+  }, [
+    isHydrated,
+    initialSection,
+    feedQuery,
+    feedNextCursor,
+    feedStatus,
+    feedLoadingMore,
+    feedMoreError,
+    serverPhotos.length,
+  ]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -4428,21 +4526,81 @@ export function HomeClient({
     }));
   }
 
-  async function refreshDiscoverPhotos(): Promise<void> {
-    if (!firstFeedRefresh.current || !initialPublicData.discover)
-      setFeedStatus("loading");
+  async function refreshDiscoverPhotos(
+    cursor?: string,
+    reset = false,
+  ): Promise<void> {
+    const request = feedRequest.current;
+    if (cursor && request.busy) return;
+    request.controller?.abort();
+    const controller = new AbortController();
+    request.controller = controller;
+    const version = ++request.version;
+    request.busy = true;
+    if (!cursor && !serverPhotos.length) setFeedStatus("loading");
+    setFeedLoadingMore(true);
+    setFeedMoreError(false);
     firstFeedRefresh.current = false;
+    const remaining = new Set(
+      cursor || reset ? [] : serverPhotos.map((photo) => photo.id),
+    );
+    const deadline = AbortSignal.timeout(60000);
     try {
-      const response = await apiRequest<DiscoverResponse>("/discover");
+      let pageCursor = cursor;
+      let nextCursor: string | null = null;
+      let total = 0;
+      let photos: PhotoRecord[] = [];
+      const visited = new Set<string>();
+      do {
+        const query = new URLSearchParams(feedQuery);
+        if (pageCursor) query.set("cursor", pageCursor);
+        const response = await apiRequest<DiscoverResponse>(
+          `/discover${query.size ? `?${query}` : ""}`,
+          {
+            signal: AbortSignal.any([
+              controller.signal,
+              deadline,
+              AbortSignal.timeout(15000),
+            ]),
+          },
+        );
+        if (version !== request.version || controller.signal.aborted) return;
+        photos = mergeFeedPage(
+          photos,
+          response.photos
+            .map((photo) => mapServerPhoto(photo, serverUser?.id))
+            .filter((photo): photo is PhotoRecord =>
+              Boolean(photo && !photo.profileAsset),
+            ),
+        );
+        for (const photo of response.photos) remaining.delete(photo.id);
+        total = response.total ?? photos.length;
+        nextCursor = response.nextCursor ?? null;
+        if (
+          nextCursor &&
+          (visited.has(nextCursor) || nextCursor === pageCursor)
+        )
+          throw new Error("Repeated feed cursor");
+        if (nextCursor) visited.add(nextCursor);
+        pageCursor = nextCursor ?? undefined;
+      } while (!cursor && remaining.size && nextCursor);
+      if (version !== request.version || controller.signal.aborted) return;
       setHasServerFeed(true);
       setFeedStatus("ready");
-      setServerPhotos(
-        response.photos
-          .map((photo) => mapServerPhoto(photo, serverUser?.id))
-          .filter((photo): photo is PhotoRecord => Boolean(photo)),
+      setFeedTotal(total);
+      setFeedNextCursor(nextCursor);
+      setServerPhotos((current) =>
+        cursor ? mergeFeedPage(current, photos) : photos,
       );
     } catch {
-      setFeedStatus("error");
+      if (version !== request.version || controller.signal.aborted) return;
+      if (cursor || serverPhotos.length) setFeedMoreError(true);
+      else setFeedStatus("error");
+    } finally {
+      if (version === request.version) {
+        request.busy = false;
+        setFeedLoadingMore(false);
+      }
     }
   }
 
@@ -4652,7 +4810,14 @@ export function HomeClient({
       if (notificationsResponse) {
         setNotifications(
           notificationsResponse.notifications.map((notification) =>
-            mapServerNotification(notification, locale),
+            mapServerNotification(
+              notificationsReadThrough.current?.userId === user.id &&
+                notification.createdAt <=
+                  notificationsReadThrough.current.readAt
+                ? { ...notification, status: "READ" }
+                : notification,
+              locale,
+            ),
           ),
         );
       }
@@ -5607,9 +5772,14 @@ export function HomeClient({
     const previousFeed = serverPhotos.map((photo) => photo.id);
     const previousMine = uploadedPhotos.map((photo) => photo.id);
     const previousPublic = serverPublicPhotos.map((photo) => photo.id);
-    if (scope === "FEED")
+    let feedMoveVersion = -1;
+    if (scope === "FEED") {
+      feedRequest.current.controller?.abort();
+      feedMoveVersion = ++feedRequest.current.version;
+      feedRequest.current.busy = true;
+      setFeedLoadingMore(true);
       setServerPhotos((photos) => moveGalleryItem(photos, move));
-    else {
+    } else {
       setUploadedPhotos((photos) => moveGalleryItem(photos, move));
       setServerPublicPhotos((photos) => moveGalleryItem(photos, move));
     }
@@ -5622,11 +5792,12 @@ export function HomeClient({
           signal: AbortSignal.timeout(20000),
         },
       );
-      if (scope === "FEED")
+      if (scope === "FEED") {
         setServerPhotos((photos) =>
           applyGalleryOrder(photos, response.photoIds),
         );
-      else {
+        await refreshDiscoverPhotos();
+      } else {
         setUploadedPhotos((photos) =>
           applyGalleryOrder(photos, response.photoIds),
         );
@@ -5644,6 +5815,11 @@ export function HomeClient({
         );
       }
       throw error;
+    } finally {
+      if (scope === "FEED" && feedRequest.current.version === feedMoveVersion) {
+        feedRequest.current.busy = false;
+        setFeedLoadingMore(false);
+      }
     }
   }
 
@@ -5884,20 +6060,37 @@ export function HomeClient({
   }
 
   async function markAllNotificationsRead(): Promise<void> {
-    const unreadServerNotifications = notifications.filter(
-      (notification) => !notification.read && notification.serverBacked,
+    if (notificationsBusy) return;
+    const userId = serverUser?.id;
+    const localIds = new Set(
+      notifications.filter((item) => !item.serverBacked).map((item) => item.id),
     );
-    setNotifications((current) =>
-      current.map((notification) => ({ ...notification, read: true })),
-    );
-    await Promise.all(
-      unreadServerNotifications.map((notification) =>
-        apiRequest(
-          `/notifications/${encodeURIComponent(notification.id)}/read`,
-          { method: "PATCH" },
-        ).catch(() => undefined),
-      ),
-    );
+    setNotificationsBusy(true);
+    setNotificationsError(false);
+    try {
+      const response = userId
+        ? await apiRequest<{ readAt: string }>("/notifications/read-all", {
+            method: "PATCH",
+            signal: AbortSignal.timeout(15000),
+            keepalive: true,
+          })
+        : null;
+      if (userId && activeServerUserId.current !== userId) return;
+      if (userId && response)
+        notificationsReadThrough.current = { userId, readAt: response.readAt };
+      setNotifications((current) =>
+        current.map((item) =>
+          localIds.has(item.id) ||
+          (item.serverBacked && response && item.createdAt <= response.readAt)
+            ? { ...item, read: true }
+            : item,
+        ),
+      );
+    } catch {
+      setNotificationsError(true);
+    } finally {
+      setNotificationsBusy(false);
+    }
   }
 
   async function shareItem(title: string, path: string): Promise<void> {
@@ -6627,6 +6820,7 @@ export function HomeClient({
                         <strong>{t("notifications.title")}</strong>
                         <button
                           className="text-link-button"
+                          disabled={notificationsBusy}
                           onClick={() => {
                             void markAllNotificationsRead();
                           }}
@@ -6635,6 +6829,9 @@ export function HomeClient({
                           {t("notifications.markRead")}
                         </button>
                       </div>
+                      {notificationsError ? (
+                        <p role="alert">{t("admin.actionFailed")}</p>
+                      ) : null}
                       {notifications.length > 0 ? (
                         notifications.slice(0, 6).map((notification) => (
                           <div
@@ -7305,12 +7502,16 @@ export function HomeClient({
                       checked={saleOnly}
                       onChange={(event) => setSaleOnly(event.target.checked)}
                     />
-                    {locale === "ru" ? "В продаже" : "For sale"}
+                    {locale === "ru"
+                      ? "Только в продаже"
+                      : locale === "uk"
+                        ? "Тільки у продажу"
+                        : "For sale only"}
                   </label>
                   <span>
                     {t("discover.results").replace(
                       "{count}",
-                      numberFormatter.format(visiblePhotos.length),
+                      numberFormatter.format(feedTotal),
                     )}
                   </span>
                   <button
@@ -7466,7 +7667,7 @@ export function HomeClient({
                 )}
               </span>
               <span className="count-pill">
-                {numberFormatter.format(visiblePhotos.length)}
+                {numberFormatter.format(feedTotal)}
               </span>
             </div>
             {feedStatus === "error" ? (
@@ -7481,16 +7682,39 @@ export function HomeClient({
                   {t("admin.refresh")}
                 </button>
               </div>
-            ) : feedStatus === "loading" ? (
-              <p role="status">{t("admin.loading")}</p>
-            ) : visiblePhotos.length > 0 ? (
+            ) : null}
+            {visiblePhotos.length > 0 ? (
               renderPhotoMasonry(
                 visiblePhotos,
                 isAdministrator ? "FEED" : undefined,
               )
-            ) : (
+            ) : feedStatus === "ready" && !feedLoadingMore ? (
               <p className="empty-state">{t("discover.empty")}</p>
-            )}
+            ) : null}
+            <div className="feed-load-more" ref={feedSentinelRef}>
+              {feedLoadingMore || feedStatus === "loading" ? (
+                <p role="status">
+                  <RefreshCw size={18} /> {t("discover.loading")}
+                </p>
+              ) : null}
+              {feedMoreError ? (
+                <p role="status">{t("product.failed")}</p>
+              ) : null}
+              {!feedLoadingMore &&
+              feedStatus === "ready" &&
+              (feedNextCursor || feedMoreError) ? (
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() =>
+                    void refreshDiscoverPhotos(feedNextCursor ?? undefined)
+                  }
+                >
+                  <RefreshCw size={16} />{" "}
+                  {t(feedMoreError ? "admin.refresh" : "discover.loadMore")}
+                </button>
+              ) : null}
+            </div>
           </div>
         </section>
       </>
@@ -8360,7 +8584,7 @@ export function HomeClient({
       !serverUser ||
       photos.filter((photo) => photo.serverBacked).length < 2
     )
-      return <div className="photo-masonry">{tiles}</div>;
+      return <PhotoMasonry>{tiles}</PhotoMasonry>;
     return (
       <SortablePhotoGallery
         locale={locale}

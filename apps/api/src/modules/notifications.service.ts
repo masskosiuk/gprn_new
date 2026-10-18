@@ -5,14 +5,23 @@ import type { CurrentUser } from "./auth.service.js";
 
 @Injectable()
 export class NotificationsService {
+  async markAllRead(user: CurrentUser) {
+    const readAt = new Date();
+    const result = await prisma.notification.updateMany({
+      where: { userId: user.id, status: "UNREAD", createdAt: { lte: readAt } },
+      data: { status: "READ", readAt },
+    });
+    return { count: result.count, readAt: readAt.toISOString() };
+  }
+
   async listMine(user: CurrentUser) {
     const notifications = await prisma.notification.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
       where: {
         status: { not: "ARCHIVED" },
-        userId: user.id
-      }
+        userId: user.id,
+      },
     });
 
     return {
@@ -22,26 +31,35 @@ export class NotificationsService {
         payload: notification.payload,
         readAt: notification.readAt?.toISOString() ?? null,
         status: notification.status,
-        type: notification.type
+        type: notification.type,
       })),
-      unreadCount: notifications.filter((notification) => notification.status === "UNREAD").length
+      unreadCount: notifications.filter(
+        (notification) => notification.status === "UNREAD",
+      ).length,
     };
   }
 
   async markRead(user: CurrentUser, notificationId: string) {
     const notification = await prisma.notification.findFirst({
-      where: { id: notificationId, userId: user.id }
+      where: { id: notificationId, userId: user.id },
     });
 
     if (!notification) {
-      throw new NotFoundException({ code: "NOTIFICATION_NOT_FOUND", message: "Notification does not exist." });
+      throw new NotFoundException({
+        code: "NOTIFICATION_NOT_FOUND",
+        message: "Notification does not exist.",
+      });
     }
 
     const updated = await prisma.notification.update({
       data: { readAt: notification.readAt ?? new Date(), status: "READ" },
-      where: { id: notification.id }
+      where: { id: notification.id },
     });
 
-    return { id: updated.id, readAt: updated.readAt?.toISOString() ?? null, status: updated.status };
+    return {
+      id: updated.id,
+      readAt: updated.readAt?.toISOString() ?? null,
+      status: updated.status,
+    };
   }
 }

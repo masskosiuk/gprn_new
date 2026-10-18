@@ -384,15 +384,13 @@ export function ServerExperts() {
                     <Avatar name={author.displayName} src={author.avatarUrl} />
                   </Link>
                   <div className="expert-card-details">
-                    {!!author.categories.length && (
-                      <div className="expert-genres">
-                        {author.categories.slice(0, 2).map((category) => (
-                          <span className="pill" key={category.slug}>
-                            {label(category.nameKey, category.slug)}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    <div className="expert-genres">
+                      {author.categories.slice(0, 2).map((category) => (
+                        <span className="pill" key={category.slug}>
+                          {label(category.nameKey, category.slug)}
+                        </span>
+                      ))}
+                    </div>
                     <h2 className="author-name-line">
                       <Link href={profile(author.username)}>
                         {author.displayName}
@@ -408,7 +406,12 @@ export function ServerExperts() {
                         />
                       )}
                     </h2>
-                    {author.headline && <p>{author.headline}</p>}
+                    <p
+                      className="expert-card-description"
+                      title={author.headline ?? undefined}
+                    >
+                      {author.headline || "\u00a0"}
+                    </p>
                     <div className="meta-row creator-card-meta">
                       {author.city && (
                         <span>
@@ -449,13 +452,11 @@ export function ServerExperts() {
                         />
                       </span>
                     </div>
-                    {author.languages.length > 0 && (
-                      <div className="language-list">
-                        {author.languages.map((language) => (
-                          <span key={language}>{language.toUpperCase()}</span>
-                        ))}
-                      </div>
-                    )}
+                    <div className="language-list">
+                      {author.languages.map((language) => (
+                        <span key={language}>{language.toUpperCase()}</span>
+                      ))}
+                    </div>
                   </div>
                 </article>
               ))}

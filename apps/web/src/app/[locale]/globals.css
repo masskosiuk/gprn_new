@@ -2750,6 +2750,45 @@ img {
   background: transparent;
   border: 0;
 }
+.photo-map-marker__group {
+  position: relative;
+  display: block;
+}
+.photo-map-marker__count {
+  position: absolute;
+  bottom: -4px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 5px;
+  border: 2px solid var(--panel);
+  border-radius: 12px;
+  color: #081c19;
+  background: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+.photo-map-popup .photo-map-popup-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.photo-map-popup-gallery button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  aspect-ratio: 1;
+}
+.photo-map-popup-gallery img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
 .photo-map-marker__frame {
   background: var(--panel);
@@ -2776,6 +2815,16 @@ img {
 .photo-map-marker.is-active .photo-map-marker__frame {
   border-color: var(--accent-strong);
   transform: scale(1.13);
+}
+
+.map-board .leaflet-popup-content-wrapper,
+.map-board .leaflet-popup-tip {
+  background: var(--panel);
+  color: var(--foreground);
+}
+
+.map-board .leaflet-popup a.leaflet-popup-close-button {
+  color: var(--muted);
 }
 
 .photo-map-popup {

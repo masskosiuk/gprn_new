@@ -2,7 +2,11 @@ import { loadRuntimeEnv } from "@gprn/config";
 import { prisma } from "@gprn/db";
 import { Injectable } from "@nestjs/common";
 import { feedPhotoOrder } from "./gallery-order.js";
-import { mediaCatalogFilter } from "./media-catalog.js";
+import {
+  discoverQuery,
+  encodeFeedCursor,
+  feedPageSize,
+} from "./discover-query.js";
 import { photoSaleInclude, serializePhotoSale } from "./photo-sale.js";
 import {
   photoEngagementInclude,
@@ -19,9 +23,9 @@ import {
 export class DiscoverService {
   private readonly env = loadRuntimeEnv();
 
-  async getOverview(mediaType?: string) {
-    const mediaFilter = mediaCatalogFilter(mediaType);
-    const [photos, photographers] = await Promise.all([
+  async getOverview(mediaType?: string, query: Record<string, unknown> = {}) {
+    const { where, pageWhere, cursor } = discoverQuery(mediaType, query);
+    const [batch, total, photographers] = await Promise.all([
       prisma.photo.findMany({
         include: {
           ...photoEngagementInclude,
@@ -37,55 +41,54 @@ export class DiscoverService {
           provenance: true,
         },
         orderBy: feedPhotoOrder,
-        take: 48,
-        where: {
-          ...mediaFilter,
-          deletedAt: null,
-          moderationStatus: "APPROVED",
-          status: "PUBLISHED",
-          visibility: "PUBLIC",
-          owner: {
-            status: "ACTIVE",
-            profile: { visibility: "PUBLIC", deletedAt: null },
-          },
-        },
+        take: feedPageSize + 1,
+        where: pageWhere,
       }),
-      prisma.profile.findMany({
-        include: {
-          user: {
+      prisma.photo.count({ where }),
+      cursor
+        ? []
+        : prisma.profile.findMany({
             include: {
-              _count: {
-                select: {
-                  photos: {
+              user: {
+                include: {
+                  _count: {
+                    select: {
+                      photos: {
+                        where: {
+                          status: "PUBLISHED",
+                          visibility: "PUBLIC",
+                        },
+                      },
+                    },
+                  },
+                  ratings: {
                     where: {
-                      status: "PUBLISHED",
-                      visibility: "PUBLIC",
+                      scope: "GLOBAL",
+                      scopeKey: "global",
                     },
                   },
                 },
               },
-              ratings: {
-                where: {
-                  scope: "GLOBAL",
-                  scopeKey: "global",
-                },
-              },
             },
-          },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 24,
-        where: {
-          deletedAt: null,
-          user: { status: "ACTIVE" },
-          visibility: "PUBLIC",
-        },
-      }),
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 24,
+            where: {
+              deletedAt: null,
+              user: { status: "ACTIVE" },
+              visibility: "PUBLIC",
+            },
+          }),
     ]);
+    const photos = batch.slice(0, feedPageSize);
 
     return {
+      total,
+      nextCursor:
+        batch.length > feedPageSize
+          ? encodeFeedCursor(photos[photos.length - 1]!)
+          : null,
       photographers: photographers.map((profile) => ({
         avatarUrl: profile.avatarAssetKey
           ? publicAssetUrl(this.env, profile.avatarAssetKey)

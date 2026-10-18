@@ -69,6 +69,7 @@ function fixture(scores: Record<string, number> | null) {
       t: (key: string) => key,
       Heart: "heart-icon",
       ContentImage: "img",
+      PhotoMasonry: "photo-masonry",
       Star: "star-icon",
       Video: "video-icon",
       ShoppingBag: "shopping-bag",
@@ -150,7 +151,7 @@ test("unpublished work retains the compact overlay without an empty comments slo
   const { render, photo } = fixture(null);
   const tree = render([{ ...photo, published: false }]);
   assert.equal(find(tree, "photo-tile-criteria"), undefined);
-  assert.equal(tree.props.className, "photo-masonry");
+  assert.equal(tree.type, "photo-masonry");
   assert.equal(
     find(tree, "photo-tile-actions")!.children.filter(Boolean).length,
     1,
