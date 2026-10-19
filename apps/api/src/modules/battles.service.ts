@@ -16,6 +16,7 @@ import { battlePage, battlePageQuery } from "./battle-pagination.js";
 import {
   finalizeBattleSeason,
   lockBattleSeason,
+  lockBattlePhoto,
   matchSeasonRounds,
   ROUND_VOTES_TO_ADVANCE,
 } from "./battle-rounds.js";
@@ -315,6 +316,7 @@ export class BattlesService {
 
     const battleId = await prisma.$transaction(
       async (tx) => {
+        await lockBattlePhoto(tx, photoId);
         const now = new Date();
         const season = await tx.season.findFirst({
           where: {

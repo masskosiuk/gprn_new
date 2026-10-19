@@ -77,6 +77,13 @@ export async function lockBattleSeason(
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${"battle-rounds:" + (seasonId ?? "legacy")}, 0))`;
 }
 
+export async function lockBattlePhoto(
+  tx: Prisma.TransactionClient,
+  photoId: string,
+) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${"battle-photo:" + photoId}, 0))`;
+}
+
 const publicPhoto = {
   deletedAt: null,
   status: "PUBLISHED",

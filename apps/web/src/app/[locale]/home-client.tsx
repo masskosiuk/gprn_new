@@ -144,6 +144,7 @@ import {
   recoverableProfileImages,
 } from "../../lib/profile-source";
 import { PhotoTitleEditor } from "./photo-title-editor";
+import { PhotoCategoryEditor } from "./photo-category-editor";
 import { ImageLightbox } from "./image-lightbox";
 import { ContentImage } from "./content-image";
 import { AutoHideHeader } from "./auto-hide-header";
@@ -767,6 +768,7 @@ interface PhotoRecord {
   readonly authorUsername?: string;
   readonly bookmarkCount?: number;
   readonly categoryId: CategoryId;
+  readonly categorySlug?: string;
   readonly checksum?: string;
   readonly contentType?: string;
   readonly criterionScores?: BattleScores;
@@ -5713,6 +5715,44 @@ export function HomeClient({
     await Promise.all([refreshServerChallenges(), refreshServerBattles()]);
   }
 
+  async function changeWorkCategory(
+    photoId: string,
+    categorySlug: string,
+  ): Promise<void> {
+    const response = await apiRequest<{ photo: ServerPhotoPayload }>(
+      `/photos/${encodeURIComponent(photoId)}/category`,
+      { method: "PATCH", body: JSON.stringify({ categorySlug }) },
+    );
+    const slug = response.photo.category?.slug ?? categorySlug;
+    const update = (photo: PhotoRecord): PhotoRecord =>
+      photo.id === photoId
+        ? {
+            ...photo,
+            categoryId: normalizeServerCategory(slug),
+            categorySlug: slug,
+          }
+        : photo;
+    setUploadedPhotos((current) => current.map(update));
+    setServerPhotos((current) => current.map(update));
+    setServerPublicPhotos((current) => current.map(update));
+    setAdminModerationPhotos((current) =>
+      current.map((photo) =>
+        photo.id === photoId
+          ? { ...photo, category: response.photo.category ?? null }
+          : photo,
+      ),
+    );
+    setAdminModerationDrafts((current) =>
+      current[photoId]
+        ? {
+            ...current,
+            [photoId]: { ...current[photoId]!, categorySlug: slug },
+          }
+        : current,
+    );
+    await Promise.all([refreshServerChallenges(), refreshServerBattles()]);
+  }
+
   function toggleSavePhoto(photoId: string): void {
     const photo = allPhotos.find((candidate) => candidate.id === photoId);
     if (photo?.serverBacked) {
@@ -8307,19 +8347,29 @@ export function HomeClient({
                   photo.locationLabel,
                 )}
               </button>
-              <button
-                aria-pressed={
+              <PhotoCategoryEditor
+                key={photo.id}
+                slug={photo.categorySlug ?? photo.categoryId}
+                locale={locale}
+                pressed={
                   initialSection === gallerySection &&
                   (gallerySection === "video"
                     ? videoCategoryFilter
                     : categoryFilter) === photo.categoryId
                 }
-                className="photo-meta-tag"
-                onClick={openDiscoverWithCategory}
-                type="button"
-              >
-                {t(getCategoryKey(photo.categoryId))}
-              </button>
+                editable={Boolean(
+                  photo.serverBacked && (photo.isMine || isAdministrator),
+                )}
+                onBrowse={openDiscoverWithCategory}
+                onLoad={async () =>
+                  (
+                    await apiRequest<{ categories: { slug: string }[] }>(
+                      "/categories",
+                    )
+                  ).categories
+                }
+                onSave={(slug) => changeWorkCategory(photo.id, slug)}
+              />
             </div>
           </div>
           {photo.isMine ? (
@@ -13585,6 +13635,7 @@ function mapServerPhoto(
     categoryId: normalizeServerCategory(
       photo.category?.slug ?? photo.categorySlug,
     ),
+    categorySlug: photo.category?.slug ?? photo.categorySlug ?? undefined,
     criterionScores,
     id: photo.id,
     isMine: Boolean(

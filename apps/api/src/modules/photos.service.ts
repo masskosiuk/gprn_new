@@ -18,7 +18,12 @@ import exifr from "exifr";
 import sharp, { type Metadata } from "sharp";
 
 import type { CurrentUser } from "./auth.service.js";
-import { lockBattleSeason, matchSeasonRounds } from "./battle-rounds.js";
+import {
+  finalizeBattleSeason,
+  lockBattlePhoto,
+  lockBattleSeason,
+  matchSeasonRounds,
+} from "./battle-rounds.js";
 import {
   requirePhotoUploadCapacity,
   withPhotoUploads,
@@ -920,6 +925,105 @@ export class PhotosService {
       }
       return updated;
     });
+    return { photo: this.toPhotoResponse(photo) };
+  }
+
+  async changeCategory(user: CurrentUser, photoId: string, body: unknown) {
+    const categorySlug = requiredString(asRecord(body), "categorySlug");
+    const photo = await prisma.$transaction(
+      async (tx) => {
+        await lockBattlePhoto(tx, photoId);
+        const existing = await tx.photo.findUnique({ where: { id: photoId } });
+        if (!existing || existing.deletedAt) {
+          throw new NotFoundException({
+            code: "PHOTO_NOT_FOUND",
+            message: "Photo does not exist.",
+          });
+        }
+        if (
+          existing.ownerId !== user.id &&
+          !user.roles.some((role) => role === "ADMIN" || role === "SUPER_ADMIN")
+        ) {
+          throw new ForbiddenException({
+            code: "PHOTO_FORBIDDEN",
+            message:
+              "Only the author or an administrator can change this work's genre.",
+          });
+        }
+        if (existing.title.startsWith("__profile_")) {
+          throw new BadRequestException({
+            code: "PROFILE_ASSET_CATEGORY",
+            message: "Profile images do not have portfolio genres.",
+          });
+        }
+        const category = await tx.category.findUnique({
+          where: { slug: categorySlug },
+        });
+        if (!category?.isActive) {
+          throw new BadRequestException({
+            code: "INVALID_PHOTO_CATEGORY",
+            message: "Choose an available genre.",
+          });
+        }
+        const entries = await tx.battleEntry.findMany({
+          where: { photoId },
+          select: { battleId: true, battle: { select: { seasonId: true } } },
+        });
+        const seasonIds = [
+          ...new Set(
+            entries.flatMap((entry) =>
+              entry.battle.seasonId ? [entry.battle.seasonId] : [],
+            ),
+          ),
+        ].sort();
+        if (entries.some((entry) => !entry.battle.seasonId))
+          await lockBattleSeason(tx, null);
+        for (const seasonId of seasonIds) await lockBattleSeason(tx, seasonId);
+        // Re-read after the same locks used by voting and moderation.
+        const current = await tx.photo.findUnique({ where: { id: photoId } });
+        if (!current || current.deletedAt) {
+          throw new NotFoundException({
+            code: "PHOTO_NOT_FOUND",
+            message: "Photo does not exist.",
+          });
+        }
+        const previousCategoryId = current.categoryId;
+        if (previousCategoryId !== category.id) {
+          const now = new Date();
+          // Completed season results keep the genre in which they were earned.
+          for (const seasonId of seasonIds)
+            await finalizeBattleSeason(tx, seasonId, now);
+          await tx.photo.update({
+            where: { id: photoId },
+            data: { categoryId: category.id },
+          });
+          await tx.battle.updateMany({
+            where: {
+              id: { in: entries.map((entry) => entry.battleId) },
+              status: { in: ["DRAFT", "OPEN"] },
+            },
+            data: { status: "CANCELLED", endsAt: now },
+          });
+          for (const seasonId of seasonIds)
+            await matchSeasonRounds(tx, seasonId, now);
+          await tx.auditLog.create({
+            data: {
+              actorUserId: user.id,
+              action: "photo.category_changed",
+              targetType: "Photo",
+              targetId: photoId,
+              previous: { categoryId: previousCategoryId },
+              next: { categoryId: category.id },
+            },
+          });
+        }
+        return tx.photo.findUniqueOrThrow({
+          where: { id: photoId },
+          include: photoInclude,
+        });
+      },
+      { timeout: 15000 },
+    );
     return { photo: this.toPhotoResponse(photo) };
   }
 

@@ -6,6 +6,7 @@ import {
   Header,
   Param,
   Patch,
+  ParseUUIDPipe,
   Post,
   Req,
 } from "@nestjs/common";
@@ -88,5 +89,15 @@ export class PhotosController {
   ) {
     const user = await this.authService.requireUserFromRequest(request);
     return this.photosService.rename(user, photoId, body);
+  }
+
+  @Patch(":photoId/category")
+  async changeCategory(
+    @Req() request: CookieRequest,
+    @Param("photoId", new ParseUUIDPipe()) photoId: string,
+    @Body() body: unknown,
+  ) {
+    const user = await this.authService.requireUserFromRequest(request);
+    return this.photosService.changeCategory(user, photoId, body);
   }
 }
