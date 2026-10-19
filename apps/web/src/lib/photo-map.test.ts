@@ -82,13 +82,11 @@ test("hidden locations stay hidden and a new location starts at its own coordina
 
 test("video markers retain the same original small geographic offsets", () => {
   const result = markers("mapVideoMarkers", {
-    curatedVideos: photos
-      .slice(0, 3)
-      .map((photo) => ({
-        ...photo,
-        posterUrl: photo.src,
-        titleKey: photo.title,
-      })),
+    curatedVideos: photos.slice(0, 3).map((photo) => ({
+      ...photo,
+      posterUrl: photo.src,
+      titleKey: photo.title,
+    })),
   });
   assert.equal(result.length, 3);
   assert.equal(result[0]!.latitude, city.latitude);
@@ -96,4 +94,22 @@ test("video markers retain the same original small geographic offsets", () => {
     result[1]!.latitude,
     city.latitude + Math.cos((137.5 * Math.PI) / 180) * 0.045,
   );
+});
+
+test("photo thumbnails override Leaflet's auto-width reset without resizing map tiles", () => {
+  const css = readFileSync(
+    new URL("../app/[locale]/globals.css", import.meta.url),
+    "utf8",
+  );
+  const thumbnail = css.match(
+    /\.map-board\s+\.photo-map-marker\s+\.photo-map-marker__frame\s+img\s*\{([^}]+)\}/,
+  );
+  assert(
+    thumbnail,
+    "thumbnail sizing must outrank Leaflet's two-class marker-pane selector",
+  );
+  assert.match(thumbnail[1]!, /\bwidth:\s*100%\s*;/);
+  assert.match(thumbnail[1]!, /\bheight:\s*100%\s*;/);
+  assert.match(thumbnail[1]!, /\bobject-fit:\s*cover\s*;/);
+  assert.match(thumbnail[1]!, /\bdisplay:\s*block\s*;/);
 });

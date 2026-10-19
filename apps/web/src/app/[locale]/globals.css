@@ -2763,7 +2763,9 @@ img {
   width: 100%;
 }
 
-.photo-map-marker__frame img {
+/* Override Leaflet's marker-pane image width reset only for photo thumbnails. */
+.map-board .photo-map-marker .photo-map-marker__frame img {
+  display: block;
   height: 100%;
   object-fit: cover;
   width: 100%;
