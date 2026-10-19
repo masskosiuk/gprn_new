@@ -32,6 +32,7 @@ const categories = [
   "fine-art",
   "commercial",
   "product",
+  "food",
 ];
 
 const featureFlags = [

@@ -28,9 +28,9 @@ Object.assign(process.env, {
   SESSION_SECRET: "test",
 });
 
-test("forty free media files are available without a tier or subscription distinction", async () => {
-  assert.equal(FREE_MEDIA_FILE_LIMIT, 40);
-  let used = 39;
+test("fifty free media files are available without a tier or subscription distinction", async () => {
+  assert.equal(FREE_MEDIA_FILE_LIMIT, 50);
+  let used = 49;
   const db = {
     photo: {
       count: async (query: any) => {
@@ -44,7 +44,7 @@ test("forty free media files are available without a tier or subscription distin
     },
   } as unknown as Pick<Prisma.TransactionClient, "photo">;
   await requirePhotoUploadCapacity(db, "owner");
-  used = 40;
+  used = 50;
   await assert.rejects(
     requirePhotoUploadCapacity(db, "owner"),
     (error: any) => error.getResponse().code === "PHOTO_STORAGE_LIMIT",
@@ -53,15 +53,14 @@ test("forty free media files are available without a tier or subscription distin
   await assert.rejects(requirePhotoUploadCapacity(db, "owner"));
   used--;
   assert.equal(used, 56);
-  used = 39;
+  used = 49;
   await requirePhotoUploadCapacity(db, "owner");
 });
 
 test("avatars and covers do not consume portfolio capacity, but arbitrary reserved names do not bypass it", async () => {
-  const db = { photo: { count: async () => 40 } } as unknown as Pick<
-    Prisma.TransactionClient,
-    "photo"
-  >;
+  const db = {
+    photo: { count: async () => FREE_MEDIA_FILE_LIMIT },
+  } as unknown as Pick<Prisma.TransactionClient, "photo">;
   await requirePhotoUploadCapacity(db, "owner", "__profile_avatar__");
   await requirePhotoUploadCapacity(db, "owner", "__profile_cover__");
   await assert.rejects(
@@ -71,7 +70,7 @@ test("avatars and covers do not consume portfolio capacity, but arbitrary reserv
 
 test("the upload endpoint rejects a full account before decoding, processing or writing objects", async (t) => {
   const old = prisma.photo.count;
-  (prisma.photo as any).count = async () => 40;
+  (prisma.photo as any).count = async () => FREE_MEDIA_FILE_LIMIT;
   t.after(() => {
     prisma.photo.count = old;
   });
@@ -103,8 +102,8 @@ const objects = (id: string) =>
     contentType: "image/webp",
   }));
 
-test("parallel uploads competing for the fortieth slot preserve only the successful request's objects", async () => {
-  let used = 39,
+test("parallel uploads competing for the fiftieth slot preserve only the successful request's objects", async () => {
+  let used = 49,
     tail = Promise.resolve();
   const stored = new Set<string>(),
     removed: string[] = [];
@@ -137,7 +136,7 @@ test("parallel uploads competing for the fortieth slot preserve only the success
     ["a", "b"].map((id) => withPhotoUploads(storage, objects(id), commit)),
   );
   assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
-  assert.equal(used, 40);
+  assert.equal(used, 50);
   assert.equal(stored.size, 3);
   assert.deepEqual(removed, ["b/original", "b/display", "b/thumbnail"]);
   assert(stored.has("a/original"));

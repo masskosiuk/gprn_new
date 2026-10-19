@@ -45,11 +45,11 @@ function evaluate(source: string, context: object = {}) {
   );
 }
 
-test("all three photography genres are unique filters and retain their own IDs rather than falling back to documentary", () => {
+test("photography genres are unique filters and retain their own IDs rather than falling back to documentary", () => {
   const catalog = evaluate(
     `${declaration("categoryFilters")}\n${declaration("normalizeServerCategory")}\n({ filters: categoryFilters, normalize: normalizeServerCategory })`,
   );
-  for (const slug of ["fine-art", "commercial", "product"]) {
+  for (const slug of ["fine-art", "commercial", "product", "food"]) {
     assert.equal(
       catalog.filters.filter((item: any) => item.id === slug).length,
       1,
@@ -124,13 +124,25 @@ test("Russian, Ukrainian and English use clear distinct photography genre labels
     exports.getMessage("ru", "category.product"),
     "Предметная съёмка",
   );
+  assert.equal(exports.getMessage("ru", "category.food"), "Фуд-фотография");
   for (const locale of ["en", "ru", "uk"]) {
-    const labels = ["fine-art", "commercial", "product"].map((slug) =>
+    const labels = ["fine-art", "commercial", "product", "food"].map((slug) =>
       exports.getMessage(locale, `category.${slug}`),
     );
-    assert.equal(new Set(labels).size, 3);
+    assert.equal(new Set(labels).size, 4);
     assert(labels.every((label) => label && !label.startsWith("category.")));
   }
+});
+
+test("food photography is active in both fresh seeds and an additive, repeat-safe database migration", () => {
+  const seed = read("../../../../packages/db/prisma/seed.ts");
+  const migration = read(
+    "../../../../packages/db/prisma/migrations/0020_food_photography_category/migration.sql",
+  );
+  assert.equal(seed.match(/"food"/g)?.length, 1);
+  assert.match(migration, /'food',\s*'category\.food\.name',\s*true,\s*14,/);
+  assert.match(migration, /ON CONFLICT \("slug"\) DO NOTHING/);
+  assert.doesNotMatch(migration, /\b(?:DELETE|UPDATE|DROP|TRUNCATE)\b/i);
 });
 
 for (const hidden of [false, true])

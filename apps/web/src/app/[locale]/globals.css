@@ -3094,6 +3094,34 @@ img {
 .public-profile-shell {
   grid-template-columns: minmax(0, 1fr);
 }
+.profile-edit {
+  grid-template-columns: minmax(0, 1fr);
+}
+.profile-edit > * {
+  min-width: 0;
+}
+.profile-edit .full-width {
+  min-width: 0;
+  white-space: normal;
+}
+.profile-edit[hidden] {
+  display: none;
+}
+.profile-overview.has-settings-toggle {
+  position: relative;
+}
+.profile-settings-toggle {
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  z-index: 1;
+}
+.has-settings-toggle .profile-head {
+  padding-right: 74px;
+}
+.has-settings-toggle .profile-head h2 {
+  overflow-wrap: anywhere;
+}
 
 .profile-main {
   display: grid;
@@ -4102,6 +4130,18 @@ img {
 }
 
 @media (max-width: 940px) {
+  .has-settings-toggle .profile-head {
+    padding-right: 22px;
+  }
+  .profile-shell.is-editing > .profile-main {
+    display: contents;
+  }
+  .profile-shell.is-editing > .profile-main > .profile-overview {
+    grid-row: 1;
+  }
+  .profile-shell.is-editing > .profile-edit {
+    grid-row: 2;
+  }
   .topbar {
     align-items: center;
     gap: 10px;

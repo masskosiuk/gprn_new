@@ -319,6 +319,7 @@ function ProductEditor({
                     "fine-art",
                     "commercial",
                     "product",
+                    "food",
                     "boudoir",
                     "cinematic",
                   ] as const

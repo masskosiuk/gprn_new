@@ -54,6 +54,7 @@ import {
   Paperclip,
   Palette,
   Search,
+  Settings2,
   Send,
   Share2,
   SkipForward,
@@ -188,6 +189,7 @@ type CategoryId =
   | "aiGenerated"
   | "commercial"
   | "product"
+  | "food"
   | "boudoir"
   | "timelapse";
 type CategoryFilter = "all" | CategoryId;
@@ -1298,6 +1300,7 @@ const categoryFilters: readonly { id: CategoryFilter; key: MessageKey }[] = [
   { id: "aiGenerated", key: "category.aiGenerated" },
   { id: "commercial", key: "category.commercial" },
   { id: "product", key: "category.product" },
+  { id: "food", key: "category.food" },
   { id: "boudoir", key: "category.boudoir" },
 ];
 
@@ -2647,6 +2650,10 @@ export function HomeClient({
   >(null);
   const [adminFeedback, setAdminFeedback] = useState<Feedback | null>(null);
   const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfileForm);
+  const [profileSettingsOpen, setProfileSettingsOpen] = useState(false);
+  useEffect(() => {
+    setProfileSettingsOpen(false);
+  }, [initialSection, initialAuthorId, serverUser?.id]);
   const [profileLocationSelection, setProfileLocationSelection] =
     useState<LocationOption | null>(null);
   const [socialProviders, setSocialProviders] = useState<
@@ -10651,21 +10658,44 @@ export function HomeClient({
                 t("profile.coverAlt"),
               )
             : null}
-          <button
-            className="cover-photo-action"
-            onClick={openCoverPicker}
-            type="button"
-          >
-            <ImagePlus aria-hidden="true" size={18} />
-            {currentProfile.coverUrl
-              ? t("profile.changeCover")
-              : t("profile.addCover")}
-          </button>
+          {profileSettingsOpen ? (
+            <button
+              className="cover-photo-action"
+              onClick={openCoverPicker}
+              type="button"
+            >
+              <ImagePlus aria-hidden="true" size={18} />
+              {currentProfile.coverUrl
+                ? t("profile.changeCover")
+                : t("profile.addCover")}
+            </button>
+          ) : null}
         </div>
 
-        <div className="profile-shell">
+        <div
+          className={`profile-shell${profileSettingsOpen ? " is-editing" : " public-profile-shell"}`}
+        >
           <section className="profile-main">
-            <div className="profile-overview">
+            <div className="profile-overview has-settings-toggle">
+              <button
+                className="icon-button profile-settings-toggle"
+                type="button"
+                aria-controls="profile-settings-panel"
+                aria-expanded={profileSettingsOpen}
+                aria-label={t(
+                  profileSettingsOpen
+                    ? "profile.hideSettings"
+                    : "profile.showSettings",
+                )}
+                title={t(
+                  profileSettingsOpen
+                    ? "profile.hideSettings"
+                    : "profile.showSettings",
+                )}
+                onClick={() => setProfileSettingsOpen((current) => !current)}
+              >
+                <Settings2 aria-hidden="true" size={20} />
+              </button>
               <div className="profile-head">
                 <div className={`profile-avatar-frame is-tier-${currentTier}`}>
                   <div className="profile-avatar">
@@ -10677,23 +10707,25 @@ export function HomeClient({
                     ) : (
                       <span>{getInitials(currentProfile.name)}</span>
                     )}
-                    <button
-                      aria-label={
-                        currentProfile.avatarUrl
-                          ? t("profile.changeAvatar")
-                          : t("profile.addAvatar")
-                      }
-                      className="avatar-photo-action"
-                      onClick={openAvatarPicker}
-                      title={
-                        currentProfile.avatarUrl
-                          ? t("profile.changeAvatar")
-                          : t("profile.addAvatar")
-                      }
-                      type="button"
-                    >
-                      <Camera aria-hidden="true" size={18} />
-                    </button>
+                    {profileSettingsOpen ? (
+                      <button
+                        aria-label={
+                          currentProfile.avatarUrl
+                            ? t("profile.changeAvatar")
+                            : t("profile.addAvatar")
+                        }
+                        className="avatar-photo-action"
+                        onClick={openAvatarPicker}
+                        title={
+                          currentProfile.avatarUrl
+                            ? t("profile.changeAvatar")
+                            : t("profile.addAvatar")
+                        }
+                        type="button"
+                      >
+                        <Camera aria-hidden="true" size={18} />
+                      </button>
+                    ) : null}
                   </div>
                   {renderAccountTierBadge(currentTier)}
                 </div>
@@ -10737,7 +10769,7 @@ export function HomeClient({
               </div>
             </div>
 
-            {legacyProfileImages ? (
+            {profileSettingsOpen && legacyProfileImages ? (
               <div className="profile-head-actions-row">
                 <button
                   className="secondary-action compact"
@@ -11079,7 +11111,12 @@ export function HomeClient({
             </div>
           </section>
 
-          <aside className="profile-edit">
+          <aside
+            className="profile-edit"
+            id="profile-settings-panel"
+            aria-label={t("profile.editProfile")}
+            hidden={!profileSettingsOpen}
+          >
             <section className="account-panel wallet-panel">
               <div className="wallet-balance">
                 <span>{t("wallet.balance")}</span>

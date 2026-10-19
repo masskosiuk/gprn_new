@@ -149,6 +149,7 @@ export function ServerMarketplace({
               "fine-art",
               "commercial",
               "product",
+              "food",
               "boudoir",
               "cinematic",
             ].map((key) => (
