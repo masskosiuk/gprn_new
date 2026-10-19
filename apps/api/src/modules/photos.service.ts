@@ -1,6 +1,10 @@
 import { loadRuntimeEnv } from "@gprn/config";
 import { prisma } from "@gprn/db";
-import { generateMediaTitle, isTechnicalMediaTitle } from "@gprn/domain";
+import {
+  generateMediaTitle,
+  isTechnicalMediaTitle,
+  isProfileImageTitle,
+} from "@gprn/domain";
 import { S3ObjectStorage } from "@gprn/storage";
 import {
   BadRequestException,
@@ -14,6 +18,11 @@ import exifr from "exifr";
 import sharp, { type Metadata } from "sharp";
 
 import type { CurrentUser } from "./auth.service.js";
+import { lockBattleSeason, matchSeasonRounds } from "./battle-rounds.js";
+import {
+  requirePhotoUploadCapacity,
+  withPhotoUploads,
+} from "./photo-upload-quota.js";
 import { parsePhotoTitle, requirePhotoTitleAccess } from "./photo-title.js";
 import { feedPhotoOrder, portfolioPhotoOrder } from "./gallery-order.js";
 import { photoSaleInclude, serializePhotoSale } from "./photo-sale.js";
@@ -302,6 +311,7 @@ export class PhotosService {
     provenance: ReturnType<PhotosService["toProvenanceSummary"]>;
   }> {
     const input = parseAddPhotoInput(body);
+    await requirePhotoUploadCapacity(prisma, user.id, input.title);
     const decoded = decodeDataUrl(input.dataUrl, input.mimeType);
 
     if (decoded.byteLength > maxUploadBytes) {
@@ -358,184 +368,190 @@ export class PhotosService {
       isVideo,
     );
 
-    await Promise.all([
-      this.storage.putObject({
+    const objects = [
+      {
         body: decoded,
         bucket: this.env.S3_BUCKET_PRIVATE,
         contentType: input.mimeType,
         key: storageKeys.original,
-      }),
-      this.storage.putObject({
+      },
+      {
         body: renditions.display.buffer,
         bucket: this.env.S3_BUCKET_PUBLIC,
         contentType: displayContentType,
         key: storageKeys.display,
-      }),
-      this.storage.putObject({
+      },
+      {
         body: renditions.thumbnail.buffer,
         bucket: this.env.S3_BUCKET_PUBLIC,
         contentType: "image/webp",
         key: storageKeys.thumbnail,
+      },
+    ];
+
+    const photo = await withPhotoUploads(this.storage, objects, () =>
+      prisma.$transaction(async (tx) => {
+        // Serialize title selection for simultaneous uploads by the same author.
+        await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${`media-title:${user.id}`}))`;
+        await requirePhotoUploadCapacity(tx, user.id, input.title);
+        await this.ensurePhotographerFoundation(tx, user.id);
+        const title =
+          input.title && !isTechnicalMediaTitle(input.title)
+            ? input.title
+            : generateMediaTitle(
+                input.locale,
+                isVideo ? "VIDEO" : "PHOTO",
+                await tx.photo.count({
+                  where: {
+                    ownerId: user.id,
+                    NOT: { title: { startsWith: "__profile_" } },
+                  },
+                }),
+              );
+
+        const createdPhoto = await tx.photo.create({
+          data: {
+            assets: {
+              create: [
+                {
+                  bucket: this.env.S3_BUCKET_PRIVATE,
+                  byteSize: BigInt(decoded.byteLength),
+                  checksumSha256: renditions.sha256,
+                  contentType: input.mimeType,
+                  height: renditions.height,
+                  storageKey: storageKeys.original,
+                  storageVisibility: "PRIVATE",
+                  type: "ORIGINAL",
+                  width: renditions.width,
+                },
+                {
+                  bucket: this.env.S3_BUCKET_PUBLIC,
+                  byteSize: BigInt(renditions.display.buffer.byteLength),
+                  checksumSha256: sha256(renditions.display.buffer),
+                  contentType: displayContentType,
+                  height: renditions.display.height,
+                  storageKey: storageKeys.display,
+                  storageVisibility: "PUBLIC",
+                  type: "DISPLAY",
+                  width: renditions.display.width,
+                },
+                {
+                  bucket: this.env.S3_BUCKET_PUBLIC,
+                  byteSize: BigInt(renditions.thumbnail.buffer.byteLength),
+                  checksumSha256: sha256(renditions.thumbnail.buffer),
+                  contentType: "image/webp",
+                  height: renditions.thumbnail.height,
+                  storageKey: storageKeys.thumbnail,
+                  storageVisibility: "PUBLIC",
+                  type: "THUMBNAIL",
+                  width: renditions.thumbnail.width,
+                },
+              ],
+            },
+            categoryId: category?.id,
+            description: input.description,
+            hashes: {
+              create: [
+                {
+                  algorithm: "SHA256",
+                  value: renditions.sha256,
+                },
+                {
+                  algorithm: "PHASH",
+                  value: renditions.perceptualHash,
+                },
+              ],
+            },
+            id: photoId,
+            location: {
+              create: resolvedLocation,
+            },
+            metadata: {
+              create: {
+                exifJson: JSON.parse(
+                  JSON.stringify(renditions.metadataSummary),
+                ),
+                gpsLatitudePrivate: renditions.gps?.latitude,
+                gpsLongitudePrivate: renditions.gps?.longitude,
+                orientation: stringifyMetadataValue(
+                  renditions.metadataSummary.orientation,
+                ),
+              },
+            },
+            moderationStatus:
+              duplicateStatus === "EXACT_MATCH" ? "UNDER_REVIEW" : "PENDING",
+            ownerId: user.id,
+            provenance: {
+              create: {
+                captureDateDetected: false,
+                duplicateCheckStatus: duplicateStatus,
+                gpsDetected: Boolean(renditions.gps),
+                metadataDetected: renditions.hasExif,
+                originalFileDetected: true,
+                originType: "DIRECT_UPLOAD",
+                publicSummaryKey:
+                  duplicateStatus === "EXACT_MATCH"
+                    ? "provenance.summary.exact_match"
+                    : "provenance.summary.original_preserved",
+                status:
+                  duplicateStatus === "EXACT_MATCH"
+                    ? "UNDER_REVIEW"
+                    : renditions.hasExif
+                      ? "PROVENANCE_SUPPORTED"
+                      : "ORIGINAL_FILE_SUPPORTED",
+              },
+            },
+            provenanceEvents: {
+              create: [
+                {
+                  eventType: "ORIGINAL_FILE_RECEIVED",
+                  evidence: {
+                    byteSize: decoded.byteLength,
+                    fileName: input.fileName,
+                    mimeType: input.mimeType,
+                  },
+                  actorUserId: user.id,
+                },
+                {
+                  eventType: "HASHES_CREATED",
+                  evidence: {
+                    algorithms: ["SHA256", "PHASH"],
+                    duplicateStatus,
+                  },
+                  actorUserId: user.id,
+                },
+              ],
+            },
+            status:
+              duplicateStatus === "EXACT_MATCH" ? "UNDER_REVIEW" : "READY",
+            title,
+            versions: {
+              create: {
+                changeSummary:
+                  "Original upload stored and analyzed for MVP provenance.",
+                changeType: "ORIGINAL_UPLOAD",
+                versionNumber: 1,
+              },
+            },
+            visibility: "PRIVATE",
+          },
+          include: photoInclude,
+        });
+
+        await tx.analyticsEvent.create({
+          data: {
+            eventName: "photo_uploaded",
+            payload: {
+              duplicateStatus,
+              hasExif: renditions.hasExif,
+            },
+            userId: user.id,
+          },
+        });
+
+        return createdPhoto as PhotoRecord;
       }),
-    ]);
-
-    const photo = await prisma.$transaction(async (tx) => {
-      await this.ensurePhotographerFoundation(tx, user.id);
-      // Serialize title selection for simultaneous uploads by the same author.
-      await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${`media-title:${user.id}`}))`;
-      const title =
-        input.title && !isTechnicalMediaTitle(input.title)
-          ? input.title
-          : generateMediaTitle(
-              input.locale,
-              isVideo ? "VIDEO" : "PHOTO",
-              await tx.photo.count({
-                where: {
-                  ownerId: user.id,
-                  NOT: { title: { startsWith: "__profile_" } },
-                },
-              }),
-            );
-
-      const createdPhoto = await tx.photo.create({
-        data: {
-          assets: {
-            create: [
-              {
-                bucket: this.env.S3_BUCKET_PRIVATE,
-                byteSize: BigInt(decoded.byteLength),
-                checksumSha256: renditions.sha256,
-                contentType: input.mimeType,
-                height: renditions.height,
-                storageKey: storageKeys.original,
-                storageVisibility: "PRIVATE",
-                type: "ORIGINAL",
-                width: renditions.width,
-              },
-              {
-                bucket: this.env.S3_BUCKET_PUBLIC,
-                byteSize: BigInt(renditions.display.buffer.byteLength),
-                checksumSha256: sha256(renditions.display.buffer),
-                contentType: displayContentType,
-                height: renditions.display.height,
-                storageKey: storageKeys.display,
-                storageVisibility: "PUBLIC",
-                type: "DISPLAY",
-                width: renditions.display.width,
-              },
-              {
-                bucket: this.env.S3_BUCKET_PUBLIC,
-                byteSize: BigInt(renditions.thumbnail.buffer.byteLength),
-                checksumSha256: sha256(renditions.thumbnail.buffer),
-                contentType: "image/webp",
-                height: renditions.thumbnail.height,
-                storageKey: storageKeys.thumbnail,
-                storageVisibility: "PUBLIC",
-                type: "THUMBNAIL",
-                width: renditions.thumbnail.width,
-              },
-            ],
-          },
-          categoryId: category?.id,
-          description: input.description,
-          hashes: {
-            create: [
-              {
-                algorithm: "SHA256",
-                value: renditions.sha256,
-              },
-              {
-                algorithm: "PHASH",
-                value: renditions.perceptualHash,
-              },
-            ],
-          },
-          id: photoId,
-          location: {
-            create: resolvedLocation,
-          },
-          metadata: {
-            create: {
-              exifJson: JSON.parse(JSON.stringify(renditions.metadataSummary)),
-              gpsLatitudePrivate: renditions.gps?.latitude,
-              gpsLongitudePrivate: renditions.gps?.longitude,
-              orientation: stringifyMetadataValue(
-                renditions.metadataSummary.orientation,
-              ),
-            },
-          },
-          moderationStatus:
-            duplicateStatus === "EXACT_MATCH" ? "UNDER_REVIEW" : "PENDING",
-          ownerId: user.id,
-          provenance: {
-            create: {
-              captureDateDetected: false,
-              duplicateCheckStatus: duplicateStatus,
-              gpsDetected: Boolean(renditions.gps),
-              metadataDetected: renditions.hasExif,
-              originalFileDetected: true,
-              originType: "DIRECT_UPLOAD",
-              publicSummaryKey:
-                duplicateStatus === "EXACT_MATCH"
-                  ? "provenance.summary.exact_match"
-                  : "provenance.summary.original_preserved",
-              status:
-                duplicateStatus === "EXACT_MATCH"
-                  ? "UNDER_REVIEW"
-                  : renditions.hasExif
-                    ? "PROVENANCE_SUPPORTED"
-                    : "ORIGINAL_FILE_SUPPORTED",
-            },
-          },
-          provenanceEvents: {
-            create: [
-              {
-                eventType: "ORIGINAL_FILE_RECEIVED",
-                evidence: {
-                  byteSize: decoded.byteLength,
-                  fileName: input.fileName,
-                  mimeType: input.mimeType,
-                },
-                actorUserId: user.id,
-              },
-              {
-                eventType: "HASHES_CREATED",
-                evidence: {
-                  algorithms: ["SHA256", "PHASH"],
-                  duplicateStatus,
-                },
-                actorUserId: user.id,
-              },
-            ],
-          },
-          status: duplicateStatus === "EXACT_MATCH" ? "UNDER_REVIEW" : "READY",
-          title,
-          versions: {
-            create: {
-              changeSummary:
-                "Original upload stored and analyzed for MVP provenance.",
-              changeType: "ORIGINAL_UPLOAD",
-              versionNumber: 1,
-            },
-          },
-          visibility: "PRIVATE",
-        },
-        include: photoInclude,
-      });
-
-      await tx.analyticsEvent.create({
-        data: {
-          eventName: "photo_uploaded",
-          payload: {
-            duplicateStatus,
-            hasExif: renditions.hasExif,
-          },
-          userId: user.id,
-        },
-      });
-
-      return createdPhoto as PhotoRecord;
-    });
+    );
 
     return {
       duplicate: duplicateStatus,
@@ -755,13 +771,8 @@ export class PhotosService {
         });
       }
 
-      const battleCreated =
-        isApproved && input.visibility === "PUBLIC"
-          ? await this.tryCreateBattle(tx, updated)
-          : false;
-
       return {
-        battleCreated,
+        battleCreated: false,
         photo: updated,
       };
     });
@@ -809,9 +820,18 @@ export class PhotosService {
       }
 
       const battleEntries = await tx.battleEntry.findMany({
-        select: { battleId: true },
+        select: { battleId: true, battle: { select: { seasonId: true } } },
         where: { photoId },
       });
+      const battleSeasonIds = [
+        ...new Set(
+          battleEntries.flatMap((entry) =>
+            entry.battle.seasonId ? [entry.battle.seasonId] : [],
+          ),
+        ),
+      ].sort();
+      for (const seasonId of battleSeasonIds)
+        await lockBattleSeason(tx, seasonId);
       const deletedAt = new Date();
       const deletedPhoto = await tx.photo.update({
         data: {
@@ -843,9 +863,12 @@ export class PhotosService {
           data: { status: "CANCELLED" },
           where: {
             id: { in: battleEntries.map((entry) => entry.battleId) },
+            status: { in: ["DRAFT", "OPEN"] },
           },
         });
       }
+      for (const seasonId of battleSeasonIds)
+        await matchSeasonRounds(tx, seasonId);
 
       await tx.analyticsEvent.create({
         data: {
@@ -975,104 +998,6 @@ export class PhotosService {
         },
       },
     });
-  }
-
-  private async tryCreateBattle(
-    tx: PrismaTx,
-    photo: PhotoRecord,
-  ): Promise<boolean> {
-    const existingEntry = await tx.battleEntry.findFirst({
-      where: {
-        photoId: photo.id,
-      },
-    });
-
-    if (existingEntry) {
-      return false;
-    }
-
-    const entrantRating = await tx.rating.findUnique({
-      where: {
-        userId_scope_scopeKey: {
-          scope: "GLOBAL",
-          scopeKey: "global",
-          userId: photo.owner.id,
-        },
-      },
-    });
-    const candidates = await tx.photo.findMany({
-      include: {
-        owner: {
-          include: {
-            ratings: { where: { scope: "GLOBAL", scopeKey: "global" } },
-          },
-        },
-      },
-      orderBy: { publishedAt: "asc" },
-      take: 100,
-      where: {
-        categoryId: photo.categoryId,
-        deletedAt: null,
-        id: {
-          not: photo.id,
-        },
-        moderationStatus: "APPROVED",
-        ownerId: {
-          not: photo.owner.id,
-        },
-        status: "PUBLISHED",
-        visibility: "PUBLIC",
-      },
-    });
-    const opponent = candidates.sort(
-      (left, right) =>
-        Math.abs(
-          (left.owner.ratings[0]?.rating ?? 1500) -
-            (entrantRating?.rating ?? 1500),
-        ) -
-        Math.abs(
-          (right.owner.ratings[0]?.rating ?? 1500) -
-            (entrantRating?.rating ?? 1500),
-        ),
-    )[0];
-
-    if (!opponent) {
-      return false;
-    }
-
-    const activeSeason = await tx.season.findFirst({
-      orderBy: {
-        startsAt: "asc",
-      },
-      where: {
-        status: "ACTIVE",
-      },
-    });
-
-    await tx.battle.create({
-      data: {
-        categoryId: photo.categoryId ?? opponent.categoryId ?? undefined,
-        entries: {
-          create: [
-            {
-              photoId: opponent.id,
-              slot: "A",
-              userId: opponent.ownerId,
-            },
-            {
-              photoId: photo.id,
-              slot: "B",
-              userId: photo.owner.id,
-            },
-          ],
-        },
-        seasonId: activeSeason?.id,
-        startsAt: new Date(),
-        status: "OPEN",
-      },
-    });
-
-    return true;
   }
 
   private toPhotoResponse(photo: PhotoRecord) {
@@ -1221,6 +1146,18 @@ function parseAddPhotoInput(body: unknown): AddPhotoInput {
     });
   }
 
+  const title = optionalString(record, "title")?.slice(0, 140);
+  if (title?.startsWith("__profile_") && !isProfileImageTitle(title))
+    throw new BadRequestException({
+      code: "INVALID_PHOTO_TITLE",
+      message: "This title is reserved for profile images.",
+    });
+  if (isProfileImageTitle(title) && !mimeType.startsWith("image/"))
+    throw new BadRequestException({
+      code: "PROFILE_IMAGE_REQUIRED",
+      message: "Profile images must be image files.",
+    });
+
   return {
     categorySlug: optionalString(record, "categorySlug"),
     dataUrl: requiredString(record, "dataUrl"),
@@ -1231,7 +1168,7 @@ function parseAddPhotoInput(body: unknown): AddPhotoInput {
       optionalEnum(record, "locationVisibility", allowedLocationVisibility) ??
       "HIDDEN",
     mimeType,
-    title: optionalString(record, "title")?.slice(0, 140),
+    title,
     locale: optionalString(record, "locale") ?? "en",
     visibility:
       optionalEnum(record, "visibility", allowedVisibility) ?? "PUBLIC",

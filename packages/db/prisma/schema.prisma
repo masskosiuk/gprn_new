@@ -277,6 +277,7 @@ model User {
   externalConnections     ExternalConnection[]
   photos                  Photo[]
   battleVotes             BattleVote[]
+  battleProgress          BattleProgress[]
   challengeEntries        ChallengeEntry[]
   seasonParticipants      SeasonParticipant[]
   ratings                 Rating[]
@@ -543,6 +544,7 @@ model Category {
   children       Category[]            @relation("category_tree")
   photos         Photo[]
   battles        Battle[]
+  battleProgress BattleProgress[]
   challenges     Challenge[]
   ratings        Rating[]
   leaderboards   LeaderboardSnapshot[]
@@ -582,6 +584,7 @@ model Photo {
   versions              PhotoVersion[]      @relation("photo_versions")
   derivedVersions       PhotoVersion[]      @relation("photo_derived_versions")
   battleEntries         BattleEntry[]
+  battleProgress        BattleProgress[]
   challengeEntries      ChallengeEntry[]
   likes                 PhotoLike[]
   comments              Comment[]
@@ -747,23 +750,25 @@ model PhotoVersion {
 }
 
 model Season {
-  id             String                @id @default(uuid()) @db.Uuid
-  slug           String                @unique
-  name           String?
-  nameKey        String
-  descriptionKey String?
-  coverUrl       String?
-  status         SeasonStatus          @default(DRAFT)
-  startsAt       DateTime
-  endsAt         DateTime
-  rules          Json?
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
-  challenges     Challenge[]
-  battles        Battle[]
-  participants   SeasonParticipant[]
-  ratings        Rating[]
-  leaderboards   LeaderboardSnapshot[]
+  id                String                @id @default(uuid()) @db.Uuid
+  slug              String                @unique
+  name              String?
+  nameKey           String
+  descriptionKey    String?
+  coverUrl          String?
+  status            SeasonStatus          @default(DRAFT)
+  startsAt          DateTime
+  endsAt            DateTime
+  rules             Json?
+  battleFinalizedAt DateTime?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  challenges        Challenge[]
+  battles           Battle[]
+  battleProgress    BattleProgress[]
+  participants      SeasonParticipant[]
+  ratings           Rating[]
+  leaderboards      LeaderboardSnapshot[]
 
   @@index([status, startsAt, endsAt])
   @@map("seasons")
@@ -829,23 +834,24 @@ model ChallengeEntry {
 }
 
 model Battle {
-  id            String        @id @default(uuid()) @db.Uuid
-  categoryId    String?       @db.Uuid
-  seasonId      String?       @db.Uuid
-  challengeId   String?       @db.Uuid
-  status        BattleStatus  @default(DRAFT)
-  winnerPhotoId String?       @db.Uuid
+  id            String           @id @default(uuid()) @db.Uuid
+  categoryId    String?          @db.Uuid
+  seasonId      String?          @db.Uuid
+  challengeId   String?          @db.Uuid
+  status        BattleStatus     @default(DRAFT)
+  winnerPhotoId String?          @db.Uuid
   startsAt      DateTime?
   endsAt        DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  category      Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  season        Season?       @relation(fields: [seasonId], references: [id], onDelete: SetNull)
-  challenge     Challenge?    @relation(fields: [challengeId], references: [id], onDelete: SetNull)
-  winnerPhoto   Photo?        @relation("battle_winner_photo", fields: [winnerPhotoId], references: [id], onDelete: SetNull)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  category      Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  season        Season?          @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  challenge     Challenge?       @relation(fields: [challengeId], references: [id], onDelete: SetNull)
+  winnerPhoto   Photo?           @relation("battle_winner_photo", fields: [winnerPhotoId], references: [id], onDelete: SetNull)
   entries       BattleEntry[]
   votes         BattleVote[]
   ratingEvents  RatingEvent[]
+  progress      BattleProgress[]
 
   @@index([status, categoryId])
   @@index([seasonId])
@@ -858,6 +864,7 @@ model BattleEntry {
   photoId          String            @db.Uuid
   userId           String            @db.Uuid
   slot             String
+  round            Int               @default(1)
   ratingBefore     Int?
   ratingAfter      Int?
   moderationStatus ModerationStatus  @default(PENDING)
@@ -871,9 +878,36 @@ model BattleEntry {
 
   @@unique([battleId, photoId])
   @@unique([battleId, slot])
+  @@index([photoId])
   @@index([userId])
   @@index([moderationStatus, createdAt])
   @@map("battle_entries")
+}
+
+model BattleProgress {
+  id              String    @id @default(uuid()) @db.Uuid
+  seasonId        String    @db.Uuid
+  photoId         String    @db.Uuid
+  userId          String    @db.Uuid
+  categoryId      String?   @db.Uuid
+  currentBattleId String?   @db.Uuid
+  round           Int       @default(1)
+  votes           Int       @default(0)
+  wonRounds       Int       @default(0)
+  status          String    @default("PENDING")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  season          Season    @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  photo           Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category        Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  currentBattle   Battle?   @relation(fields: [currentBattleId], references: [id], onDelete: SetNull)
+
+  @@unique([seasonId, photoId])
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([seasonId, categoryId, status, votes])
+  @@index([currentBattleId])
+  @@map("battle_progress")
 }
 
 model BattleVote {
@@ -893,6 +927,7 @@ model BattleVote {
   scores          BattleVoteScore[]
 
   @@unique([battleId, voterId])
+  @@index([selectedPhotoId, battleId])
   @@index([voterId, createdAt])
   @@index([battleId, createdAt])
   @@map("battle_votes")
@@ -1066,17 +1101,17 @@ model SavedPhoto {
 }
 
 model Comment {
-  id        String    @id @default(uuid()) @db.Uuid
-  photoId   String?   @db.Uuid
-  postId    String?   @db.Uuid
-  userId    String    @db.Uuid
+  id        String         @id @default(uuid()) @db.Uuid
+  photoId   String?        @db.Uuid
+  postId    String?        @db.Uuid
+  userId    String         @db.Uuid
   body      String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
   deletedAt DateTime?
-  photo     Photo?    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  photo     Photo?         @relation(fields: [photoId], references: [id], onDelete: Cascade)
   post      CommunityPost? @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([photoId, createdAt])
   @@index([userId])

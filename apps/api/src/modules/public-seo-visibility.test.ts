@@ -22,8 +22,10 @@ Object.assign(process.env, {
 });
 test("anonymous battle rendering cannot include private or moderated-away works, without changing signed-in queues", async () => {
   const original = prisma.battle.findMany;
+  const originalSeasons = prisma.season.findMany;
   const calls: any[] = [];
   try {
+    prisma.season.findMany = (async () => []) as typeof originalSeasons;
     prisma.battle.findMany = (async (query: unknown) => {
       calls.push(query);
       return [];
@@ -41,6 +43,7 @@ test("anonymous battle rendering cannot include private or moderated-away works,
     assert.equal(calls[1].where.entries, undefined);
   } finally {
     prisma.battle.findMany = original;
+    prisma.season.findMany = originalSeasons;
   }
 });
 test("challenge entries and participant counts use the same public active owner filter", async () => {

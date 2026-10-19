@@ -11,6 +11,7 @@ import {
   demoChallenges as challengeCatalog,
   demoChallengeWorks,
   EloRatingEngine,
+  FREE_MEDIA_FILE_LIMIT,
 } from "@gprn/domain";
 import { getMessage, type MessageKey, type SupportedLocale } from "@gprn/i18n";
 import {
@@ -123,6 +124,7 @@ import {
   ProControl,
 } from "./community";
 import { MyInteractions } from "./interactions";
+import { MyBattles } from "./my-battles";
 import { PhotoMasonry } from "./photo-masonry";
 import { feedQueryString, mergeFeedPage } from "../../lib/feed-pagination";
 import { ServerExperts, ServerLeaderboard } from "./server-experts";
@@ -500,6 +502,7 @@ export interface ServerBattlePayload {
       readonly title: string;
     };
     readonly slot: string;
+    readonly round?: number;
     readonly votes: number;
   }[];
   readonly id: string;
@@ -2755,6 +2758,7 @@ export function HomeClient({
   );
   const [skippedBattleIds, setSkippedBattleIds] = useState<string[]>([]);
   const [selectedBattleId, setSelectedBattleId] = useState<string | null>(null);
+  const [battleView, setBattleView] = useState<"vote" | "mine">("vote");
   const [votingBattleId, setVotingBattleId] = useState<string | null>(null);
   const battleVoteInFlight = useRef(false);
   const battlePageRequestId = useRef(0);
@@ -3125,6 +3129,7 @@ export function HomeClient({
   useEffect(() => {
     if (
       initialSection !== "battles" ||
+      battleView !== "vote" ||
       battleFeedStatus !== "ready" ||
       !battleNextCursor
     )
@@ -3139,6 +3144,7 @@ export function HomeClient({
   }, [
     initialSection,
     battleFeedStatus,
+    battleView,
     battleNextCursor,
     activeBattle?.id,
     initialBattleId,
@@ -3147,14 +3153,15 @@ export function HomeClient({
   ]);
 
   useEffect(() => {
-    if (initialSection !== "battles" || !activeBattle) return;
+    if (initialSection !== "battles" || battleView !== "vote" || !activeBattle)
+      return;
     const frame = requestAnimationFrame(() =>
       document
         .getElementById(`battle-${activeBattle.id}`)
         ?.focus({ preventScroll: true }),
     );
     return () => cancelAnimationFrame(frame);
-  }, [initialSection, activeBattle?.id]);
+  }, [initialSection, battleView, activeBattle?.id]);
   const visibleVideos = curatedVideos.filter((video) => {
     const query = videoSearchTerm.trim().toLocaleLowerCase(locale);
     const title = t(video.titleKey).toLocaleLowerCase(locale);
@@ -4202,6 +4209,10 @@ export function HomeClient({
   }
 
   function chooseDeviceUpload(): void {
+    if (profilePhotos.length >= FREE_MEDIA_FILE_LIMIT) {
+      setPhotoFeedback({ kind: "error", text: t("photo.limitReached") });
+      return;
+    }
     openPhotoPicker();
   }
 
@@ -4338,6 +4349,10 @@ export function HomeClient({
   async function uploadPendingPhoto(): Promise<void> {
     const file = pendingPhotoFile;
     if (!file || !currentProfile || !serverUser || photoUploadBusy) return;
+    if (profilePhotos.length >= FREE_MEDIA_FILE_LIMIT) {
+      setPhotoFeedback({ kind: "error", text: t("photo.limitReached") });
+      return;
+    }
 
     setPhotoUploadBusy(true);
     setPhotoFeedback(null);
@@ -4374,8 +4389,21 @@ export function HomeClient({
       setPhotoLocationQuery("");
       setPhotoLocationSelection(null);
       await refreshServerSession();
-    } catch {
-      setPhotoFeedback({ kind: "error", text: t("photo.invalid") });
+    } catch (error) {
+      setPhotoFeedback({
+        kind: "error",
+        text: t(
+          error instanceof ApiRequestError &&
+            error.code === "PHOTO_STORAGE_LIMIT"
+            ? "photo.limitReached"
+            : "photo.invalid",
+        ),
+      });
+      if (
+        error instanceof ApiRequestError &&
+        error.code === "PHOTO_STORAGE_LIMIT"
+      )
+        await refreshCurrentServerData(serverUser);
     } finally {
       setPhotoUploadBusy(false);
     }
@@ -6219,6 +6247,8 @@ export function HomeClient({
         }));
         setGlobalFeedback({ kind: "success", text: t("battles.voted") });
         setSelectedBattleId(null);
+        if (response.battle.status === "CLOSED")
+          await refreshServerBattles(serverUser?.id);
         if (serverUser) void refreshCurrentServerData(serverUser);
       } catch {
         setGlobalFeedback({ kind: "error", text: t("battles.voteFailed") });
@@ -8621,15 +8651,41 @@ export function HomeClient({
   function renderBattlesPage(): ReactNode {
     return (
       <section
-        className="page-section battle-deck-workspace"
-        style={{ height: `calc(100dvh - ${battleHeaderHeight}px)` }}
+        className={`page-section battle-deck-workspace${battleView === "mine" ? " is-mine" : ""}`}
+        style={
+          battleView === "mine"
+            ? undefined
+            : { height: `calc(100dvh - ${battleHeaderHeight}px)` }
+        }
       >
         <div className="battle-deck-toolbar">
           <h1>
             <Swords aria-hidden="true" size={21} />
             {t("section.battles.title")}
           </h1>
-          <label className="battle-deck-filter">
+          <div
+            className="battle-view-switch"
+            role="group"
+            aria-label={t("section.battles.title")}
+          >
+            <button
+              type="button"
+              aria-pressed={battleView === "vote"}
+              onClick={() => setBattleView("vote")}
+            >
+              <Swords size={16} />
+              {t("battles.voting")}
+            </button>
+            <button
+              type="button"
+              aria-pressed={battleView === "mine"}
+              onClick={() => setBattleView("mine")}
+            >
+              <Images size={16} />
+              {t("battles.myBattles")}
+            </button>
+          </div>
+          <label className="battle-deck-filter" hidden={battleView === "mine"}>
             <span className="visually-hidden">{t("discover.filters")}</span>
             <select
               value={battleFilter}
@@ -8670,44 +8726,6 @@ export function HomeClient({
                 <Check aria-hidden="true" size={16} />
                 {seasonJoined ? t("season.joined") : t("season.join")}
               </button>
-              {battles.some(
-                (battle) =>
-                  battle.viewerParticipates ||
-                  battle.entries.some((entry) => entry.isMine),
-              ) ? (
-                <div className="battle-deck-participations">
-                  <strong>{t("battles.myBattles")}</strong>
-                  {battles
-                    .filter(
-                      (battle) =>
-                        battle.viewerParticipates ||
-                        battle.entries.some((entry) => entry.isMine),
-                    )
-                    .map((battle) => (
-                      <button
-                        className="community-text-action"
-                        key={battle.id}
-                        onClick={(event) => {
-                          setBattleFilter("all");
-                          setSelectedBattleId(battle.id);
-                          setSkippedBattleIds((current) =>
-                            current.filter((id) => id !== battle.id),
-                          );
-                          event.currentTarget
-                            .closest("details")
-                            ?.removeAttribute("open");
-                        }}
-                        type="button"
-                      >
-                        <Eye aria-hidden="true" size={16} />
-                        {battle.title ??
-                          (battle.titleKey
-                            ? t(battle.titleKey)
-                            : t("section.battles.title"))}
-                      </button>
-                    ))}
-                </div>
-              ) : null}
               {renderPromotedPlacement("battles")}
             </div>
           </details>
@@ -8722,83 +8740,122 @@ export function HomeClient({
             <span>{t("common.submitFile")}</span>
           </button>
         </div>
-        <div
-          className="battle-deck-stage"
-          aria-busy={battleFeedStatus === "loading" || Boolean(votingBattleId)}
-        >
-          {battleFeedStatus === "ready" && hasLoadedBattles && activeBattle ? (
-            renderBattleCard(activeBattle)
-          ) : (
-            <div className="battle-deck-empty" role="status">
-              <Swords aria-hidden="true" size={32} />
-              <h2>
-                {t(
-                  battleFeedStatus === "error"
-                    ? "battles.loadFailed"
-                    : battleFeedStatus === "loading"
-                      ? "common.loading"
-                      : "battles.queueFinished",
-                )}
-              </h2>
-              {battleFeedStatus !== "loading" ? (
-                <div className="battle-deck-empty-actions">
-                  {skippedBattleIds.length > 0 &&
-                  battleFeedStatus !== "error" ? (
-                    <button
-                      className="secondary-action compact"
-                      onClick={() => {
-                        setSkippedBattleIds([]);
-                        setSelectedBattleId(null);
-                      }}
-                      type="button"
-                    >
-                      <RefreshCw aria-hidden="true" size={17} />
-                      {t("battles.reviewSkipped")}
-                    </button>
-                  ) : null}
-                  <button
-                    className="secondary-action compact"
-                    onClick={() => void refreshServerBattles()}
-                    type="button"
-                  >
-                    <RefreshCw aria-hidden="true" size={17} />
-                    {t("battles.refresh")}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          )}
-        </div>
-        <div className="battle-deck-footer">
-          <span role="status">
-            {t("battles.remaining").replace(
-              "{count}",
-              battleFeedStatus === "ready"
-                ? numberFormatter.format(pendingBattles.length) +
-                    (battleNextCursor ? "+" : "")
-                : battleFeedStatus === "loading"
-                  ? "..."
-                  : "0",
-            )}
-          </span>
-          <button
-            className="secondary-action compact"
-            disabled={
-              battleFeedStatus !== "ready" ||
-              !activeBattle ||
-              Boolean(votingBattleId)
-            }
-            onClick={() => {
-              if (!activeBattle || battleVoteInFlight.current) return;
-              setSkippedBattleIds((current) => [...current, activeBattle.id]);
-              setSelectedBattleId(null);
+        {battleView === "mine" ? (
+          <MyBattles
+            key={serverUser?.id ?? "guest"}
+            onPhotoOpen={(work) => {
+              if (work.displayUrl)
+                setImagePreview({
+                  alt: work.title,
+                  photoId: work.photoId,
+                  src: getLargeImageSource(work.displayUrl),
+                });
             }}
-            type="button"
-          >
-            <SkipForward aria-hidden="true" size={17} />
-            {t("battles.skip")}
-          </button>
-        </div>
+            onBattleOpen={(payload) => {
+              const battle = mapServerBattle(payload, serverUser?.id);
+              if (!battle) return;
+              setBattles((old) => [
+                battle,
+                ...old.filter((item) => item.id !== battle.id),
+              ]);
+              setBattleFilter("all");
+              setSkippedBattleIds((old) =>
+                old.filter((id) => id !== battle.id),
+              );
+              setSelectedBattleId(battle.id);
+              setBattleFeedStatus("ready");
+              setHasLoadedBattles(true);
+              setBattleView("vote");
+            }}
+          />
+        ) : (
+          <>
+            <div
+              className="battle-deck-stage"
+              aria-busy={
+                battleFeedStatus === "loading" || Boolean(votingBattleId)
+              }
+            >
+              {battleFeedStatus === "ready" &&
+              hasLoadedBattles &&
+              activeBattle ? (
+                renderBattleCard(activeBattle)
+              ) : (
+                <div className="battle-deck-empty" role="status">
+                  <Swords aria-hidden="true" size={32} />
+                  <h2>
+                    {t(
+                      battleFeedStatus === "error"
+                        ? "battles.loadFailed"
+                        : battleFeedStatus === "loading"
+                          ? "common.loading"
+                          : "battles.queueFinished",
+                    )}
+                  </h2>
+                  {battleFeedStatus !== "loading" ? (
+                    <div className="battle-deck-empty-actions">
+                      {skippedBattleIds.length > 0 &&
+                      battleFeedStatus !== "error" ? (
+                        <button
+                          className="secondary-action compact"
+                          onClick={() => {
+                            setSkippedBattleIds([]);
+                            setSelectedBattleId(null);
+                          }}
+                          type="button"
+                        >
+                          <RefreshCw aria-hidden="true" size={17} />
+                          {t("battles.reviewSkipped")}
+                        </button>
+                      ) : null}
+                      <button
+                        className="secondary-action compact"
+                        onClick={() => void refreshServerBattles()}
+                        type="button"
+                      >
+                        <RefreshCw aria-hidden="true" size={17} />
+                        {t("battles.refresh")}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+            <div className="battle-deck-footer">
+              <span role="status">
+                {t("battles.remaining").replace(
+                  "{count}",
+                  battleFeedStatus === "ready"
+                    ? numberFormatter.format(pendingBattles.length) +
+                        (battleNextCursor ? "+" : "")
+                    : battleFeedStatus === "loading"
+                      ? "..."
+                      : "0",
+                )}
+              </span>
+              <button
+                className="secondary-action compact"
+                disabled={
+                  battleFeedStatus !== "ready" ||
+                  !activeBattle ||
+                  Boolean(votingBattleId)
+                }
+                onClick={() => {
+                  if (!activeBattle || battleVoteInFlight.current) return;
+                  setSkippedBattleIds((current) => [
+                    ...current,
+                    activeBattle.id,
+                  ]);
+                  setSelectedBattleId(null);
+                }}
+                type="button"
+              >
+                <SkipForward aria-hidden="true" size={17} />
+                {t("battles.skip")}
+              </button>
+            </div>
+          </>
+        )}
       </section>
     );
   }
@@ -13056,6 +13113,16 @@ export function HomeClient({
               <span className="eyebrow">{t("photo.add")}</span>
               <h2 id="add-photo-title">{t("photo.addTitle")}</h2>
               <p>{t("photo.sourceIntro")}</p>
+              {serverUser ? (
+                <p>
+                  {t("photo.freeQuota")
+                    .replace(
+                      "{used}",
+                      numberFormatter.format(profilePhotos.length),
+                    )
+                    .replace("{limit}", String(FREE_MEDIA_FILE_LIMIT))}
+                </p>
+              ) : null}
             </div>
             <button
               aria-label={t("auth.close")}
@@ -13069,6 +13136,11 @@ export function HomeClient({
             </button>
           </div>
 
+          {profilePhotos.length >= FREE_MEDIA_FILE_LIMIT && !photoFeedback ? (
+            <p className="dialog-feedback error" role="status">
+              {t("photo.limitReached")}
+            </p>
+          ) : null}
           {pendingPhotoFile ? (
             <div className="upload-details">
               <div className="selected-file-row">
@@ -13131,7 +13203,10 @@ export function HomeClient({
               </label>
               <button
                 className="primary-action full-width"
-                disabled={photoUploadBusy}
+                disabled={
+                  photoUploadBusy ||
+                  profilePhotos.length >= FREE_MEDIA_FILE_LIMIT
+                }
                 onClick={() => void uploadPendingPhoto()}
                 type="button"
               >
@@ -13143,6 +13218,7 @@ export function HomeClient({
             <div className="provider-list">
               <button
                 className="provider-button is-enabled"
+                disabled={profilePhotos.length >= FREE_MEDIA_FILE_LIMIT}
                 onClick={chooseDeviceUpload}
                 type="button"
               >

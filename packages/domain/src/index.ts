@@ -7,3 +7,4 @@ export * from "./cover-palette.js";
 export * from "./media-titles.js";
 export * from "./directory-sources.js";
 export * from "./community-publishing.js";
+export * from "./upload-limits.js";

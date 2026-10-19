@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 
 import type { CurrentUser } from "./auth.service.js";
+import { lockBattleSeason, matchSeasonRounds } from "./battle-rounds.js";
 import { publicAssetUrl, mediaAssetResponse } from "./serialization.js";
 import { asRecord, optionalString, requiredString } from "./validation.js";
 
@@ -899,6 +900,21 @@ export class AdminService {
             : moderationStatus === "APPROVED"
               ? "PUBLISHED"
               : "READY";
+      const battleEntries = await tx.battleEntry.findMany({
+        select: { battleId: true, battle: { select: { seasonId: true } } },
+        where: { photoId },
+      });
+      const battleIds = [
+        ...new Set(battleEntries.map((entry) => entry.battleId)),
+      ];
+      const seasonIds = [
+        ...new Set(
+          battleEntries.flatMap((entry) =>
+            entry.battle?.seasonId ? [entry.battle.seasonId] : [],
+          ),
+        ),
+      ].sort();
+      for (const seasonId of seasonIds) await lockBattleSeason(tx, seasonId);
       const photo = await tx.photo.update({
         data: {
           categoryId: category?.id,
@@ -913,14 +929,6 @@ export class AdminService {
         },
         where: { id: photoId },
       });
-
-      const battleEntries = await tx.battleEntry.findMany({
-        select: { battleId: true },
-        where: { photoId },
-      });
-      const battleIds = [
-        ...new Set(battleEntries.map((entry) => entry.battleId)),
-      ];
 
       if (moderationStatus === "REJECTED") {
         await tx.challengeEntry.updateMany({
@@ -947,6 +955,7 @@ export class AdminService {
           where: { id: battleId },
         });
         if (!battle) continue;
+        if (["CLOSED", "CANCELLED"].includes(battle.status)) continue;
         if (battle.entries.length === 0) {
           await tx.battle.delete({ where: { id: battle.id } });
           continue;
@@ -957,11 +966,9 @@ export class AdminService {
           battle.entries.every(
             (entry) =>
               entry.photo.moderationStatus === "APPROVED" &&
-              entry.moderationStatus === "APPROVED",
+              entry.moderationStatus === "APPROVED" &&
+              entry.photo.categoryId === battle.categoryId,
           );
-        if (!readyToOpen) {
-          await tx.battleVote.deleteMany({ where: { battleId: battle.id } });
-        }
         await tx.battle.update({
           data: readyToOpen
             ? {
@@ -971,10 +978,13 @@ export class AdminService {
                 startsAt: battle.startsAt ?? new Date(),
                 status: "OPEN",
               }
-            : { endsAt: null, startsAt: null, status: "DRAFT" },
+            : battle.status === "OPEN"
+              ? { status: "CANCELLED", endsAt: new Date() }
+              : { endsAt: null, startsAt: null, status: "DRAFT" },
           where: { id: battle.id },
         });
       }
+      for (const seasonId of seasonIds) await matchSeasonRounds(tx, seasonId);
       await tx.auditLog.create({
         data: {
           action: "photo.moderated",
@@ -1057,6 +1067,8 @@ export class AdminService {
             "Battle entry does not exist.",
           );
         }
+        if (entry.battle.seasonId)
+          await lockBattleSeason(tx, entry.battle.seasonId);
 
         await tx.battleEntry.update({
           data: {
@@ -1077,13 +1089,14 @@ export class AdminService {
           include: { entries: { include: { photo: true } } },
           where: { id: entry.battleId },
         });
-        if (battle) {
+        if (battle && !["CLOSED", "CANCELLED"].includes(battle.status)) {
           const readyToOpen =
             battle.entries.length === 2 &&
             battle.entries.every(
               (item) =>
                 item.moderationStatus === "APPROVED" &&
-                item.photo.moderationStatus === "APPROVED",
+                item.photo.moderationStatus === "APPROVED" &&
+                item.photo.categoryId === battle.categoryId,
             );
           await tx.battle.update({
             data: readyToOpen
@@ -1093,10 +1106,14 @@ export class AdminService {
                   startsAt: battle.startsAt ?? new Date(),
                   status: "OPEN",
                 }
-              : { endsAt: null, startsAt: null, status: "DRAFT" },
+              : battle.status === "OPEN"
+                ? { status: "CANCELLED", endsAt: new Date() }
+                : { endsAt: null, startsAt: null, status: "DRAFT" },
             where: { id: battle.id },
           });
         }
+        if (entry.battle.seasonId)
+          await matchSeasonRounds(tx, entry.battle.seasonId);
 
         await tx.auditLog.create({
           data: {

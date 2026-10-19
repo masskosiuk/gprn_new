@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Post,
   Query,
@@ -23,6 +24,16 @@ export class BattlesController {
     private readonly authService: AuthService,
     private readonly battlesService: BattlesService,
   ) {}
+
+  @Get("mine")
+  @Header("Cache-Control", "private, no-store")
+  async mine(
+    @Req() request: CookieRequest,
+    @Query("cursor", new ParseUUIDPipe({ optional: true })) cursor?: string,
+  ) {
+    const user = await this.authService.requireUserFromRequest(request);
+    return this.battlesService.listMine(user, cursor);
+  }
 
   @Get("open")
   async open(
