@@ -1,6 +1,6 @@
 "use client";
 
-import { getMessage, type SupportedLocale } from "@gprn/i18n";
+import { getMessage, type MessageKey, type SupportedLocale } from "@gprn/i18n";
 import { ChevronDown, MapPin } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
@@ -16,6 +16,9 @@ export interface LocationOption {
 }
 
 interface ProfileLocationPickerProps {
+  readonly idPrefix?: string;
+  readonly labelKey?: MessageKey;
+  readonly showHint?: boolean;
   readonly locale: SupportedLocale;
   readonly value: string;
   readonly selection: LocationOption | null;
@@ -28,6 +31,9 @@ interface ProfileLocationPickerProps {
 }
 
 export function ProfileLocationPicker({
+  idPrefix = "profile-location",
+  labelKey = "profile.location",
+  showHint = true,
   locale,
   value,
   selection,
@@ -41,7 +47,7 @@ export function ProfileLocationPicker({
   const [activeIndex, setActiveIndex] = useState(-1);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const query = (selection?.label === value ? selection.name : value).trim();
-  const listId = "profile-location-options";
+  const listId = `${idPrefix}-options`;
   const t = (key: Parameters<typeof getMessage>[1]) => getMessage(locale, key);
 
   useEffect(() => {
@@ -110,7 +116,7 @@ export function ProfileLocationPicker({
 
   return (
     <div className="form-field profile-location-field">
-      <label htmlFor="profile-location">{t("profile.location")}</label>
+      <label htmlFor={idPrefix}>{t(labelKey)}</label>
       <div
         className="location-combobox"
         ref={wrapperRef}
@@ -127,10 +133,10 @@ export function ProfileLocationPicker({
           }
           aria-autocomplete="list"
           aria-controls={listId}
-          aria-describedby="profile-location-hint"
+          aria-describedby={showHint ? `${idPrefix}-hint` : undefined}
           aria-expanded={isOpen && query.length >= 2}
           autoComplete="off"
-          id="profile-location"
+          id={idPrefix}
           onChange={(event) => {
             onChange(event.target.value);
             setActiveIndex(-1);
@@ -150,7 +156,7 @@ export function ProfileLocationPicker({
             className="location-options profile-location-options"
             id={listId}
             role="listbox"
-            aria-label={t("profile.location")}
+            aria-label={t(labelKey)}
           >
             {loading ? (
               <div className="location-status" role="status">
@@ -182,12 +188,14 @@ export function ProfileLocationPicker({
           </div>
         ) : null}
       </div>
-      <small id="profile-location-hint">
-        {t("location.profileHint")} {t("location.dataBy")}{" "}
-        <a href="https://open-meteo.com/" rel="noreferrer" target="_blank">
-          Open-Meteo
-        </a>
-      </small>
+      {showHint ? (
+        <small id={`${idPrefix}-hint`}>
+          {t("location.profileHint")} {t("location.dataBy")}{" "}
+          <a href="https://open-meteo.com/" rel="noreferrer" target="_blank">
+            Open-Meteo
+          </a>
+        </small>
+      ) : null}
     </div>
   );
 }

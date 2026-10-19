@@ -146,6 +146,7 @@ export function ServerMarketplace({
               "nature",
               "architecture",
               "documentary",
+              "fine-art",
               "commercial",
               "product",
               "boudoir",

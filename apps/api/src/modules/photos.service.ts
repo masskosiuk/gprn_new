@@ -1027,6 +1027,87 @@ export class PhotosService {
     return { photo: this.toPhotoResponse(photo) };
   }
 
+  async changeLocation(user: CurrentUser, photoId: string, body: unknown) {
+    const selection = parseLocationSelection(asRecord(body).location);
+    if (!selection) {
+      throw new BadRequestException({
+        code: "LOCATION_REQUIRED",
+        message: "Choose a city from the search results.",
+      });
+    }
+    const requireEditable = (
+      photo: { ownerId: string; title: string; deletedAt: Date | null } | null,
+    ) => {
+      if (!photo || photo.deletedAt) {
+        throw new NotFoundException({
+          code: "PHOTO_NOT_FOUND",
+          message: "Photo does not exist.",
+        });
+      }
+      if (
+        photo.ownerId !== user.id &&
+        !user.roles.some((role) => role === "ADMIN" || role === "SUPER_ADMIN")
+      ) {
+        throw new ForbiddenException({
+          code: "PHOTO_FORBIDDEN",
+          message:
+            "Only the author or an administrator can change this work's location.",
+        });
+      }
+      if (photo.title.startsWith("__profile_")) {
+        throw new BadRequestException({
+          code: "PROFILE_ASSET_LOCATION",
+          message: "Profile images do not have portfolio locations.",
+        });
+      }
+    };
+    const existing = await prisma.photo.findUnique({ where: { id: photoId } });
+    requireEditable(existing);
+    const city = await this.locationsService.resolveSelection(selection);
+    const photo = await prisma.$transaction(async (tx) => {
+      const current = await tx.photo.findUnique({
+        where: { id: photoId },
+        include: { location: true },
+      });
+      requireEditable(current);
+      const previousCityId = current?.location?.cityId ?? null;
+      const location = {
+        cityId: city.cityId,
+        countryId: city.countryId,
+        regionId: city.regionId,
+        placeId: null,
+        latitudePrivate: city.latitude,
+        longitudePrivate: city.longitude,
+        precision: "CITY" as const,
+        publicLabel: city.label,
+        publicLatitude: city.latitude,
+        publicLongitude: city.longitude,
+        source: "USER_SELECTED" as const,
+        visibility:
+          current?.location?.visibility === "HIDDEN"
+            ? ("HIDDEN" as const)
+            : ("CITY" as const),
+      };
+      const updated = await tx.photo.update({
+        where: { id: photoId, deletedAt: null },
+        data: { location: { upsert: { create: location, update: location } } },
+        include: photoInclude,
+      });
+      await tx.auditLog.create({
+        data: {
+          actorUserId: user.id,
+          action: "photo.location_changed",
+          targetType: "Photo",
+          targetId: photoId,
+          previous: { cityId: previousCityId },
+          next: { cityId: city.cityId },
+        },
+      });
+      return updated;
+    });
+    return { photo: this.toPhotoResponse(photo) };
+  }
+
   private async ensurePhotographerFoundation(
     tx: PrismaTx,
     userId: string,

@@ -1,0 +1,34 @@
+INSERT INTO "categories" (
+  "id",
+  "slug",
+  "nameKey",
+  "isActive",
+  "sortOrder",
+  "createdAt"
+)
+VALUES
+  (
+    'ca190000-0000-4000-8000-000000000001'::uuid,
+    'fine-art',
+    'category.fine-art.name',
+    true,
+    11,
+    CURRENT_TIMESTAMP
+  ),
+  (
+    'ca190000-0000-4000-8000-000000000002'::uuid,
+    'commercial',
+    'category.commercial.name',
+    true,
+    12,
+    CURRENT_TIMESTAMP
+  ),
+  (
+    'ca190000-0000-4000-8000-000000000003'::uuid,
+    'product',
+    'category.product.name',
+    true,
+    13,
+    CURRENT_TIMESTAMP
+  )
+ON CONFLICT ("slug") DO NOTHING;

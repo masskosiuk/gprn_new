@@ -29,6 +29,9 @@ const categories = [
   "documentary",
   "night",
   "boudoir",
+  "fine-art",
+  "commercial",
+  "product",
 ];
 
 const featureFlags = [

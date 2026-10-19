@@ -316,7 +316,9 @@ function ProductEditor({
                     "nature",
                     "architecture",
                     "documentary",
+                    "fine-art",
                     "commercial",
+                    "product",
                     "boudoir",
                     "cinematic",
                   ] as const

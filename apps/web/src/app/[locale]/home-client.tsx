@@ -145,6 +145,7 @@ import {
 } from "../../lib/profile-source";
 import { PhotoTitleEditor } from "./photo-title-editor";
 import { PhotoCategoryEditor } from "./photo-category-editor";
+import { PhotoLocationEditor } from "./photo-location-editor";
 import { ImageLightbox } from "./image-lightbox";
 import { ContentImage } from "./content-image";
 import { AutoHideHeader } from "./auto-hide-header";
@@ -180,6 +181,7 @@ type CategoryId =
   | "landscape"
   | "portrait"
   | "documentary"
+  | "fine-art"
   | "architecture"
   | "nature"
   | "aiEdited"
@@ -1289,6 +1291,7 @@ const categoryFilters: readonly { id: CategoryFilter; key: MessageKey }[] = [
   { id: "landscape", key: "category.landscape" },
   { id: "portrait", key: "category.portrait" },
   { id: "documentary", key: "category.documentary" },
+  { id: "fine-art", key: "category.fine-art" },
   { id: "architecture", key: "category.architecture" },
   { id: "nature", key: "category.nature" },
   { id: "aiEdited", key: "category.aiEdited" },
@@ -5753,6 +5756,35 @@ export function HomeClient({
     await Promise.all([refreshServerChallenges(), refreshServerBattles()]);
   }
 
+  async function changeWorkLocation(
+    photoId: string,
+    location: LocationOption,
+  ): Promise<void> {
+    const response = await apiRequest<{ photo: ServerPhotoPayload }>(
+      `/photos/${encodeURIComponent(photoId)}/location`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ location }),
+      },
+    );
+    const mapped = mapServerPhoto(response.photo, serverUser?.id);
+    if (!mapped) throw new Error("Photo has no display asset.");
+    const update = (photo: PhotoRecord): PhotoRecord =>
+      photo.id === photoId
+        ? {
+            ...photo,
+            locationId: mapped.locationId,
+            locationLabel: mapped.locationLabel,
+            locationLatitude: mapped.locationLatitude,
+            locationLongitude: mapped.locationLongitude,
+            locationHidden: mapped.locationHidden,
+          }
+        : photo;
+    setUploadedPhotos((current) => current.map(update));
+    setServerPhotos((current) => current.map(update));
+    setServerPublicPhotos((current) => current.map(update));
+  }
+
   function toggleSavePhoto(photoId: string): void {
     const photo = allPhotos.find((candidate) => candidate.id === photoId);
     if (photo?.serverBacked) {
@@ -8328,25 +8360,29 @@ export function HomeClient({
               headingCopy
             )}
             <div className="photo-card-heading-tags">
-              <button
-                aria-pressed={
+              <PhotoLocationEditor
+                key={`location-${photo.id}`}
+                photoId={photo.id}
+                locale={locale}
+                label={getLocationLabel(
+                  photo.locationId,
+                  locale,
+                  photo.locationLabel,
+                )}
+                editable={Boolean(
+                  photo.serverBacked && (photo.isMine || isAdministrator),
+                )}
+                pressed={
                   initialSection === gallerySection &&
                   (gallerySection === "video"
                     ? videoLocationFilter
                     : discoverLocationFilter) === photo.locationId
                 }
-                className="photo-meta-tag"
                 disabled={photo.locationHidden || !photo.locationId}
-                onClick={openDiscoverWithLocation}
-                type="button"
-              >
-                <MapPin aria-hidden="true" size={14} />
-                {getLocationLabel(
-                  photo.locationId,
-                  locale,
-                  photo.locationLabel,
-                )}
-              </button>
+                onBrowse={openDiscoverWithLocation}
+                search={searchLocations}
+                onSave={(location) => changeWorkLocation(photo.id, location)}
+              />
               <PhotoCategoryEditor
                 key={photo.id}
                 slug={photo.categorySlug ?? photo.categoryId}

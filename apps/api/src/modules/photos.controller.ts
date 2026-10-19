@@ -100,4 +100,14 @@ export class PhotosController {
     const user = await this.authService.requireUserFromRequest(request);
     return this.photosService.changeCategory(user, photoId, body);
   }
+
+  @Patch(":photoId/location")
+  async changeLocation(
+    @Req() request: CookieRequest,
+    @Param("photoId", new ParseUUIDPipe()) photoId: string,
+    @Body() body: unknown,
+  ) {
+    const user = await this.authService.requireUserFromRequest(request);
+    return this.photosService.changeLocation(user, photoId, body);
+  }
 }
