@@ -3232,6 +3232,7 @@ export function HomeClient({
     ];
   }, [locale, publicPhotos]);
   const mapPhotoMarkers = useMemo<readonly PhotoMapMarker[]>(() => {
+    const locationPhotoCounts = new Map<string, number>();
     return visiblePhotos
       .filter((photo) => {
         if (photo.locationHidden) return false;
@@ -3251,28 +3252,43 @@ export function HomeClient({
         const locationId = photo.locationId || `photo-${photo.id}`;
         const latitude = photo.locationLatitude ?? knownLocation!.latitude;
         const longitude = photo.locationLongitude ?? knownLocation!.longitude;
+        const locationPhotoIndex = locationPhotoCounts.get(locationId) ?? 0;
+        locationPhotoCounts.set(locationId, locationPhotoIndex + 1);
+        const angle = (locationPhotoIndex * 137.5 * Math.PI) / 180;
+        const radius =
+          locationPhotoIndex === 0
+            ? 0
+            : 0.045 * Math.ceil(locationPhotoIndex / 5);
         return {
           id: locationId,
           imageUrl: photo.src,
           label: getLocationLabel(locationId, locale, photo.locationLabel),
-          latitude,
-          longitude,
+          latitude: latitude + Math.cos(angle) * radius,
+          longitude: longitude + Math.sin(angle) * radius,
           photoId: photo.id,
           title: getPhotoTitle(photo, locale),
         };
       });
   }, [locale, visiblePhotos]);
   const mapVideoMarkers = useMemo<readonly PhotoMapMarker[]>(() => {
+    const locationVideoCounts = new Map<LocationId, number>();
     return curatedVideos.map((video) => {
       const location =
         locationPins.find((candidate) => candidate.id === video.locationId) ??
         locationPins[0]!;
+      const locationVideoIndex = locationVideoCounts.get(location.id) ?? 0;
+      locationVideoCounts.set(location.id, locationVideoIndex + 1);
+      const angle = (locationVideoIndex * 137.5 * Math.PI) / 180;
+      const radius =
+        locationVideoIndex === 0
+          ? 0
+          : 0.045 * Math.ceil(locationVideoIndex / 5);
       return {
         id: location.id,
         imageUrl: video.posterUrl,
         label: getLocationLabel(location.id, locale),
-        latitude: location.latitude,
-        longitude: location.longitude,
+        latitude: location.latitude + Math.cos(angle) * radius,
+        longitude: location.longitude + Math.sin(angle) * radius,
         photoId: video.id,
         title: t(video.titleKey),
       };

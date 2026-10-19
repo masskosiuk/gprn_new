@@ -1,0 +1,99 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
+import ts from "typescript";
+
+const source = ts.createSourceFile(
+  "home-client.tsx",
+  readFileSync(
+    new URL("../app/[locale]/home-client.tsx", import.meta.url),
+    "utf8",
+  ),
+  ts.ScriptTarget.Latest,
+  true,
+  ts.ScriptKind.TSX,
+);
+const city = { id: "kyiv", latitude: 50.4501, longitude: 30.5234 };
+const photos = Array.from({ length: 25 }, (_, index) => ({
+  id: `photo-${index}`,
+  title: `Photo ${index}`,
+  locationId: "kyiv",
+  locationLatitude: city.latitude,
+  locationLongitude: city.longitude,
+  src: `/photo-${index}.jpg`,
+}));
+function markers(name: string, context: object) {
+  let node: ts.VariableDeclaration | undefined;
+  function visit(child: ts.Node) {
+    if (ts.isVariableDeclaration(child) && child.name.getText(source) === name)
+      node = child;
+    ts.forEachChild(child, visit);
+  }
+  visit(source);
+  assert(node?.initializer);
+  return runInNewContext(
+    ts.transpileModule(
+      `const ${name} = ${node.initializer.getText(source)}; ${name}`,
+      { compilerOptions: { target: ts.ScriptTarget.ES2022 } },
+    ).outputText,
+    {
+      useMemo: (value: () => unknown) => value(),
+      locale: "ru",
+      locationPins: [city],
+      getLocationLabel: () => "Киев",
+      getPhotoTitle: (photo: any) => photo.title,
+      t: (key: string) => key,
+      ...context,
+    },
+  ) as any[];
+}
+
+test("photo map restores the previous geographic placement instead of a pixel grid", () => {
+  const result = markers("mapPhotoMarkers", { visiblePhotos: photos });
+  assert.equal(result.length, photos.length);
+  for (const [index, marker] of result.entries()) {
+    const angle = (index * 137.5 * Math.PI) / 180;
+    const radius = index === 0 ? 0 : 0.045 * Math.ceil(index / 5);
+    assert.equal(marker.latitude, city.latitude + Math.cos(angle) * radius);
+    assert.equal(marker.longitude, city.longitude + Math.sin(angle) * radius);
+    assert.equal(marker.photoId, photos[index]!.id);
+  }
+});
+
+test("hidden locations stay hidden and a new location starts at its own coordinates", () => {
+  const result = markers("mapPhotoMarkers", {
+    visiblePhotos: [
+      { ...photos[0], locationHidden: true },
+      photos[1],
+      {
+        ...photos[2],
+        locationId: "other",
+        locationLatitude: 48.85,
+        locationLongitude: 2.35,
+      },
+    ],
+  });
+  assert.equal(result.length, 2);
+  assert.equal(result[0]!.latitude, city.latitude);
+  assert.equal(result[1]!.latitude, 48.85);
+  assert.equal(result[1]!.longitude, 2.35);
+});
+
+test("video markers retain the same original small geographic offsets", () => {
+  const result = markers("mapVideoMarkers", {
+    curatedVideos: photos
+      .slice(0, 3)
+      .map((photo) => ({
+        ...photo,
+        posterUrl: photo.src,
+        titleKey: photo.title,
+      })),
+  });
+  assert.equal(result.length, 3);
+  assert.equal(result[0]!.latitude, city.latitude);
+  assert.equal(
+    result[1]!.latitude,
+    city.latitude + Math.cos((137.5 * Math.PI) / 180) * 0.045,
+  );
+});

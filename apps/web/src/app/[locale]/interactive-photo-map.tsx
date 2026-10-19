@@ -2,11 +2,6 @@
 
 import type { Map as LeafletMap } from "leaflet";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import {
-  layoutPhotoMapMarkers,
-  photoMapMarkerSize,
-  type PhotoMapSlots,
-} from "../../lib/photo-map-layout";
 
 export interface PhotoMapLocation {
   readonly id: string;
@@ -46,7 +41,6 @@ export function InteractivePhotoMap({
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
   const locationsRef = useRef(locations);
   const openPhotoRef = useRef<string | null>(null);
-  const markerSlotsRef = useRef<PhotoMapSlots>(new Map());
   const updatingMarkers = useRef(false);
   const [mapVersion, setMapVersion] = useState(0);
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoMapMarker | null>(
@@ -169,98 +163,101 @@ export function InteractivePhotoMap({
     if (!leaflet || !leafletMap) return;
     const layer = leaflet.layerGroup().addTo(leafletMap);
 
-    layoutPhotoMapMarkers(
-      markers,
-      markerSlotsRef.current,
-      selectedPhoto,
-    ).forEach(({ photo, offset }) => {
-      const markerContent = document.createElement("span");
-      markerContent.className = "photo-map-marker__frame";
+    const visibleMarkers =
+      selectedPhoto &&
+      !markers.some((photo) => photo.photoId === selectedPhoto.photoId)
+        ? [...markers, selectedPhoto]
+        : markers;
+    visibleMarkers
+      .filter(
+        (photo) =>
+          Number.isFinite(photo.latitude) && Number.isFinite(photo.longitude),
+      )
+      .forEach((photo) => {
+        const markerContent = document.createElement("span");
+        markerContent.className = "photo-map-marker__frame";
 
-      const thumbnail = document.createElement("img");
-      thumbnail.alt = "";
-      thumbnail.decoding = "async";
-      thumbnail.loading = "lazy";
-      thumbnail.src = photo.imageUrl;
-      markerContent.append(thumbnail);
+        const thumbnail = document.createElement("img");
+        thumbnail.alt = "";
+        thumbnail.decoding = "async";
+        thumbnail.loading = "lazy";
+        thumbnail.src = photo.imageUrl;
+        markerContent.append(thumbnail);
 
-      const icon = leaflet.divIcon({
-        className: `photo-map-marker${activeLocationRef.current === photo.id ? " is-active" : ""}`,
-        html: markerContent,
-        iconAnchor: [
-          photoMapMarkerSize / 2 - offset.x,
-          photoMapMarkerSize / 2 - offset.y,
-        ],
-        iconSize: [photoMapMarkerSize, photoMapMarkerSize],
-        popupAnchor: [offset.x, offset.y - photoMapMarkerSize / 2 - 6],
+        const icon = leaflet.divIcon({
+          className: `photo-map-marker${activeLocationRef.current === photo.id ? " is-active" : ""}`,
+          html: markerContent,
+          iconAnchor: [20, 20],
+          iconSize: [40, 40],
+          popupAnchor: [0, -26],
+        });
+
+        const marker = leaflet.marker([photo.latitude, photo.longitude], {
+          alt: `${photo.title}, ${photo.label}`,
+          icon,
+          keyboard: true,
+          riseOnHover: true,
+          title: `${photo.title}, ${photo.label}`,
+        });
+
+        const popup = document.createElement("article");
+        popup.className = "photo-map-popup";
+
+        const preview = document.createElement("img");
+        preview.alt = photo.title;
+        preview.className = "previewable-image";
+        preview.role = "button";
+        preview.src = photo.imageUrl;
+        preview.tabIndex = 0;
+        preview.addEventListener("click", (event) => {
+          event.stopPropagation();
+          onPhotoOpenRef.current(photo.imageUrl, photo.title);
+        });
+        preview.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          event.stopPropagation();
+          onPhotoOpenRef.current(photo.imageUrl, photo.title);
+        });
+        popup.append(preview);
+
+        const copy = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = photo.title;
+        const location = document.createElement("span");
+        location.textContent = photo.label;
+        copy.append(title, location);
+        popup.append(copy);
+
+        marker.bindPopup(popup, {
+          closeButton: true,
+          maxWidth: 260,
+          minWidth: 210,
+          maxHeight: Math.max(140, Math.min(290, leafletMap.getSize().y - 90)),
+          keepInView: true,
+          autoPanPadding: [16, 16],
+        });
+        marker.on("click", () => {
+          openPhotoRef.current = photo.photoId;
+          setSelectedPhoto(photo);
+          onLocationSelectRef.current(photo.id);
+          leafletMap.flyTo(
+            [photo.latitude, photo.longitude],
+            Math.max(leafletMap.getZoom(), 10),
+            {
+              duration: 0.7,
+            },
+          );
+        });
+        marker.addTo(layer);
+        if (openPhotoRef.current === photo.photoId) marker.openPopup();
+
+        const markerElement = marker.getElement();
+        if (markerElement) {
+          markerElement.dataset.locationId = photo.id;
+          markerElement.dataset.photoId = photo.photoId;
+        }
       });
-
-      const marker = leaflet.marker([photo.latitude, photo.longitude], {
-        alt: `${photo.title}, ${photo.label}`,
-        icon,
-        keyboard: true,
-        riseOnHover: true,
-        title: `${photo.title}, ${photo.label}`,
-      });
-
-      const popup = document.createElement("article");
-      popup.className = "photo-map-popup";
-
-      const preview = document.createElement("img");
-      preview.alt = photo.title;
-      preview.className = "previewable-image";
-      preview.role = "button";
-      preview.src = photo.imageUrl;
-      preview.tabIndex = 0;
-      preview.addEventListener("click", (event) => {
-        event.stopPropagation();
-        onPhotoOpenRef.current(photo.imageUrl, photo.title);
-      });
-      preview.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        event.stopPropagation();
-        onPhotoOpenRef.current(photo.imageUrl, photo.title);
-      });
-      popup.append(preview);
-
-      const copy = document.createElement("div");
-      const title = document.createElement("strong");
-      title.textContent = photo.title;
-      const location = document.createElement("span");
-      location.textContent = photo.label;
-      copy.append(title, location);
-      popup.append(copy);
-
-      marker.bindPopup(popup, {
-        closeButton: true,
-        maxWidth: 260,
-        minWidth: 210,
-        maxHeight: Math.max(140, Math.min(290, leafletMap.getSize().y - 90)),
-        keepInView: true,
-        autoPanPadding: [16, 16],
-      });
-      marker.on("click", () => {
-        openPhotoRef.current = photo.photoId;
-        setSelectedPhoto(photo);
-        onLocationSelectRef.current(photo.id);
-        leafletMap.flyTo(
-          [photo.latitude, photo.longitude],
-          Math.max(leafletMap.getZoom(), 10),
-          {
-            duration: 0.7,
-          },
-        );
-      });
-      marker.addTo(layer);
-      if (openPhotoRef.current === photo.photoId) marker.openPopup();
-
-      const markerElement = marker.getElement();
-      if (markerElement) {
-        markerElement.dataset.locationId = photo.id;
-        markerElement.dataset.photoId = photo.photoId;
-      }
-    });
 
     return () => {
       updatingMarkers.current = true;

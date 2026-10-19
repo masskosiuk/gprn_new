@@ -2751,15 +2751,15 @@ img {
   border: 0;
 }
 .photo-map-marker__frame {
-  background: var(--panel);
-  border: 2px solid var(--panel);
+  background: transparent;
+  border: 0;
   border-radius: 50%;
+  box-shadow: none;
+  filter: none;
   display: block;
   height: 100%;
   overflow: hidden;
-  transition:
-    border-color 160ms ease,
-    transform 160ms ease;
+  transition: transform 160ms ease;
   width: 100%;
 }
 
@@ -2772,7 +2772,6 @@ img {
 .photo-map-marker:hover .photo-map-marker__frame,
 .photo-map-marker:focus .photo-map-marker__frame,
 .photo-map-marker.is-active .photo-map-marker__frame {
-  border-color: var(--accent-strong);
   transform: scale(1.08);
 }
 
