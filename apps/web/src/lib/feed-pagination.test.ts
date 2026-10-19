@@ -5,7 +5,6 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { mergeFeedPage, feedQueryString } from "./feed-pagination.ts";
 import { galleryDropPoint } from "./gallery-drop.ts";
-import { groupPhotoMapMarkers } from "./photo-map-groups.ts";
 import { requestJson } from "./auth-client.ts";
 
 const source = ts.createSourceFile(
@@ -223,23 +222,6 @@ test("keyboard pickup without movement keeps the photo in place", () => {
   } | null;
   assert.equal(moved?.id, "b");
   assert.equal(moved?.placement, "after");
-});
-test("same-location photos produce one counted map marker without losing any photo", () => {
-  const markers = Array.from({ length: 130 }, (_, id) => ({
-    id,
-    latitude: 50.4501,
-    longitude: 30.5234,
-  }));
-  const grouped = groupPhotoMapMarkers([
-    ...markers,
-    { id: 999, latitude: 48.85, longitude: 2.35 },
-  ]);
-  assert.equal(grouped.length, 2);
-  assert.equal(grouped[0]!.length, 130);
-  assert.deepEqual(
-    grouped.flat().map((p) => p.id),
-    [...markers.map((p) => p.id), 999],
-  );
 });
 test("mark all read changes UI only after the server confirms and preserves new arrivals", async () => {
   let confirm!: (value: unknown) => void;

@@ -2,7 +2,11 @@
 
 import type { Map as LeafletMap } from "leaflet";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { groupPhotoMapMarkers } from "../../lib/photo-map-groups";
+import {
+  layoutPhotoMapMarkers,
+  photoMapMarkerSize,
+  type PhotoMapSlots,
+} from "../../lib/photo-map-layout";
 
 export interface PhotoMapLocation {
   readonly id: string;
@@ -41,9 +45,13 @@ export function InteractivePhotoMap({
   const onPhotoOpenRef = useRef(onPhotoOpen);
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
   const locationsRef = useRef(locations);
-  const openGroupRef = useRef<string | null>(null);
+  const openPhotoRef = useRef<string | null>(null);
+  const markerSlotsRef = useRef<PhotoMapSlots>(new Map());
   const updatingMarkers = useRef(false);
   const [mapVersion, setMapVersion] = useState(0);
+  const [selectedPhoto, setSelectedPhoto] = useState<PhotoMapMarker | null>(
+    null,
+  );
   const locationKey = locations
     .map(
       (location) => `${location.id}:${location.latitude}:${location.longitude}`,
@@ -71,8 +79,12 @@ export function InteractivePhotoMap({
     if (!map || !container) {
       return;
     }
-    if (activeLocationId === "all" && previousLocation !== "all") {
-      openGroupRef.current = null;
+    if (
+      (activeLocationId === "all" && previousLocation !== "all") ||
+      (selectedPhoto && selectedPhoto.id !== activeLocationId)
+    ) {
+      openPhotoRef.current = null;
+      setSelectedPhoto(null);
       map.closePopup();
     }
 
@@ -114,7 +126,10 @@ export function InteractivePhotoMap({
       mapRef.current = leafletMap;
       leafletRef.current = leaflet;
       leafletMap.on("popupclose", () => {
-        if (!updatingMarkers.current) openGroupRef.current = null;
+        if (!updatingMarkers.current) {
+          openPhotoRef.current = null;
+          setSelectedPhoto(null);
+        }
       });
       resizeObserver = new ResizeObserver(() => {
         leafletMap.invalidateSize({ pan: false });
@@ -154,20 +169,13 @@ export function InteractivePhotoMap({
     if (!leaflet || !leafletMap) return;
     const layer = leaflet.layerGroup().addTo(leafletMap);
 
-    groupPhotoMapMarkers(markers).forEach((group) => {
-      const photo = group[0]!;
-      const groupKey = `${photo.latitude.toFixed(4)}:${photo.longitude.toFixed(4)}`;
-      const markerRoot = document.createElement("span");
-      markerRoot.className = "photo-map-marker__group";
+    layoutPhotoMapMarkers(
+      markers,
+      markerSlotsRef.current,
+      selectedPhoto,
+    ).forEach(({ photo, offset }) => {
       const markerContent = document.createElement("span");
       markerContent.className = "photo-map-marker__frame";
-      markerRoot.append(markerContent);
-      if (group.length > 1) {
-        const count = document.createElement("span");
-        count.className = "photo-map-marker__count";
-        count.textContent = String(group.length);
-        markerRoot.append(count);
-      }
 
       const thumbnail = document.createElement("img");
       thumbnail.alt = "";
@@ -178,14 +186,17 @@ export function InteractivePhotoMap({
 
       const icon = leaflet.divIcon({
         className: `photo-map-marker${activeLocationRef.current === photo.id ? " is-active" : ""}`,
-        html: markerRoot,
-        iconAnchor: [27, 27],
-        iconSize: [54, 54],
-        popupAnchor: [0, -31],
+        html: markerContent,
+        iconAnchor: [
+          photoMapMarkerSize / 2 - offset.x,
+          photoMapMarkerSize / 2 - offset.y,
+        ],
+        iconSize: [photoMapMarkerSize, photoMapMarkerSize],
+        popupAnchor: [offset.x, offset.y - photoMapMarkerSize / 2 - 6],
       });
 
       const marker = leaflet.marker([photo.latitude, photo.longitude], {
-        alt: `${photo.title}, ${photo.label}${group.length > 1 ? ` (${group.length})` : ""}`,
+        alt: `${photo.title}, ${photo.label}`,
         icon,
         keyboard: true,
         riseOnHover: true,
@@ -211,36 +222,15 @@ export function InteractivePhotoMap({
         event.stopPropagation();
         onPhotoOpenRef.current(photo.imageUrl, photo.title);
       });
-      if (group.length === 1) popup.append(preview);
+      popup.append(preview);
 
       const copy = document.createElement("div");
       const title = document.createElement("strong");
-      title.textContent = group.length > 1 ? photo.label : photo.title;
+      title.textContent = photo.title;
       const location = document.createElement("span");
       location.textContent = photo.label;
       copy.append(title, location);
       popup.append(copy);
-      if (group.length > 1) {
-        location.textContent = String(group.length);
-        const gallery = document.createElement("div");
-        gallery.className = "photo-map-popup-gallery";
-        for (const work of group) {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.title = work.title;
-          button.setAttribute("aria-label", work.title);
-          const image = document.createElement("img");
-          image.src = work.imageUrl;
-          image.alt = "";
-          image.loading = "lazy";
-          button.append(image);
-          button.addEventListener("click", () =>
-            onPhotoOpenRef.current(work.imageUrl, work.title),
-          );
-          gallery.append(button);
-        }
-        popup.append(gallery);
-      }
 
       marker.bindPopup(popup, {
         closeButton: true,
@@ -251,7 +241,8 @@ export function InteractivePhotoMap({
         autoPanPadding: [16, 16],
       });
       marker.on("click", () => {
-        openGroupRef.current = groupKey;
+        openPhotoRef.current = photo.photoId;
+        setSelectedPhoto(photo);
         onLocationSelectRef.current(photo.id);
         leafletMap.flyTo(
           [photo.latitude, photo.longitude],
@@ -262,7 +253,7 @@ export function InteractivePhotoMap({
         );
       });
       marker.addTo(layer);
-      if (openGroupRef.current === groupKey) marker.openPopup();
+      if (openPhotoRef.current === photo.photoId) marker.openPopup();
 
       const markerElement = marker.getElement();
       if (markerElement) {
@@ -276,7 +267,7 @@ export function InteractivePhotoMap({
       leafletMap.removeLayer(layer);
       updatingMarkers.current = false;
     };
-  }, [markers, mapVersion]);
+  }, [markers, mapVersion, selectedPhoto]);
 
   return (
     <div
