@@ -2752,7 +2752,7 @@ img {
 }
 .photo-map-marker__frame {
   background: transparent;
-  border: 0;
+  border: 2px solid #000;
   border-radius: 50%;
   box-shadow: none;
   filter: none;

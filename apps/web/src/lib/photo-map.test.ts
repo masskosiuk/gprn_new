@@ -113,3 +113,16 @@ test("photo thumbnails override Leaflet's auto-width reset without resizing map 
   assert.match(thumbnail[1]!, /\bobject-fit:\s*cover\s*;/);
   assert.match(thumbnail[1]!, /\bdisplay:\s*block\s*;/);
 });
+
+test("photo markers retain a black outline without a stacking shadow or halo", () => {
+  const css = readFileSync(
+    new URL("../app/[locale]/globals.css", import.meta.url),
+    "utf8",
+  );
+  const frame = css.match(/\.photo-map-marker__frame\s*\{([^}]+)\}/);
+  assert(frame);
+  assert.match(frame[1]!, /\bborder:\s*2px solid #000\s*;/);
+  assert.match(frame[1]!, /\bborder-radius:\s*50%\s*;/);
+  assert.match(frame[1]!, /\bbox-shadow:\s*none\s*;/);
+  assert.match(frame[1]!, /\bfilter:\s*none\s*;/);
+});
