@@ -1,7 +1,6 @@
 import { loadRuntimeEnv } from "@gprn/config";
 import { prisma } from "@gprn/db";
 import { Injectable } from "@nestjs/common";
-import { feedPhotoOrder } from "./gallery-order.js";
 import {
   discoverQuery,
   encodeFeedCursor,
@@ -24,7 +23,10 @@ export class DiscoverService {
   private readonly env = loadRuntimeEnv();
 
   async getOverview(mediaType?: string, query: Record<string, unknown> = {}) {
-    const { where, pageWhere, cursor } = discoverQuery(mediaType, query);
+    const { where, pageWhere, cursor, sort, orderBy } = discoverQuery(
+      mediaType,
+      query,
+    );
     const [batch, total, photographers] = await Promise.all([
       prisma.photo.findMany({
         include: {
@@ -40,7 +42,7 @@ export class DiscoverService {
           },
           provenance: true,
         },
-        orderBy: feedPhotoOrder,
+        orderBy,
         take: feedPageSize + 1,
         where: pageWhere,
       }),
@@ -82,12 +84,13 @@ export class DiscoverService {
           }),
     ]);
     const photos = batch.slice(0, feedPageSize);
+    const last = photos[photos.length - 1];
 
     return {
       total,
       nextCursor:
-        batch.length > feedPageSize
-          ? encodeFeedCursor(photos[photos.length - 1]!)
+        batch.length > feedPageSize && last
+          ? encodeFeedCursor(last, sort)
           : null,
       photographers: photographers.map((profile) => ({
         avatarUrl: profile.avatarAssetKey

@@ -135,6 +135,51 @@ test("a late page from a previous filter cannot overwrite newer search results",
     ["new"],
   );
 });
+
+test("changing sort discards the old cursor and ignores a late result from the other order", async () => {
+  let finish!: (value: unknown) => void;
+  const pending = new Promise((resolve) => {
+    finish = resolve;
+  });
+  const calls: string[] = [];
+  const f = fixture(["newest"], async (path) => {
+    calls.push(path);
+    return path.includes("sort=best")
+      ? photoPage(["highest", "lower"], "best-next")
+      : pending;
+  });
+  const old = f.run("newest-cursor");
+  f.context.feedQuery = "sort=best";
+  await f.run(undefined, true);
+  finish(photoPage(["stale-newest"], "wrong-cursor"));
+  await old;
+  assert.deepEqual(
+    f.context.serverPhotos.map((photo: any) => photo.id),
+    ["highest", "lower"],
+  );
+  assert.equal(f.context.cursor, "best-next");
+  assert.equal(calls[1], "/discover?sort=best");
+});
+
+test("newest remains the default while best is sent on every paginated request along with the other filters", () => {
+  const filters = {
+    kind: "PHOTO" as const,
+    category: "macro",
+    location: "kyiv",
+    from: "",
+    to: "",
+    search: "",
+  };
+  for (const sort of [undefined, "newest", "best"] as const) {
+    const query = new URLSearchParams(
+      feedQueryString({ ...filters, sort }, true),
+    );
+    assert.equal(query.get("sort"), sort === "best" ? "best" : null);
+    assert.equal(query.get("category"), "macro");
+    assert.equal(query.get("location"), "kyiv");
+    assert.equal(query.get("saleOnly"), "true");
+  }
+});
 test("repeating a cursor never starts an automatic request loop", async () => {
   const f = fixture(["a"], async () => photoPage(["b"], "same"));
   await f.run("same");

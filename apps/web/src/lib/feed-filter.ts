@@ -1,4 +1,7 @@
+import type { FeedSort } from "@gprn/domain";
+
 export interface FeedFilters {
+  sort?: FeedSort;
   kind: "ALL" | "PHOTO" | "VIDEO";
   category: string;
   location: string;

@@ -9,3 +9,4 @@ export * from "./directory-sources.js";
 export * from "./community-publishing.js";
 export * from "./upload-limits.js";
 export * from "./photo-categories.js";
+export * from "./feed-sort.js";

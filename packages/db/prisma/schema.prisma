@@ -572,6 +572,7 @@ model Photo {
   appliedProductId      String?             @db.Uuid
   portfolioPosition     Int?
   feedPosition          Int?
+  reviewScore           Decimal?            @db.Decimal(8, 6)
   appliedProduct        MarketplaceProduct? @relation("photo_applied_product", fields: [appliedProductId], references: [id], onDelete: SetNull)
   owner                 User                @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   category              Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -601,6 +602,8 @@ model Photo {
   @@index([ownerId, status])
   @@index([ownerId, portfolioPosition, createdAt(sort: Desc)])
   @@index([feedPosition, publishedAt(sort: Desc)])
+  @@index([reviewScore(sort: Desc), publishedAt(sort: Desc), id])
+  @@index([publishedAt(sort: Desc), id])
   @@index([appliedProductId])
   @@index([categoryId, status])
   @@index([visibility, status, publishedAt])

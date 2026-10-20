@@ -1,4 +1,5 @@
 import type { Prisma } from "@gprn/db";
+import { DEFAULT_FEED_SORT, FEED_SORTS, type FeedSort } from "@gprn/domain";
 import { BadRequestException } from "@nestjs/common";
 import { requireUuid } from "./community-policy.js";
 import { mediaCatalogFilter } from "./media-catalog.js";
@@ -6,9 +7,23 @@ import { mediaCatalogFilter } from "./media-catalog.js";
 export const feedPageSize = 48;
 type FeedAnchor = {
   id: string;
-  feedPosition: number | null;
   publishedAt: Date | null;
+  reviewScore?: { toString(): string } | string | null;
 };
+export interface FeedCursor {
+  id: string;
+  date: string | null;
+  sort: FeedSort;
+  score: string | null;
+}
+export const newestPhotoOrder = [
+  { publishedAt: { sort: "desc", nulls: "last" } },
+  { id: "asc" },
+] satisfies Prisma.PhotoOrderByWithRelationInput[];
+export const bestPhotoOrder = [
+  { reviewScore: { sort: "desc", nulls: "last" } },
+  ...newestPhotoOrder,
+] satisfies Prisma.PhotoOrderByWithRelationInput[];
 const invalid = () => new BadRequestException({ code: "INVALID_FEED_QUERY" });
 function text(query: Record<string, unknown>, key: string, max = 160) {
   const value = query[key];
@@ -22,18 +37,22 @@ function date(value: string) {
     throw invalid();
   return parsed;
 }
-export function encodeFeedCursor(photo: FeedAnchor) {
+export function encodeFeedCursor(
+  photo: FeedAnchor,
+  sort: FeedSort = DEFAULT_FEED_SORT,
+) {
   return Buffer.from(
     JSON.stringify({
       id: photo.id,
-      position: photo.feedPosition,
+      sort,
+      score: sort === "best" ? (photo.reviewScore?.toString() ?? null) : null,
       date: photo.publishedAt?.toISOString() ?? null,
     }),
   ).toString("base64url");
 }
-export function afterFeedCursor(cursor: string): Prisma.PhotoWhereInput {
+export function decodeFeedCursor(cursor: string, sort: FeedSort): FeedCursor {
   if (!/^[\w-]{1,300}$/.test(cursor)) throw invalid();
-  let input: { id: string; position: number | null; date: string | null };
+  let input: FeedCursor;
   try {
     input = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
   } catch {
@@ -42,36 +61,43 @@ export function afterFeedCursor(cursor: string): Prisma.PhotoWhereInput {
   if (
     !input ||
     typeof input.id !== "string" ||
-    (input.position !== null &&
-      (!Number.isInteger(input.position) ||
-        input.position < 0 ||
-        input.position > 2147483647)) ||
+    input.sort !== sort ||
+    (input.score !== null &&
+      (typeof input.score !== "string" ||
+        !/^(?:[1-9](?:\.\d{1,6})?|10(?:\.0{1,6})?)$/.test(input.score))) ||
+    (sort === "newest" && input.score !== null) ||
     (input.date !== null && typeof input.date !== "string")
   )
     throw invalid();
   requireUuid(input.id);
-  // PostgreSQL's descending date order puts null dates first, matching feedPhotoOrder.
-  const followingDate: Prisma.PhotoWhereInput =
-    input.date === null
-      ? {
-          OR: [
-            { publishedAt: { not: null } },
-            { publishedAt: null, id: { gt: input.id } },
-          ],
-        }
-      : {
-          OR: [
-            { publishedAt: { lt: date(input.date) } },
-            { publishedAt: date(input.date), id: { gt: input.id } },
-          ],
-        };
-  return input.position === null
-    ? { feedPosition: null, ...followingDate }
+  if (input.date !== null) date(input.date);
+  return input;
+}
+function afterFeedDate(input: FeedCursor): Prisma.PhotoWhereInput {
+  return input.date === null
+    ? { publishedAt: null, id: { gt: input.id } }
     : {
         OR: [
-          { feedPosition: { gt: input.position } },
-          { feedPosition: null },
-          { feedPosition: input.position, ...followingDate },
+          { publishedAt: { lt: date(input.date) } },
+          { publishedAt: null },
+          { publishedAt: date(input.date), id: { gt: input.id } },
+        ],
+      };
+}
+export function afterFeedCursor(
+  cursor: string,
+  sort: FeedSort = DEFAULT_FEED_SORT,
+): Prisma.PhotoWhereInput {
+  const input = decodeFeedCursor(cursor, sort);
+  const followingDate = afterFeedDate(input);
+  if (sort === "newest") return followingDate;
+  return input.score === null
+    ? { reviewScore: null, ...followingDate }
+    : {
+        OR: [
+          { reviewScore: { lt: input.score } },
+          { reviewScore: null },
+          { reviewScore: input.score, ...followingDate },
         ],
       };
 }
@@ -80,7 +106,11 @@ export function discoverQuery(
   query: Record<string, unknown>,
 ) {
   const media = mediaCatalogFilter(mediaType);
+  const sortValue = text(query, "sort", 16) || DEFAULT_FEED_SORT;
+  if (!FEED_SORTS.includes(sortValue as FeedSort)) throw invalid();
+  const sort = sortValue as FeedSort;
   const cursor = text(query, "cursor", 300);
+  const anchor = cursor ? decodeFeedCursor(cursor, sort) : null;
   const category = text(query, "category", 64);
   const location = text(query, "location", 100);
   const search = text(query, "search");
@@ -176,7 +206,10 @@ export function discoverQuery(
   };
   return {
     where,
+    sort,
     cursor,
-    pageWhere: cursor ? { AND: [where, afterFeedCursor(cursor)] } : where,
+    anchor,
+    orderBy: sort === "best" ? bestPhotoOrder : newestPhotoOrder,
+    pageWhere: anchor ? { AND: [where, afterFeedCursor(cursor, sort)] } : where,
   };
 }

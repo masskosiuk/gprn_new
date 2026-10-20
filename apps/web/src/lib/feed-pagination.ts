@@ -15,6 +15,7 @@ export function feedQueryString(
   searchCities: readonly string[] = [],
 ) {
   const query = new URLSearchParams();
+  if (filters.sort === "best") query.set("sort", filters.sort);
   if (filters.kind !== "ALL") query.set("mediaType", filters.kind);
   if (filters.category !== "all") query.set("category", filters.category);
   if (filters.location !== "all") query.set("location", filters.location);

@@ -12,6 +12,8 @@ import {
   demoChallengeWorks,
   EloRatingEngine,
   FREE_MEDIA_FILE_LIMIT,
+  DEFAULT_FEED_SORT,
+  type FeedSort,
 } from "@gprn/domain";
 import { getMessage, type MessageKey, type SupportedLocale } from "@gprn/i18n";
 import {
@@ -129,6 +131,7 @@ import { MyInteractions } from "./interactions";
 import { MyBattles } from "./my-battles";
 import { PhotoMasonry } from "./photo-masonry";
 import { feedQueryString, mergeFeedPage } from "../../lib/feed-pagination";
+import { FeedSortControl } from "./feed-sort-control";
 import { ServerExperts, ServerLeaderboard } from "./server-experts";
 import {
   filterStudioPrices,
@@ -2728,6 +2731,7 @@ export function HomeClient({
     useState<PhotoRecord | null>(null);
   const [photoDeleteBusy, setPhotoDeleteBusy] = useState(false);
   const [feedKind, setFeedKind] = useState<"ALL" | "PHOTO" | "VIDEO">("ALL");
+  const [feedSort, setFeedSort] = useState<FeedSort>(DEFAULT_FEED_SORT);
   const [feedStatus, setFeedStatus] = useState<"loading" | "ready" | "error">(
     initialPublicData.discover ? "ready" : "loading",
   );
@@ -2835,6 +2839,7 @@ export function HomeClient({
   const feedQuery = feedQueryString(
     {
       kind: feedKind,
+      sort: feedSort,
       category: categoryFilter,
       location: discoverLocationFilter,
       from: discoverDateFrom,
@@ -2899,6 +2904,9 @@ export function HomeClient({
     const searchParams = new URLSearchParams(window.location.search);
     const requestedCategory = searchParams.get("category");
     const requestedLocation = searchParams.get("location");
+    setFeedSort(
+      searchParams.get("sort") === "best" ? "best" : DEFAULT_FEED_SORT,
+    );
 
     if (
       requestedCategory &&
@@ -7653,6 +7661,7 @@ export function HomeClient({
                       setSearchTerm("");
                       setSaleOnly(false);
                       setFeedKind("ALL");
+                      setFeedSort(DEFAULT_FEED_SORT);
                       feedGenres.current = {
                         ALL: "all",
                         PHOTO: "all",
@@ -7662,6 +7671,7 @@ export function HomeClient({
                       url.searchParams.delete("media");
                       url.searchParams.delete("category");
                       url.searchParams.delete("location");
+                      url.searchParams.delete("sort");
                       window.history.replaceState(null, "", url);
                       setCategoryFilter("all");
                       setDiscoverLocationFilter("all");
@@ -7704,32 +7714,46 @@ export function HomeClient({
                   </div>
                 </div>
 
-                <label className="discover-filter-field">
-                  <span>{t("discover.location")}</span>
-                  <select
-                    onChange={(event) => {
-                      setDiscoverLocationFilter(
-                        event.target.value as LocationFilter,
-                      );
+                <div className="discover-filter-field">
+                  <FeedSortControl
+                    value={feedSort}
+                    locale={locale}
+                    onChange={(sort) => {
+                      setFeedSort(sort);
+                      const url = new URL(window.location.href);
+                      if (sort === DEFAULT_FEED_SORT)
+                        url.searchParams.delete("sort");
+                      else url.searchParams.set("sort", sort);
+                      window.history.replaceState(null, "", url);
                     }}
-                    value={discoverLocationFilter}
-                  >
-                    <option value="all">{t("map.location.all")}</option>
-                    {mapLocations
-                      .filter((location) =>
-                        serverPhotos.some(
-                          (photo) =>
-                            !photo.locationHidden &&
-                            photo.locationId === location.id,
-                        ),
-                      )
-                      .map((location) => (
-                        <option key={location.id} value={location.id}>
-                          {location.label}
-                        </option>
-                      ))}
-                  </select>
-                </label>
+                  />
+                  <label className="discover-filter-field">
+                    <span>{t("discover.location")}</span>
+                    <select
+                      onChange={(event) => {
+                        setDiscoverLocationFilter(
+                          event.target.value as LocationFilter,
+                        );
+                      }}
+                      value={discoverLocationFilter}
+                    >
+                      <option value="all">{t("map.location.all")}</option>
+                      {mapLocations
+                        .filter((location) =>
+                          serverPhotos.some(
+                            (photo) =>
+                              !photo.locationHidden &&
+                              photo.locationId === location.id,
+                          ),
+                        )
+                        .map((location) => (
+                          <option key={location.id} value={location.id}>
+                            {location.label}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                </div>
 
                 <fieldset className="discover-date-filter">
                   <legend>{t("discover.date")}</legend>
@@ -7817,10 +7841,7 @@ export function HomeClient({
               </div>
             ) : null}
             {visiblePhotos.length > 0 ? (
-              renderPhotoMasonry(
-                visiblePhotos,
-                isAdministrator ? "FEED" : undefined,
-              )
+              renderPhotoMasonry(visiblePhotos)
             ) : feedStatus === "ready" && !feedLoadingMore ? (
               <p className="empty-state">{t("discover.empty")}</p>
             ) : null}
