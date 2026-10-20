@@ -33,6 +33,7 @@ const categories = [
   "commercial",
   "product",
   "food",
+  "aerial",
 ];
 
 const featureFlags = [

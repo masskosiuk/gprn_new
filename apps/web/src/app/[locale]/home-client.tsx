@@ -190,6 +190,7 @@ type CategoryId =
   | "commercial"
   | "product"
   | "food"
+  | "aerial"
   | "boudoir"
   | "timelapse";
 type CategoryFilter = "all" | CategoryId;
@@ -1301,6 +1302,7 @@ const categoryFilters: readonly { id: CategoryFilter; key: MessageKey }[] = [
   { id: "commercial", key: "category.commercial" },
   { id: "product", key: "category.product" },
   { id: "food", key: "category.food" },
+  { id: "aerial", key: "category.aerial" },
   { id: "boudoir", key: "category.boudoir" },
 ];
 

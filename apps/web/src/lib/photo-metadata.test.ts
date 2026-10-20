@@ -49,7 +49,7 @@ test("photography genres are unique filters and retain their own IDs rather than
   const catalog = evaluate(
     `${declaration("categoryFilters")}\n${declaration("normalizeServerCategory")}\n({ filters: categoryFilters, normalize: normalizeServerCategory })`,
   );
-  for (const slug of ["fine-art", "commercial", "product", "food"]) {
+  for (const slug of ["fine-art", "commercial", "product", "food", "aerial"]) {
     assert.equal(
       catalog.filters.filter((item: any) => item.id === slug).length,
       1,
@@ -125,12 +125,30 @@ test("Russian, Ukrainian and English use clear distinct photography genre labels
     "Предметная съёмка",
   );
   assert.equal(exports.getMessage("ru", "category.food"), "Фуд-фотография");
+  assert.equal(exports.getMessage("ru", "category.aerial"), "Аэросъёмка");
   for (const locale of ["en", "ru", "uk"]) {
-    const labels = ["fine-art", "commercial", "product", "food"].map((slug) =>
-      exports.getMessage(locale, `category.${slug}`),
+    const labels = ["fine-art", "commercial", "product", "food", "aerial"].map(
+      (slug) => exports.getMessage(locale, `category.${slug}`),
     );
-    assert.equal(new Set(labels).size, 4);
+    assert.equal(new Set(labels).size, 5);
     assert(labels.every((label) => label && !label.startsWith("category.")));
+  }
+});
+
+test("aerial photography is available in seeds, marketplaces and an additive, repeat-safe migration", () => {
+  const seed = read("../../../../packages/db/prisma/seed.ts");
+  const migration = read(
+    "../../../../packages/db/prisma/migrations/0021_aerial_photography_category/migration.sql",
+  );
+  assert.equal(seed.match(/"aerial"/g)?.length, 1);
+  assert.match(
+    migration,
+    /'aerial',\s*'category\.aerial\.name',\s*true,\s*15,/,
+  );
+  assert.match(migration, /ON CONFLICT \("slug"\) DO NOTHING/);
+  assert.doesNotMatch(migration, /\b(?:DELETE|UPDATE|DROP|TRUNCATE)\b/i);
+  for (const file of ["server-marketplace.tsx", "digital-products.tsx"]) {
+    assert.equal(read(`../app/[locale]/${file}`).match(/"aerial"/g)?.length, 1);
   }
 });
 

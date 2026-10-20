@@ -320,6 +320,7 @@ function ProductEditor({
                     "commercial",
                     "product",
                     "food",
+                    "aerial",
                     "boudoir",
                     "cinematic",
                   ] as const

@@ -401,6 +401,7 @@ const baseMessages = {
   "category.commercial": "Commercial Photography",
   "category.product": "Product photography",
   "category.food": "Food photography",
+  "category.aerial": "Aerial photography",
   "category.boudoir": "Boudoir",
   "category.timelapse": "Timelapse",
 
@@ -1576,6 +1577,7 @@ const ruMessages: Partial<MessageMap> = {
   "category.commercial": "Коммерческая съёмка",
   "category.product": "Предметная съёмка",
   "category.food": "Фуд-фотография",
+  "category.aerial": "Аэросъёмка",
   "category.boudoir": "Будуар",
   "category.timelapse": "Таймлапс",
   "battles.scope.all": "Все батлы",
@@ -2462,6 +2464,7 @@ const ukMessages: Partial<MessageMap> = {
   "category.commercial": "Комерційна зйомка",
   "category.product": "Предметна зйомка",
   "category.food": "Фуд-фотографія",
+  "category.aerial": "Аерозйомка",
   "photo.retryGenres": "Повторити завантаження жанрів",
   "photo.genre": "Жанр фотографії",
   "photo.genreFailed": "Не вдалося зберегти жанр. Спробуйте ще раз.",

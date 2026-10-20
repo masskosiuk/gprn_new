@@ -150,6 +150,7 @@ export function ServerMarketplace({
               "commercial",
               "product",
               "food",
+              "aerial",
               "boudoir",
               "cinematic",
             ].map((key) => (
