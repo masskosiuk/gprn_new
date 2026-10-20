@@ -3,6 +3,12 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
+import { PHOTOGRAPHY_CATEGORY_SLUGS } from "@gprn/domain";
+import {
+  defaultPhotoCategories,
+  normalizePhotoCategory,
+  photoCategoryFilters,
+} from "./photo-categories.ts";
 
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
@@ -48,8 +54,14 @@ function evaluate(source: string, context: object = {}) {
 test("photography genres are unique filters and retain their own IDs rather than falling back to documentary", () => {
   const catalog = evaluate(
     `${declaration("categoryFilters")}\n${declaration("normalizeServerCategory")}\n({ filters: categoryFilters, normalize: normalizeServerCategory })`,
+    {
+      useMemo: (calculate: () => unknown) => calculate(),
+      photoCategoryFilters,
+      photoCategories: defaultPhotoCategories,
+      normalizePhotoCategory,
+    },
   );
-  for (const slug of ["fine-art", "commercial", "product", "food", "aerial"]) {
+  for (const slug of PHOTOGRAPHY_CATEGORY_SLUGS) {
     assert.equal(
       catalog.filters.filter((item: any) => item.id === slug).length,
       1,
@@ -67,31 +79,16 @@ test("existing databases and fresh installations receive the same active genres 
   const migration = read(
     "../../../../packages/db/prisma/migrations/0019_photography_categories/migration.sql",
   );
-  const catalog = ts.createSourceFile(
-    "seed.ts",
-    seed,
-    ts.ScriptTarget.Latest,
-    true,
-  );
-  const categories = catalog.statements
-    .filter(ts.isVariableStatement)
-    .flatMap((node) => [...node.declarationList.declarations])
-    .find(
-      (node) => ts.isIdentifier(node.name) && node.name.text === "categories",
-    );
-  assert(
-    categories?.initializer &&
-      ts.isArrayLiteralExpression(categories.initializer),
-  );
-  const slugs = categories.initializer.elements.map((node) =>
-    ts.isStringLiteral(node) ? node.text : "",
-  );
+  assert.match(seed, /const categories = PHOTOGRAPHY_CATEGORY_SLUGS;/);
   for (const [offset, slug] of [
     "fine-art",
     "commercial",
     "product",
   ].entries()) {
-    assert.equal(slugs.filter((item) => item === slug).length, 1);
+    assert.equal(
+      PHOTOGRAPHY_CATEGORY_SLUGS.filter((item) => item === slug).length,
+      1,
+    );
     assert.match(
       migration,
       new RegExp(
@@ -126,11 +123,24 @@ test("Russian, Ukrainian and English use clear distinct photography genre labels
   );
   assert.equal(exports.getMessage("ru", "category.food"), "Фуд-фотография");
   assert.equal(exports.getMessage("ru", "category.aerial"), "Аэросъёмка");
+  const requested = {
+    macro: "Макросъёмка",
+    fashion: "Фэшн и мода",
+    sports: "Спортивная",
+    astrophotography: "Астрофотография",
+    interior: "Интерьерная",
+    art: "Арт-фотография",
+    "black-and-white": "Чёрно-белая",
+    "still-life": "Натюрморт",
+  };
+  for (const [slug, label] of Object.entries(requested)) {
+    assert.equal(exports.getMessage("ru", `category.${slug}`), label);
+  }
   for (const locale of ["en", "ru", "uk"]) {
-    const labels = ["fine-art", "commercial", "product", "food", "aerial"].map(
-      (slug) => exports.getMessage(locale, `category.${slug}`),
+    const labels = PHOTOGRAPHY_CATEGORY_SLUGS.map((slug) =>
+      exports.getMessage(locale, `category.${slug}`),
     );
-    assert.equal(new Set(labels).size, 5);
+    assert.equal(new Set(labels).size, PHOTOGRAPHY_CATEGORY_SLUGS.length);
     assert(labels.every((label) => label && !label.startsWith("category.")));
   }
 });
@@ -140,7 +150,11 @@ test("aerial photography is available in seeds, marketplaces and an additive, re
   const migration = read(
     "../../../../packages/db/prisma/migrations/0021_aerial_photography_category/migration.sql",
   );
-  assert.equal(seed.match(/"aerial"/g)?.length, 1);
+  assert.match(seed, /const categories = PHOTOGRAPHY_CATEGORY_SLUGS;/);
+  assert.equal(
+    PHOTOGRAPHY_CATEGORY_SLUGS.filter((slug) => slug === "aerial").length,
+    1,
+  );
   assert.match(
     migration,
     /'aerial',\s*'category\.aerial\.name',\s*true,\s*15,/,
@@ -148,7 +162,10 @@ test("aerial photography is available in seeds, marketplaces and an additive, re
   assert.match(migration, /ON CONFLICT \("slug"\) DO NOTHING/);
   assert.doesNotMatch(migration, /\b(?:DELETE|UPDATE|DROP|TRUNCATE)\b/i);
   for (const file of ["server-marketplace.tsx", "digital-products.tsx"]) {
-    assert.equal(read(`../app/[locale]/${file}`).match(/"aerial"/g)?.length, 1);
+    assert.match(
+      read(`../app/[locale]/${file}`),
+      /\.\.\.PHOTOGRAPHY_CATEGORY_SLUGS/,
+    );
   }
 });
 
@@ -157,10 +174,146 @@ test("food photography is active in both fresh seeds and an additive, repeat-saf
   const migration = read(
     "../../../../packages/db/prisma/migrations/0020_food_photography_category/migration.sql",
   );
-  assert.equal(seed.match(/"food"/g)?.length, 1);
+  assert.match(seed, /const categories = PHOTOGRAPHY_CATEGORY_SLUGS;/);
+  assert.equal(
+    PHOTOGRAPHY_CATEGORY_SLUGS.filter((slug) => slug === "food").length,
+    1,
+  );
   assert.match(migration, /'food',\s*'category\.food\.name',\s*true,\s*14,/);
   assert.match(migration, /ON CONFLICT \("slug"\) DO NOTHING/);
   assert.doesNotMatch(migration, /\b(?:DELETE|UPDATE|DROP|TRUNCATE)\b/i);
+});
+
+test("the synchronized catalog preserves legacy order and adds each new database genre once without moving existing photos", () => {
+  assert.equal(
+    new Set(PHOTOGRAPHY_CATEGORY_SLUGS).size,
+    PHOTOGRAPHY_CATEGORY_SLUGS.length,
+  );
+  assert.deepEqual(PHOTOGRAPHY_CATEGORY_SLUGS.slice(0, 16), [
+    "portrait",
+    "landscape",
+    "street",
+    "architecture",
+    "automotive",
+    "fashion",
+    "travel",
+    "wildlife",
+    "documentary",
+    "night",
+    "boudoir",
+    "fine-art",
+    "commercial",
+    "product",
+    "food",
+    "aerial",
+  ]);
+  const migration = read(
+    "../../../../packages/db/prisma/migrations/0022_synchronized_photo_categories/migration.sql",
+  );
+  const rows = [
+    ...migration.matchAll(
+      /'([^']+)'::uuid, '([^']+)', 'category\.([^']+)\.name', true, (\d+),/g,
+    ),
+  ];
+  assert.deepEqual(
+    rows.map((row) => row[2]),
+    PHOTOGRAPHY_CATEGORY_SLUGS.slice(16),
+  );
+  assert.equal(new Set(rows.map((row) => row[1])).size, rows.length);
+  for (const row of rows) {
+    assert.equal(row[2], row[3]);
+    assert.equal(PHOTOGRAPHY_CATEGORY_SLUGS[Number(row[4])], row[2]);
+  }
+  assert.match(migration, /ON CONFLICT \("slug"\) DO NOTHING/);
+  assert.doesNotMatch(migration, /\b(?:DELETE|UPDATE|DROP|TRUNCATE)\b/i);
+  assert.doesNotMatch(migration, /'fashion'/);
+});
+
+test("feed filters use exactly the active server catalog, including future slugs, and never merge distinct genres", () => {
+  const active = [
+    { slug: "fashion" },
+    { slug: "macro" },
+    { slug: "future-genre" },
+  ];
+  assert.deepEqual(
+    photoCategoryFilters(active).map((item) => item.id),
+    ["all", ...active.map((item) => item.slug)],
+  );
+  assert.deepEqual(photoCategoryFilters([]), [
+    { id: "all", key: "category.all" },
+  ]);
+  assert.equal(normalizePhotoCategory("future-genre"), "future-genre");
+  assert.equal(normalizePhotoCategory(null), "documentary");
+  assert.equal(normalizePhotoCategory(""), "documentary");
+  assert.match(home, /onLoad=\{loadPhotoCategories\}/);
+});
+
+function categoryLoader(
+  apiRequest: (...args: any[]) => Promise<unknown>,
+  onCategories: (rows: unknown) => void,
+) {
+  return evaluate(
+    `${declaration("loadPhotoCategories")}\nloadPhotoCategories`,
+    {
+      useCallback: (fn: unknown) => fn,
+      photoCategoryRequest: { current: null },
+      apiRequest,
+      setPhotoCategories: onCategories,
+      AbortSignal,
+    },
+  );
+}
+
+test("feed and photo editor share a single catalog request and the same active genre result", async () => {
+  let requests = 0;
+  let finish!: (result: unknown) => void;
+  let filters = photoCategoryFilters(defaultPhotoCategories);
+  const load = categoryLoader(
+    (url, options) => {
+      requests++;
+      assert.equal(url, "/categories");
+      assert.equal(options.cache, "no-store");
+      assert(options.signal instanceof AbortSignal);
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    },
+    (rows: any) => {
+      filters = photoCategoryFilters(rows);
+    },
+  );
+  const feed = load();
+  const editor = load();
+  assert.equal(feed, editor);
+  const categories = [{ slug: "sports" }, { slug: "macro" }];
+  finish({ categories });
+  assert.equal(await editor, categories);
+  assert.deepEqual(
+    filters.map((item) => item.id),
+    ["all", "sports", "macro"],
+  );
+  assert.equal(await load(), categories);
+  assert.equal(requests, 1);
+});
+
+test("a failed shared catalog request can be retried without replacing filters with an empty catalog", async () => {
+  let requests = 0;
+  const updates: unknown[] = [];
+  const categories = [{ slug: "interior" }];
+  const load = categoryLoader(
+    async () => {
+      if (++requests === 1) throw new Error("Offline");
+      return { categories };
+    },
+    (rows) => {
+      updates.push(rows);
+    },
+  );
+  await assert.rejects(load(), /Offline/);
+  assert.deepEqual(updates, []);
+  assert.equal(await load(), categories);
+  assert.deepEqual(updates, [categories]);
+  assert.equal(requests, 2);
 });
 
 for (const hidden of [false, true])

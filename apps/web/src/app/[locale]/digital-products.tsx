@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ApiRequestError } from "../../lib/auth-client";
-import { paletteFromPixels } from "@gprn/domain";
+import { paletteFromPixels, PHOTOGRAPHY_CATEGORY_SLUGS } from "@gprn/domain";
 import Link from "next/link";
 import { PublicationTools } from "./community";
 
@@ -308,23 +308,7 @@ function ProductEditor({
                 onChange={(event) => setGenre(event.target.value)}
               >
                 <option value="">{t("category.all")}</option>
-                {(
-                  [
-                    "portrait",
-                    "landscape",
-                    "street",
-                    "nature",
-                    "architecture",
-                    "documentary",
-                    "fine-art",
-                    "commercial",
-                    "product",
-                    "food",
-                    "aerial",
-                    "boudoir",
-                    "cinematic",
-                  ] as const
-                ).map((key) => (
+                {[...PHOTOGRAPHY_CATEGORY_SLUGS, "cinematic"].map((key) => (
                   <option key={key} value={key}>
                     {key === "cinematic"
                       ? locale === "ru"

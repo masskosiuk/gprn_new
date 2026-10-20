@@ -11,7 +11,7 @@ export interface PhotoGenre {
 export function photoGenreLabel(slug: string, locale: SupportedLocale): string {
   const key = `category.${slug}` as MessageKey;
   const label = getMessage(locale, key);
-  return label !== key ? label : slug;
+  return label && label !== key ? label : slug;
 }
 
 export function PhotoCategoryEditor({

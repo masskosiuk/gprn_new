@@ -171,6 +171,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@gprn/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@gprn/rbac':
         specifier: workspace:*
         version: link:../rbac

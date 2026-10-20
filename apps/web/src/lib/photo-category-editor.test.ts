@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
+import { PHOTOGRAPHY_CATEGORY_SLUGS } from "@gprn/domain";
 
 const source = readFileSync(
   new URL("../app/[locale]/photo-category-editor.tsx", import.meta.url),
@@ -122,6 +123,33 @@ test("genre choices come from the server, and successful saving closes only the 
   await ui.submit();
   assert.deepEqual(saved, ["portrait"]);
   assert(ui.button("photo.changeGenre"));
+});
+
+test("all synchronized genres are selectable and an unknown server genre has a readable fallback", async () => {
+  const categories = [
+    ...PHOTOGRAPHY_CATEGORY_SLUGS.map((slug) => ({ slug })),
+    { slug: "future-genre" },
+  ];
+  const saved: string[] = [];
+  const ui = editor(
+    async () => categories,
+    async (slug) => {
+      saved.push(slug);
+    },
+  );
+  await ui.button("photo.changeGenre").props.onClick();
+  const options = ui
+    .find(ui.render(), (node) => node.type === "select")
+    .props.children.flat()
+    .filter(Boolean);
+  assert.deepEqual(
+    Array.from(options, (option: any) => option.props.value),
+    categories.map((category) => category.slug),
+  );
+  assert.equal(options.at(-1).props.children, "future-genre");
+  ui.choose("still-life");
+  await ui.submit();
+  assert.deepEqual(saved, ["still-life"]);
 });
 
 test("failed saving keeps the selected genre and allows retry or cancellation", async () => {

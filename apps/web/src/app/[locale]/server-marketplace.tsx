@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { getMessage, type MessageKey, type SupportedLocale } from "@gprn/i18n";
+import { PHOTOGRAPHY_CATEGORY_SLUGS } from "@gprn/domain";
 import { useCommunity } from "./community";
 import { marketplacePageSize } from "../../lib/marketplace-catalog";
 
@@ -139,21 +140,7 @@ export function ServerMarketplace({
             onChange={(e) => change(setGenre, e.target.value)}
           >
             <option value="">{t("category.all")}</option>
-            {[
-              "portrait",
-              "landscape",
-              "street",
-              "nature",
-              "architecture",
-              "documentary",
-              "fine-art",
-              "commercial",
-              "product",
-              "food",
-              "aerial",
-              "boudoir",
-              "cinematic",
-            ].map((key) => (
+            {[...PHOTOGRAPHY_CATEGORY_SLUGS, "cinematic"].map((key) => (
               <option key={key} value={key}>
                 {key === "cinematic"
                   ? text("Кино", "Cinema")

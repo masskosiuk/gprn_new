@@ -84,6 +84,7 @@ import {
   type FormEvent,
   type ReactNode,
   useEffect,
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -145,7 +146,13 @@ import {
   recoverableProfileImages,
 } from "../../lib/profile-source";
 import { PhotoTitleEditor } from "./photo-title-editor";
-import { PhotoCategoryEditor } from "./photo-category-editor";
+import { PhotoCategoryEditor, photoGenreLabel } from "./photo-category-editor";
+import {
+  defaultPhotoCategories,
+  photoCategoryFilters,
+  normalizePhotoCategory,
+  type PhotoCategory,
+} from "../../lib/photo-categories";
 import { PhotoLocationEditor } from "./photo-location-editor";
 import { ImageLightbox } from "./image-lightbox";
 import { ContentImage } from "./content-image";
@@ -177,22 +184,7 @@ type AdminAccountStatus =
   "ACTIVE" | "SUSPENDED" | "DELETION_REQUESTED" | "DELETED";
 type AdminAccountTier =
   "VIEWER" | "AMATEUR" | "BEGINNER" | "EXPERIENCED" | "PROFESSIONAL" | "STAR";
-type CategoryId =
-  | "street"
-  | "landscape"
-  | "portrait"
-  | "documentary"
-  | "fine-art"
-  | "architecture"
-  | "nature"
-  | "aiEdited"
-  | "aiGenerated"
-  | "commercial"
-  | "product"
-  | "food"
-  | "aerial"
-  | "boudoir"
-  | "timelapse";
+type CategoryId = string;
 type CategoryFilter = "all" | CategoryId;
 type CountryId =
   "france" | "iceland" | "japan" | "morocco" | "portugal" | "ukraine";
@@ -1287,29 +1279,6 @@ const sectionMeta: Record<Exclude<SectionId, "home">, SectionMeta> = {
     titleKey: "section.profile.title",
   },
 };
-
-const categoryFilters: readonly { id: CategoryFilter; key: MessageKey }[] = [
-  { id: "all", key: "category.all" },
-  { id: "street", key: "category.street" },
-  { id: "landscape", key: "category.landscape" },
-  { id: "portrait", key: "category.portrait" },
-  { id: "documentary", key: "category.documentary" },
-  { id: "fine-art", key: "category.fine-art" },
-  { id: "architecture", key: "category.architecture" },
-  { id: "nature", key: "category.nature" },
-  { id: "aiEdited", key: "category.aiEdited" },
-  { id: "aiGenerated", key: "category.aiGenerated" },
-  { id: "commercial", key: "category.commercial" },
-  { id: "product", key: "category.product" },
-  { id: "food", key: "category.food" },
-  { id: "aerial", key: "category.aerial" },
-  { id: "boudoir", key: "category.boudoir" },
-];
-
-const videoCategoryFilters: readonly {
-  id: CategoryFilter;
-  key: MessageKey;
-}[] = [...categoryFilters, { id: "timelapse", key: "category.timelapse" }];
 
 const battleFilters: readonly { id: BattleFilter; key: MessageKey }[] = [
   { id: "all", key: "battles.scope.all" },
@@ -2652,6 +2621,42 @@ export function HomeClient({
   >(null);
   const [adminFeedback, setAdminFeedback] = useState<Feedback | null>(null);
   const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfileForm);
+  const [photoCategories, setPhotoCategories] = useState(
+    defaultPhotoCategories,
+  );
+  const photoCategoryRequest = useRef<Promise<readonly PhotoCategory[]> | null>(
+    null,
+  );
+  const loadPhotoCategories = useCallback(() => {
+    if (!photoCategoryRequest.current) {
+      photoCategoryRequest.current = apiRequest<{
+        categories: readonly PhotoCategory[];
+      }>("/categories", {
+        cache: "no-store",
+        signal: AbortSignal.timeout(8000),
+      })
+        .then(({ categories }) => {
+          setPhotoCategories(categories);
+          return categories;
+        })
+        .catch((error: unknown) => {
+          photoCategoryRequest.current = null;
+          throw error;
+        });
+    }
+    return photoCategoryRequest.current;
+  }, []);
+  useEffect(() => {
+    void loadPhotoCategories().catch(() => {});
+  }, [loadPhotoCategories]);
+  const categoryFilters = useMemo(
+    () => photoCategoryFilters(photoCategories),
+    [photoCategories],
+  );
+  const videoCategoryFilters = useMemo(
+    () => [...categoryFilters, { id: "timelapse", key: "category.timelapse" }],
+    [categoryFilters],
+  );
   const [profileSettingsOpen, setProfileSettingsOpen] = useState(false);
   useEffect(() => {
     setProfileSettingsOpen(false);
@@ -7693,7 +7698,7 @@ export function HomeClient({
                         }}
                         type="button"
                       >
-                        {t(filter.key)}
+                        {photoGenreLabel(filter.id, locale)}
                       </button>
                     ))}
                   </div>
@@ -7932,7 +7937,7 @@ export function HomeClient({
                       }}
                       type="button"
                     >
-                      {t(filter.key)}
+                      {photoGenreLabel(filter.id, locale)}
                     </button>
                   ))}
                 </div>
@@ -8406,13 +8411,7 @@ export function HomeClient({
                   photo.serverBacked && (photo.isMine || isAdministrator),
                 )}
                 onBrowse={openDiscoverWithCategory}
-                onLoad={async () =>
-                  (
-                    await apiRequest<{ categories: { slug: string }[] }>(
-                      "/categories",
-                    )
-                  ).categories
-                }
+                onLoad={loadPhotoCategories}
                 onSave={(slug) => changeWorkCategory(photo.id, slug)}
               />
             </div>
@@ -11584,7 +11583,7 @@ export function HomeClient({
                           .filter((category) => category.id !== "all")
                           .map((category) => (
                             <option key={category.id} value={category.id}>
-                              {t(category.key)}
+                              {photoGenreLabel(category.id, locale)}
                             </option>
                           ))}
                       </select>
@@ -11896,7 +11895,7 @@ export function HomeClient({
                               .filter((category) => category.id !== "all")
                               .map((category) => (
                                 <option key={category.id} value={category.id}>
-                                  {t(category.key)}
+                                  {photoGenreLabel(category.id, locale)}
                                 </option>
                               ))}
                           </select>
@@ -12200,7 +12199,7 @@ export function HomeClient({
                             .filter((category) => category.id !== "all")
                             .map((category) => (
                               <option key={category.id} value={category.id}>
-                                {t(category.key)}
+                                {photoGenreLabel(category.id, locale)}
                               </option>
                             ))}
                         </select>
@@ -13982,17 +13981,7 @@ function getServerProfileLocationSelection(
 }
 
 function normalizeServerCategory(slug?: string | null): CategoryId {
-  const direct = categoryFilters.find((category) => category.id === slug);
-  if (direct && direct.id !== "all") return direct.id;
-
-  const aliases: Record<string, CategoryId> = {
-    automotive: "commercial",
-    fashion: "portrait",
-    night: "street",
-    travel: "documentary",
-    wildlife: "nature",
-  };
-  return slug ? (aliases[slug] ?? "documentary") : "documentary";
+  return normalizePhotoCategory(slug);
 }
 
 function inferLocationId(

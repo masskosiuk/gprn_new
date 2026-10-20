@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { permissions, rolePermissions, roles } from "@gprn/rbac";
+import { PHOTOGRAPHY_CATEGORY_SLUGS } from "@gprn/domain";
 
 const prisma = new PrismaClient();
 
@@ -17,24 +18,7 @@ const locales = [
   "tr",
 ];
 
-const categories = [
-  "portrait",
-  "landscape",
-  "street",
-  "architecture",
-  "automotive",
-  "fashion",
-  "travel",
-  "wildlife",
-  "documentary",
-  "night",
-  "boudoir",
-  "fine-art",
-  "commercial",
-  "product",
-  "food",
-  "aerial",
-];
+const categories = PHOTOGRAPHY_CATEGORY_SLUGS;
 
 const featureFlags = [
   "AI_ENABLED",
